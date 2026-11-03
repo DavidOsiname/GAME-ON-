@@ -10,7 +10,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 40
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -29,8 +29,9 @@ jobs:
           retention-days: 7
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
-        with:
           version: latest
+      - name: Start local Supabase stack
+        run: supabase start
       - name: Apply all Supabase migrations
         run: supabase db reset
       - name: Run pgTAP database security tests
