@@ -1,0 +1,23 @@
+# Build Game ON Creator as its own web application image.
+FROM node:22-bookworm-slim AS build
+WORKDIR /app
+ARG NEXT_PUBLIC_SUPABASE_URL
+ARG NEXT_PUBLIC_SUPABASE_ANON_KEY
+ARG NEXT_PUBLIC_STORE_URL
+ENV NEXT_PUBLIC_SUPABASE_URL=$NEXT_PUBLIC_SUPABASE_URL \
+    NEXT_PUBLIC_SUPABASE_ANON_KEY=$NEXT_PUBLIC_SUPABASE_ANON_KEY \
+    NEXT_PUBLIC_STORE_URL=$NEXT_PUBLIC_STORE_URL
+COPY . .
+RUN if [ -s package-lock.json ]; then npm ci --no-audit --no-fund; else npm install --no-audit --no-fund; fi
+RUN npm run build --workspace=@game-on/creator
+
+FROM node:22-bookworm-slim AS runner
+ENV NODE_ENV=production PORT=3001 HOSTNAME=0.0.0.0
+WORKDIR /app
+COPY --from=build --chown=node:node /app/node_modules ./node_modules
+COPY --from=build --chown=node:node /app/package.json ./package.json
+COPY --from=build --chown=node:node /app/apps/creator ./apps/creator
+WORKDIR /app/apps/creator
+USER node
+EXPOSE 3001
+CMD ["node", "/app/node_modules/next/dist/bin/next", "start", "-p", "3001", "-H", "0.0.0.0"]

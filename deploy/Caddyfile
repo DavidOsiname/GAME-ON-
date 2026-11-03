@@ -1,0 +1,9 @@
+{$STORE_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy store:3000
+}
+
+{$CREATOR_DOMAIN} {
+    encode zstd gzip
+    reverse_proxy creator:3001
+}
