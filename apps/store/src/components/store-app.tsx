@@ -109,7 +109,8 @@ export default function StoreApp() {
   }, [selected]);
 
   useEffect(() => {
-    if (!user || user.id.startsWith("demo-") || !supabase) { setPurchases([]); return; }
+    const client = supabase;
+    if (!user || user.id.startsWith("demo-") || !client) { setPurchases([]); return; }
     let active = true;
     setPurchasesLoading(true);
     client.auth.getSession().then(async ({ data }) => {
@@ -137,7 +138,7 @@ export default function StoreApp() {
       return;
     }
     let active = true;
-    supabase.auth.getSession().then(async ({ data }) => {
+    client.auth.getSession().then(async ({ data }) => {
       const token = data.session?.access_token;
       if (!token) return;
       const response = await fetch("/api/checkout/verify", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ reference }), cache: "no-store" });
