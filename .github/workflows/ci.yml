@@ -20,13 +20,15 @@ jobs:
           node-version: 22
       - name: Install workspace dependencies and generate genuine lockfile
         run: npm install --no-audit --no-fund
+      - name: Run strict release configuration preflight
+        run: npm run release:preflight
       - name: Upload generated root lockfile for review
         uses: actions/upload-artifact@v4
         with:
           name: game-on-root-package-lock
           path: package-lock.json
           if-no-files-found: error
-          retention-days: 7
+          retention-days: 14
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
