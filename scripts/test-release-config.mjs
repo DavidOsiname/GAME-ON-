@@ -20,11 +20,12 @@ const expectedChecks = [
 ];
 const missing = expectedChecks.filter((check) => !output.includes(check));
 if (missing.length) {
-  console.error(`Release-config checks missing expected results:\n${missing.join('\n')}`);
+  console.error(`Release-config checks missing expected results:\n${missing.join('\n')}\n\nVerifier output:\n${output}`);
   process.exit(1);
 }
-if (!output.includes('passed') || !output.includes('0 blocked')) {
-  console.error('Release-config verifier did not report an unblocked pass summary.');
+const summary = output.match(/Release configuration:\s*(\d+)\s+passed,\s*(\d+)\s+blocked\./i);
+if (!summary || Number(summary[2]) !== 0) {
+  console.error(`Release-config verifier did not report zero blockers.\n\nVerifier output:\n${output}`);
   process.exit(1);
 }
-console.log(`Release-config verification test passed (${expectedChecks.length} checks observed; no release-config blockers).`);
+console.log(`Release-config verification test passed (${expectedChecks.length} checks observed; ${summary[1]} passed, 0 blocked).`);
