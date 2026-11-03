@@ -1,4 +1,6 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+
+type StoreSupabaseClient = SupabaseClient<any, "public", "public", any, any>;
 import { timingSafeEqual, createHmac } from "node:crypto";
 
 import { paystackConfiguration } from "./payment-config.mjs";
@@ -34,7 +36,7 @@ export function validatePaystackSignature(rawBody: string, signature: string, se
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-export async function verifyPaystackAndFulfil(reference: string, admin: ReturnType<typeof createClient>) {
+export async function verifyPaystackAndFulfil(reference: string, admin: StoreSupabaseClient) {
   const paymentConfig = paystackConfiguration();
   if (!paymentConfig.enabled) throw new Error(paymentConfig.reason);
   const secret = paymentConfig.secret;
