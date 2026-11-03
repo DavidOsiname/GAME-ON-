@@ -1,0 +1,109 @@
+name: game-on
+
+services:
+  store:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.store
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_STORE_URL: ${NEXT_PUBLIC_STORE_URL}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL}
+    env_file:
+      - deploy/store.env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${STORE_BIND_ADDRESS:-127.0.0.1}:${STORE_PORT:-3000}:3000"
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - app
+
+  creator:
+    build:
+      context: .
+      dockerfile: deploy/Dockerfile.creator
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_STORE_URL: ${NEXT_PUBLIC_STORE_URL}
+    env_file:
+      - deploy/creator.env
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      HOSTNAME: "0.0.0.0"
+    ports:
+      - "${CREATOR_BIND_ADDRESS:-127.0.0.1}:${CREATOR_PORT:-3001}:3001"
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3001/api/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
+    networks:
+      - app
+
+  caddy:
+    image: caddy:2-alpine
+    environment:
+      STORE_DOMAIN: ${STORE_DOMAIN}
+      CREATOR_DOMAIN: ${CREATOR_DOMAIN}
+    ports:
+      - "80:80"
+      - "443:443"
+    restart: unless-stopped
+    init: true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - app
+    depends_on:
+      store:
+        condition: service_healthy
+      creator:
+        condition: service_healthy
+
+networks:
+  app:
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:
