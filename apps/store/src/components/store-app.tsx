@@ -112,7 +112,7 @@ export default function StoreApp() {
     if (!user || user.id.startsWith("demo-") || !supabase) { setPurchases([]); return; }
     let active = true;
     setPurchasesLoading(true);
-    supabase.auth.getSession().then(async ({ data }) => {
+    client.auth.getSession().then(async ({ data }) => {
       const token = data.session?.access_token;
       if (!token) { if (active) setPurchasesLoading(false); return; }
       const response = await fetch("/api/orders", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
@@ -130,7 +130,8 @@ export default function StoreApp() {
     const params = new URLSearchParams(window.location.search);
     if (params.get("payment") !== "return" || !params.get("reference")) return;
     const reference = params.get("reference") || "";
-    if (!user || user.id.startsWith("demo-") || !supabase) {
+    const client = supabase;
+    if (!user || user.id.startsWith("demo-") || !client) {
       setPurchaseMessage("Sign in to the same Game ON account used at checkout to verify your purchase.");
       setTab("purchases");
       return;
@@ -148,7 +149,7 @@ export default function StoreApp() {
       const ordersResponse = await fetch("/api/orders", { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" });
       const ordersPayload = await ordersResponse.json().catch(() => ({}));
       if (ordersResponse.ok) setPurchases((ordersPayload.orders || []) as PurchaseOrder[]);
-      const libraryResponse = await supabase.from("user_library").select("game_id").eq("user_id", user.id);
+      const libraryResponse = await client.from("user_library").select("game_id").eq("user_id", user.id);
       if (!libraryResponse.error) setLibrary(libraryResponse.data.map((row) => String(row.game_id)));
     });
     return () => { active = false; };
