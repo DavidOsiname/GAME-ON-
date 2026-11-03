@@ -10,7 +10,7 @@ permissions:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 35
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -18,8 +18,23 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install workspace dependencies
+      - name: Install workspace dependencies and generate genuine lockfile
         run: npm install --no-audit --no-fund
+      - name: Upload generated root lockfile for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-on-root-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 7
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Apply all Supabase migrations
+        run: supabase db reset
+      - name: Run pgTAP database security tests
+        run: supabase test db
       - name: Run automated safety and source tests
         run: npm test
       - name: Type-check both apps
