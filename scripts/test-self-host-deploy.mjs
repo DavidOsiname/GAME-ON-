@@ -34,7 +34,7 @@ check(storeEnv.includes('GAMEON_PAYMENTS_ENABLED=false') && creatorEnv.includes(
 check(!/^NEXT_PUBLIC_.*(?:SERVICE_ROLE|SECRET|PAYSTACK_SECRET)/m.test(`${storeEnv}\n${creatorEnv}`), 'No server-only payment or Supabase secret is exposed as NEXT_PUBLIC.');
 check(ci.includes('actions/upload-artifact@v4') && ci.includes('package-lock.json') && ci.includes('retention-days: 14'), 'CI stores the registry-generated root lockfile as a 14-day artifact.');
 check(ci.includes('npm run release:preflight'), 'CI runs strict release configuration preflight.');
-check(ci.includes('gh pr create') && ci.includes('contents: write') && ci.includes('pull-requests: write'), 'First network-enabled CI run can push and open a pull request for the genuine lockfile.');
+check(ci.includes('contents: read') && !ci.includes('contents: write') && !ci.includes('pull-requests: write') && !ci.includes('gh pr create'), 'CI keeps repository permissions read-only and leaves lockfile promotion to reviewed changes.');
 check(compose.includes('image: caddy:2-alpine') && compose.includes('443:443') && compose.includes('80:80'), 'Compose includes a dedicated public HTTPS reverse proxy.');
 check(caddyfile.includes('reverse_proxy store:3000') && caddyfile.includes('reverse_proxy creator:3001'), 'Caddy routes the two apps to separate internal services.');
 check(compose.includes('caddy_data:/data') && compose.includes('caddy_config:/config'), 'Caddy certificate and configuration data persist across restarts.');
