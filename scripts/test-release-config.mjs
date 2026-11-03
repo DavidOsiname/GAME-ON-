@@ -1,4 +1,3 @@
-import fs from 'node:fs';
 import { spawnSync } from 'node:child_process';
 
 const result = spawnSync(process.execPath, ['scripts/verify-release-config.mjs'], { encoding: 'utf8' });
@@ -16,15 +15,16 @@ const expectedChecks = [
   'CI applies migrations and runs pgTAP database tests.',
   'ClamAV is exposed only on the private Compose network.',
   'Scanner container runs as a non-root user.',
-  'Root package-lock.json is missing;'
+  'CI exports its genuine generated root lockfile artifact.',
+  'Root package-lock.json is present.'
 ];
 const missing = expectedChecks.filter((check) => !output.includes(check));
 if (missing.length) {
   console.error(`Release-config checks missing expected results:\n${missing.join('\n')}`);
   process.exit(1);
 }
-if (!output.includes('passed') || !output.includes('blocked')) {
-  console.error('Release-config verifier did not report a pass/block summary.');
+if (!output.includes('passed') || !output.includes('0 blocked')) {
+  console.error('Release-config verifier did not report an unblocked pass summary.');
   process.exit(1);
 }
-console.log(`Release-config verification test passed (${expectedChecks.length} checks observed).`);
+console.log(`Release-config verification test passed (${expectedChecks.length} checks observed; no release-config blockers).`);
