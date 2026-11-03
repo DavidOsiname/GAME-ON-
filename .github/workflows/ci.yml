@@ -19,7 +19,12 @@ jobs:
         with:
           node-version: 22
       - name: Install workspace dependencies and generate genuine lockfile
-        run: npm install --no-audit --no-fund
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci --no-audit --no-fund
+          else
+            npm install --no-audit --no-fund
+          fi
       - name: Run strict release configuration preflight
         run: npm run release:preflight
       - name: Upload generated root lockfile for review
