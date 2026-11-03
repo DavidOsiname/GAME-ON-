@@ -45,8 +45,9 @@ The malware scanner remains a separate private service. After Creator has its pu
 
 ## Dependency lockfile recovery (network-restricted workstation)
 
-This workspace currently cannot resolve public package-registry DNS (`EAI_AGAIN`), so it must not invent a `package-lock.json`. The GitHub Actions workflow installs the npm workspaces on a network-enabled GitHub-hosted runner, saves the genuine generated `package-lock.json` as the artifact `game-on-package-lock-<commit-sha>`, and automatically pushes a branch and opens a pull request containing that lockfile on the first bootstrap run. After the pull request is merged, subsequent installs use `npm ci`. If repository policy prevents Actions from opening pull requests, the workflow still pushes the branch and uploads the artifact; open the pull request manually from the generated branch.
+The first network-enabled GitHub Actions run installs the two npm workspaces and generates the genuine root `package-lock.json`. The workflow runs the strict release preflight and uploads the generated file as the `game-on-root-package-lock` artifact for 14 days. It deliberately has read-only repository permissions: it does not push commits or create pull requests automatically.
 
+To finish the bootstrap, open the successful validation run in GitHub Actions, download the `game-on-root-package-lock` artifact, extract `package-lock.json` into the repository root, and commit that file to the feature branch for review. The next CI run uses `npm ci`; both production Dockerfiles also prefer `npm ci` when the committed lockfile is present. Keep the lockfile committed and regenerate it only through a reviewed dependency update.
 ## Rollback
 
 Use the Git commit/image tag that was previously verified, then run `docker compose up -d --no-build`. Keep database backups and never roll back a database migration by deleting production tables. Database restore and migration rollback must follow the reviewed Supabase recovery procedure.
