@@ -84,5 +84,6 @@ jobs:
           CLAMAV_PORT=3310
           EOF
           docker compose --env-file deploy/store.env --env-file deploy/creator.env config --quiet
-          docker compose --env-file deploy/store.env --env-file deploy/creator.env build --parallel 1 store creator
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env build store
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env build creator
           docker compose -f services/build-scanner/compose.yaml build build-scanner
