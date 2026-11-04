@@ -53,7 +53,7 @@ type BuildRow = {
   created_at: string;
 };
 
-type Section = "overview" | "games" | "submit" | "builds" | "studio";
+type Section = "overview" | "games" | "submit" | "builds" | "analytics" | "sales" | "notifications" | "studio";
 type PickedBuild = { uri: string; name: string; size: number };
 type AnalyticsRow = {
   game_id: string; game_title: string; game_status: string;
