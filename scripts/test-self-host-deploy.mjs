@@ -39,7 +39,7 @@ check(ci.includes('contents: read') && !ci.includes('contents: write') && ci.inc
 check(compose.includes('image: caddy:2-alpine') && compose.includes('443:443') && compose.includes('80:80'), 'Compose includes a dedicated public HTTPS reverse proxy.');
 check(caddyfile.includes('reverse_proxy store:3000') && caddyfile.includes('reverse_proxy creator:3001'), 'Caddy routes the two apps to separate internal services.');
 check(compose.includes('caddy_data:/data') && compose.includes('caddy_config:/config'), 'Caddy certificate and configuration data persist across restarts.');
-check(ci.includes('Build separate production deployment containers') && ci.includes('docker compose --env-file deploy/store.env --env-file deploy/creator.env build --parallel 1 store creator') && ci.includes('docker compose -f services/build-scanner/compose.yaml build build-scanner'), 'CI builds the separate Store, Creator and private scanner production images.');
+check(ci.includes('Build separate production deployment containers') && ci.includes('docker compose --env-file deploy/store.env --env-file deploy/creator.env build store') && ci.includes('docker compose --env-file deploy/store.env --env-file deploy/creator.env build creator') && ci.includes('docker compose -f services/build-scanner/compose.yaml build build-scanner'), 'CI builds the separate Store, Creator and private scanner production images one at a time.');
 
 const failures = checks.filter((entry) => !entry.ok);
 for (const entry of checks) console.log(`${entry.ok ? 'PASS' : 'FAIL'} ${entry.label}`);
