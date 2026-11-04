@@ -45,11 +45,17 @@ jobs:
             echo "Root package-lock.json is already committed."
             exit 0
           fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package-lock.json
-          git commit -m "Add reproducible npm workspace lockfile"
-          git push origin "HEAD:${BRANCH_NAME}"
+          LOCKFILE_COPY="${RUNNER_TEMP}/game-on-package-lock.json"
+          BRANCH_WORKTREE="${RUNNER_TEMP}/game-on-pr-branch"
+          cp package-lock.json "${LOCKFILE_COPY}"
+          git fetch origin "+refs/heads/${BRANCH_NAME}:refs/remotes/origin/${BRANCH_NAME}"
+          git worktree add "${BRANCH_WORKTREE}" "refs/remotes/origin/${BRANCH_NAME}"
+          cp "${LOCKFILE_COPY}" "${BRANCH_WORKTREE}/package-lock.json"
+          git -C "${BRANCH_WORKTREE}" config user.name "github-actions[bot]"
+          git -C "${BRANCH_WORKTREE}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C "${BRANCH_WORKTREE}" add package-lock.json
+          git -C "${BRANCH_WORKTREE}" commit -m "Add reproducible npm workspace lockfile"
+          git -C "${BRANCH_WORKTREE}" push origin "HEAD:${BRANCH_NAME}"
           gh workflow run ci.yml --ref "${BRANCH_NAME}"
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
