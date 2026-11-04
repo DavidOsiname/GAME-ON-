@@ -45,3 +45,5 @@ jobs:
 
       - name: Run Expo project diagnostics
         run: npx expo-doctor
+      - name: Bundle GAME ON STORE for Android and iOS
+        run: npx expo export --platform android --platform ios --output-dir dist
