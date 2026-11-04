@@ -33,8 +33,8 @@ check(deployScript.includes('STORE_DOMAIN') && deployScript.includes('CREATOR_DO
 check(storeEnv.includes('GAMEON_PAYMENTS_ENABLED=false') && creatorEnv.includes('GAMEON_PAYMENTS_ENABLED=false'), 'Both deployment environment templates keep payments disabled.');
 check(!/^NEXT_PUBLIC_.*(?:SERVICE_ROLE|SECRET|PAYSTACK_SECRET)/m.test(`${storeEnv}\n${creatorEnv}`), 'No server-only payment or Supabase secret is exposed as NEXT_PUBLIC.');
 check(ci.includes('actions/upload-artifact@v4') && ci.includes('package-lock.json') && ci.includes('retention-days: 14'), 'CI stores the registry-generated root lockfile as a 14-day artifact.');
-const rootCiInstall = /- name: Install locked workspace dependencies\\s+run: npm ci --no-audit --no-fund/.test(ci);
-const mobileCiInstall = /- name: Install GAME ON STORE native dependencies\\s+working-directory: mobile\\/store\\s+run: npm install --no-audit --no-fund/.test(ci);
+const rootCiInstall = ci.includes('name: Install locked workspace dependencies') && ci.includes('npm ci --no-audit --no-fund');
+const mobileCiInstall = ci.includes('name: Install GAME ON STORE native dependencies') && ci.includes('working-directory: mobile/store') && ci.includes('npm install --no-audit --no-fund');
 check(rootCiInstall && mobileCiInstall, 'CI installs the root project from its committed lockfile and separately installs the native Store workspace.');
 check(ci.includes('npm run release:preflight'), 'CI runs strict release configuration preflight.');
 check(ci.includes('contents: read') && !ci.includes('contents: write') && rootCiInstall && mobileCiInstall && !ci.includes('git push origin') && !ci.includes('gh workflow run'), 'CI keeps repository permissions read-only while validating the locked root and native Store dependencies.');
