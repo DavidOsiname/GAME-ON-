@@ -167,11 +167,6 @@ export default function App() {
           setCatalogMessage(liveGames.length ? "LIVE GAME ON CATALOGUE" : "YOUR GAME ON CATALOGUE IS READY FOR APPROVED GAMES");
         }
         setCatalogBusy(false);
-      })
-      .catch(() => {
-        if (!alive) return;
-        setCatalogMessage("Connection issue. Showing sample listings instead.");
-        setCatalogBusy(false);
       });
 
     return () => { alive = false; };
@@ -404,7 +399,7 @@ export default function App() {
             />
           )}
           ListEmptyComponent={
-            tab === "library" || tab === "wishlist" ? null : (
+            tab === "library" || tab === "wishlist" ? undefined : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>⌕</Text>
                 <Text style={styles.emptyTitle}>NO GAMES FOUND</Text>
