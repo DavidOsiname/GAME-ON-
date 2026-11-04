@@ -1,0 +1,84 @@
+name: GAME ON CREATOR mobile
+
+on:
+  push:
+    branches:
+      - main
+      - import/game-on-mvp-0.9.10
+    paths:
+      - "mobile/creator/**"
+      - ".github/workflows/mobile-creator.yml"
+  pull_request:
+    paths:
+      - "mobile/creator/**"
+      - ".github/workflows/mobile-creator.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Expo checks and Android debug APK
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/creator
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: \${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: \${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+      EXPO_PUBLIC_CREATOR_API_URL: \${{ secrets.EXPO_PUBLIC_CREATOR_API_URL }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+          cache-dependency-path: mobile/creator/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check Expo SDK dependency compatibility
+        run: npx expo install --check
+
+      - name: Type-check Creator mobile app
+        run: npm run typecheck
+
+      - name: Run Expo project diagnostics
+        run: npx expo-doctor
+
+      - name: Bundle Creator for Android and iOS
+        run: npx expo export --platform android --platform ios --output-dir dist
+
+      - name: Set up Java for Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate Android native project
+        run: npx expo prebuild --platform android --no-install --non-interactive
+
+      - name: Bundle JavaScript into installable debug APK
+        run: |
+          if grep -q "debuggableVariants" android/app/build.gradle; then
+            sed -i 's/debuggableVariants = .*/debuggableVariants = []/' android/app/build.gradle
+          else
+            sed -i '/react {/a\    debuggableVariants = []' android/app/build.gradle
+          fi
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload GAME ON CREATOR Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-on-creator-android-debug-apk
+          path: mobile/creator/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
