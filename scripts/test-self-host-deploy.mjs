@@ -33,9 +33,11 @@ check(deployScript.includes('STORE_DOMAIN') && deployScript.includes('CREATOR_DO
 check(storeEnv.includes('GAMEON_PAYMENTS_ENABLED=false') && creatorEnv.includes('GAMEON_PAYMENTS_ENABLED=false'), 'Both deployment environment templates keep payments disabled.');
 check(!/^NEXT_PUBLIC_.*(?:SERVICE_ROLE|SECRET|PAYSTACK_SECRET)/m.test(`${storeEnv}\n${creatorEnv}`), 'No server-only payment or Supabase secret is exposed as NEXT_PUBLIC.');
 check(ci.includes('actions/upload-artifact@v4') && ci.includes('package-lock.json') && ci.includes('retention-days: 14'), 'CI stores the registry-generated root lockfile as a 14-day artifact.');
-check(ci.includes('npm ci --no-audit --no-fund') && !ci.includes('npm install --no-audit --no-fund'), 'CI installs exactly from the committed npm lockfile with npm ci.');
+const rootCiInstall = /- name: Install locked workspace dependencies\\s+run: npm ci --no-audit --no-fund/.test(ci);
+const mobileCiInstall = /- name: Install GAME ON STORE native dependencies\\s+working-directory: mobile\\/store\\s+run: npm install --no-audit --no-fund/.test(ci);
+check(rootCiInstall && mobileCiInstall, 'CI installs the root project from its committed lockfile and separately installs the native Store workspace.');
 check(ci.includes('npm run release:preflight'), 'CI runs strict release configuration preflight.');
-check(ci.includes('contents: read') && !ci.includes('contents: write') && ci.includes('npm ci --no-audit --no-fund') && !ci.includes('npm install') && !ci.includes('git push origin') && !ci.includes('gh workflow run'), 'CI installs from the committed lockfile with npm ci and keeps repository permissions read-only.');
+check(ci.includes('contents: read') && !ci.includes('contents: write') && rootCiInstall && mobileCiInstall && !ci.includes('git push origin') && !ci.includes('gh workflow run'), 'CI keeps repository permissions read-only while validating the locked root and native Store dependencies.');
 check(compose.includes('image: caddy:2-alpine') && compose.includes('443:443') && compose.includes('80:80'), 'Compose includes a dedicated public HTTPS reverse proxy.');
 check(caddyfile.includes('reverse_proxy store:3000') && caddyfile.includes('reverse_proxy creator:3001'), 'Caddy routes the two apps to separate internal services.');
 check(compose.includes('caddy_data:/data') && compose.includes('caddy_config:/config'), 'Caddy certificate and configuration data persist across restarts.');
