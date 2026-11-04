@@ -6,7 +6,6 @@
     "orientation": "portrait",
     "scheme": "gameonstore",
     "userInterfaceStyle": "dark",
-    "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.gameon.store"
