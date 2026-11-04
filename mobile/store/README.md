@@ -9,6 +9,8 @@ This is the first native mobile client in the GAME ON ecosystem. It is a separat
 - Game detail view
 - Local wishlist, with Supabase sync for signed-in users
 - Supabase email sign-up/sign-in and persistent mobile sessions
+- Account-linked player library, loaded from the user's own `user_library` rows
+- Add-to-library flow for published free titles, subject to database RLS; paid titles cannot be self-granted
 - Explicit demo data when no live Supabase project is configured
 - EAS profiles for internal Android APK builds and iOS builds
 
