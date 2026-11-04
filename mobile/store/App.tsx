@@ -627,6 +627,7 @@ export default function App() {
     setLibraryGames((current) =>
       current.some((item) => item.id === game.id) ? current : [game, ...current]
     );
+    if (selected?.id === game.id) setCanReview(true);
     Alert.alert(
       "Added to your library",
       `${game.title} is now in your Game ON library. Secure game downloads will be enabled when the delivery service is connected.`
