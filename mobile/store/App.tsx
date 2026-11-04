@@ -20,11 +20,41 @@ import type { User } from "@supabase/supabase-js";
 import { demoGames, mapGame, type Game } from "./src/data/demo-games";
 import { isSupabaseConfigured, supabase } from "./src/lib/supabase";
 
-type Tab = "discover" | "library" | "wishlist";
+type Tab = "discover" | "library" | "wishlist" | "purchases" | "notifications";
 type AuthMode = "signin" | "signup";
+type PlayerPurchase = {
+  id: string;
+  reference: string;
+  game_title_snapshot: string;
+  amount_minor: number | string;
+  currency: string;
+  status: string;
+  created_at: string;
+  paid_at: string | null;
+  refund_status?: string | null;
+  refund_reason?: string | null;
+};
+type PlayerNotification = {
+  id: string;
+  notification_type: string;
+  title: string;
+  message: string;
+  read_at: string | null;
+  created_at: string;
+};
 
 const GENRES = ["All", "Action", "Adventure", "Casual", "Puzzle", "Racing", "Strategy"];
 const WISHLIST_KEY = "gameon.store.wishlist.v1";
+
+function dateLabel(value: string): string {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "Date unavailable";
+  return new Intl.DateTimeFormat("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric"
+  }).format(parsed);
+}
 
 function money(amountMinor: number | null, currency: string): string {
   if (amountMinor === null) return "Free";
@@ -100,6 +130,11 @@ export default function App() {
   const [libraryBusy, setLibraryBusy] = useState(false);
   const [libraryError, setLibraryError] = useState("");
   const [libraryRefresh, setLibraryRefresh] = useState(0);
+  const [purchases, setPurchases] = useState<PlayerPurchase[]>([]);
+  const [notifications, setNotifications] = useState<PlayerNotification[]>([]);
+  const [activityBusy, setActivityBusy] = useState(false);
+  const [activityError, setActivityError] = useState("");
+  const [activityRefresh, setActivityRefresh] = useState(0);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [query, setQuery] = useState("");
@@ -254,12 +289,95 @@ export default function App() {
     return () => { alive = false; };
   }, [tab, user, libraryRefresh]);
 
+  useEffect(() => {
+    if (tab !== "purchases" && tab !== "notifications") return;
+    if (!supabase || !user) {
+      setPurchases([]);
+      setNotifications([]);
+      setActivityBusy(false);
+      setActivityError("");
+      return;
+    }
+
+    let alive = true;
+    setActivityBusy(true);
+    setActivityError("");
+
+    async function loadActivity() {
+      if (tab === "purchases") {
+        const { data: orderRows, error: orderError } = await supabase!
+          .from("marketplace_orders")
+          .select("id,reference,game_title_snapshot,amount_minor,currency,status,created_at,paid_at")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(100);
+
+        if (orderError) throw orderError;
+
+        const { data: refundRows, error: refundError } = await supabase!
+          .from("refund_requests")
+          .select("order_id,status,reason,requested_at")
+          .eq("user_id", user!.id);
+
+        if (refundError) throw refundError;
+
+        const refundByOrder = new Map(
+          (refundRows ?? []).map((refund) => [
+            String(refund.order_id),
+            { status: String(refund.status), reason: String(refund.reason) }
+          ])
+        );
+
+        const items = (orderRows ?? []).map((order) => {
+          const refund = refundByOrder.get(String(order.id));
+          return {
+            id: String(order.id),
+            reference: String(order.reference),
+            game_title_snapshot: String(order.game_title_snapshot),
+            amount_minor: order.amount_minor as number | string,
+            currency: String(order.currency),
+            status: String(order.status),
+            created_at: String(order.created_at),
+            paid_at: order.paid_at ? String(order.paid_at) : null,
+            refund_status: refund?.status ?? null,
+            refund_reason: refund?.reason ?? null
+          } satisfies PlayerPurchase;
+        });
+
+        if (alive) setPurchases(items);
+      } else {
+        const { data, error } = await supabase!
+          .from("notifications")
+          .select("id,notification_type,title,message,read_at,created_at")
+          .eq("user_id", user!.id)
+          .order("created_at", { ascending: false })
+          .limit(50);
+
+        if (error) throw error;
+        if (alive) setNotifications((data ?? []) as PlayerNotification[]);
+      }
+    }
+
+    loadActivity()
+      .catch((error: unknown) => {
+        if (!alive) return;
+        setActivityError(error instanceof Error ? error.message : "Your account activity could not be loaded.");
+      })
+      .finally(() => {
+        if (alive) setActivityBusy(false);
+      });
+
+    return () => { alive = false; };
+  }, [tab, user, activityRefresh]);
+
   const visibleGames = useMemo(() => {
     const source = tab === "wishlist"
       ? games.filter((game) => wishlist.includes(game.id))
       : tab === "library"
         ? libraryGames
-        : games;
+        : tab === "discover"
+          ? games
+          : [];
     const normalizedQuery = query.trim().toLowerCase();
 
     return source.filter((game) => {
@@ -289,6 +407,28 @@ export default function App() {
 
     setWishlist((current) =>
       wasSaved ? current.filter((id) => id !== game.id) : [...current, game.id]
+    );
+  }
+
+  async function markNotificationRead(item: PlayerNotification) {
+    if (item.read_at || !supabase || !user) return;
+
+    const readAt = new Date().toISOString();
+    const { error } = await supabase
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("id", item.id)
+      .eq("user_id", user.id);
+
+    if (error) {
+      Alert.alert("Could not update notification", "Please try again.");
+      return;
+    }
+
+    setNotifications((current) =>
+      current.map((notification) =>
+        notification.id === item.id ? { ...notification, read_at: readAt } : notification
+      )
     );
   }
 
@@ -404,69 +544,79 @@ export default function App() {
         </View>
 
         <FlatList
-          data={visibleGames}
+          data={tab === "purchases" || tab === "notifications" ? [] : visibleGames}
           keyExtractor={(item) => item.id}
           numColumns={1}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <View>
-              <View style={styles.hero}>
-                <Text style={styles.eyebrow}>YOUR NEXT ADVENTURE STARTS HERE</Text>
-                <Text style={styles.heroTitle}>PLAY MORE.</Text>
-                <Text style={[styles.heroTitle, styles.heroTitleAccent]}>DISCOVER MORE.</Text>
-                <Text style={styles.heroCopy}>
-                  Find your next favourite game. Explore worlds made by independent creators.
-                </Text>
-                <View style={styles.heroPills}>
-                  <Text style={styles.heroPill}>DISCOVER</Text>
-                  <Text style={styles.heroPill}>SAVE</Text>
-                  <Text style={styles.heroPill}>PLAY</Text>
+              {tab === "discover" ? (
+                <View style={styles.hero}>
+                  <Text style={styles.eyebrow}>YOUR NEXT ADVENTURE STARTS HERE</Text>
+                  <Text style={styles.heroTitle}>PLAY MORE.</Text>
+                  <Text style={[styles.heroTitle, styles.heroTitleAccent]}>DISCOVER MORE.</Text>
+                  <Text style={styles.heroCopy}>
+                    Find your next favourite game. Explore worlds made by independent creators.
+                  </Text>
+                  <View style={styles.heroPills}>
+                    <Text style={styles.heroPill}>DISCOVER</Text>
+                    <Text style={styles.heroPill}>SAVE</Text>
+                    <Text style={styles.heroPill}>PLAY</Text>
+                  </View>
                 </View>
-              </View>
+              ) : null}
+
+              <View style={styles.sectionHeading}>
 
               <View style={styles.sectionHeading}>
                 <View>
                   <Text style={styles.eyebrowSmall}>THE GAME ON UNIVERSE</Text>
                   <Text style={styles.sectionTitle}>
-                    {tab === "discover" ? "DISCOVER GAMES" : tab === "wishlist" ? "YOUR WISHLIST" : "YOUR LIBRARY"}
+                    {tab === "discover" ? "DISCOVER GAMES" : tab === "wishlist" ? "YOUR WISHLIST" : tab === "library" ? "YOUR LIBRARY" : tab === "purchases" ? "PURCHASE HISTORY" : "NOTIFICATIONS"}
                   </Text>
                 </View>
                 {catalogBusy ? <ActivityIndicator color="#18d9f4" /> : null}
               </View>
 
-              <View style={styles.searchBox}>
-                <Text style={styles.searchIcon}>⌕</Text>
-                <TextInput
-                  value={query}
-                  onChangeText={setQuery}
-                  placeholder="Search games, genres or studios"
-                  placeholderTextColor="#718198"
-                  style={styles.searchInput}
-                  returnKeyType="search"
-                  accessibilityLabel="Search games"
-                />
-                {query.length > 0 ? (
-                  <Pressable onPress={() => setQuery("")}><Text style={styles.clearSearch}>×</Text></Pressable>
-                ) : null}
-              </View>
+              {tab !== "purchases" && tab !== "notifications" ? (
+                <View style={styles.searchBox}>
+                  <Text style={styles.searchIcon}>⌕</Text>
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Search games, genres or studios"
+                    placeholderTextColor="#718198"
+                    style={styles.searchInput}
+                    returnKeyType="search"
+                    accessibilityLabel="Search games"
+                  />
+                  {query.length > 0 ? (
+                    <Pressable onPress={() => setQuery("")}><Text style={styles.clearSearch}>×</Text></Pressable>
+                  ) : null}
+                </View>
+  
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.genreRow}>
+                  {GENRES.map((item) => (
+                    <Pressable
+                      key={item}
+                      onPress={() => setGenre(item)}
+                      style={[styles.genreChip, genre === item && styles.genreChipActive]}
+                    >
+                      <Text style={[styles.genreChipText, genre === item && styles.genreChipTextActive]}>{item}</Text>
+                    </Pressable>
+                  ))}
+                </ScrollView>
+  
+  
+              ) : null}
 
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.genreRow}>
-                {GENRES.map((item) => (
-                  <Pressable
-                    key={item}
-                    onPress={() => setGenre(item)}
-                    style={[styles.genreChip, genre === item && styles.genreChipActive]}
-                  >
-                    <Text style={[styles.genreChipText, genre === item && styles.genreChipTextActive]}>{item}</Text>
-                  </Pressable>
-                ))}
-              </ScrollView>
-
-              <View style={styles.catalogStatus}>
-                <View style={[styles.statusDot, isDemo && styles.statusDotDemo]} />
-                <Text style={styles.catalogStatusText}>{catalogMessage}</Text>
-              </View>
+              {tab !== "purchases" && tab !== "notifications" ? (
+                <View style={styles.catalogStatus}>
+                  <View style={[styles.statusDot, isDemo && styles.statusDotDemo]} />
+                  <Text style={styles.catalogStatusText}>{catalogMessage}</Text>
+                </View>
+              ) : null}
 
               {tab === "library" && !user ? (
                 <View style={styles.emptyState}>
@@ -512,6 +662,101 @@ export default function App() {
                   </Pressable>
                 </View>
               ) : null}
+
+              {tab === "purchases" && !user ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>▤</Text>
+                  <Text style={styles.emptyTitle}>SIGN IN TO VIEW PURCHASES</Text>
+                  <Text style={styles.emptyCopy}>Your purchase history is private to your Game ON account.</Text>
+                  <Pressable onPress={openProfile} style={styles.emptyButton}><Text style={styles.emptyButtonText}>SIGN IN TO GAME ON</Text></Pressable>
+                </View>
+              ) : null}
+              {tab === "notifications" && !user ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>♧</Text>
+                  <Text style={styles.emptyTitle}>YOUR PLAYER INBOX</Text>
+                  <Text style={styles.emptyCopy}>Sign in to see game updates and messages from GAME ON.</Text>
+                  <Pressable onPress={openProfile} style={styles.emptyButton}><Text style={styles.emptyButtonText}>SIGN IN TO GAME ON</Text></Pressable>
+                </View>
+              ) : null}
+              {(tab === "purchases" || tab === "notifications") && user && activityBusy ? (
+                <View style={styles.libraryStatus}>
+                  <ActivityIndicator color="#18d9f4" />
+                  <Text style={styles.libraryStatusText}>LOADING YOUR ACCOUNT ACTIVITY…</Text>
+                </View>
+              ) : null}
+              {(tab === "purchases" || tab === "notifications") && user && !activityBusy && activityError ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>!</Text>
+                  <Text style={styles.emptyTitle}>COULD NOT LOAD THIS PAGE</Text>
+                  <Text style={styles.emptyCopy}>{activityError}</Text>
+                  <Pressable onPress={() => setActivityRefresh((value) => value + 1)} style={styles.emptyButton}><Text style={styles.emptyButtonText}>TRY AGAIN</Text></Pressable>
+                </View>
+              ) : null}
+              {tab === "purchases" && user && !activityBusy && !activityError && purchases.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>▤</Text>
+                  <Text style={styles.emptyTitle}>NO PURCHASES YET</Text>
+                  <Text style={styles.emptyCopy}>Completed purchases will appear here after secure payment verification.</Text>
+                  <Pressable onPress={() => setTab("discover")} style={styles.emptyButton}><Text style={styles.emptyButtonText}>EXPLORE THE STORE</Text></Pressable>
+                </View>
+              ) : null}
+              {tab === "purchases" && user && !activityBusy && !activityError && purchases.length > 0 ? (
+                <View style={styles.activityList}>
+                  <View style={styles.activityToolbar}>
+                    <Text style={styles.resultCount}>{purchases.length} PURCHASE RECORDS</Text>
+                    <Pressable onPress={() => setActivityRefresh((value) => value + 1)}><Text style={styles.refreshText}>REFRESH ↻</Text></Pressable>
+                  </View>
+                  {purchases.map((purchase) => (
+                    <View key={purchase.id} style={styles.activityCard}>
+                      <View style={styles.activityCardTop}>
+                        <View style={styles.activityCardTitleBlock}>
+                          <Text style={styles.activityCardTitle}>{purchase.game_title_snapshot}</Text>
+                          <Text style={styles.activityCardDate}>{dateLabel(purchase.created_at)}</Text>
+                        </View>
+                        <Text style={[
+                          styles.orderStatus,
+                          purchase.status === "paid" ? styles.orderStatusPaid : purchase.status === "refunded" ? styles.orderStatusRefunded : styles.orderStatusOther
+                        ]}>{purchase.status.toUpperCase()}</Text>
+                      </View>
+                      <Text style={styles.activityMeta}>REFERENCE  {purchase.reference}</Text>
+                      <Text style={styles.purchaseAmount}>{money(Number(purchase.amount_minor), purchase.currency)}</Text>
+                      {purchase.refund_status ? (
+                        <Text style={styles.refundStatus}>REFUND: {purchase.refund_status.toUpperCase()}</Text>
+                      ) : null}
+                    </View>
+                  ))}
+                  <Text style={styles.activityFootnote}>Purchase status is shown from Game ON's server-verified records. This screen cannot confirm or alter payments.</Text>
+                </View>
+              ) : null}
+              {tab === "notifications" && user && !activityBusy && !activityError && notifications.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>♧</Text>
+                  <Text style={styles.emptyTitle}>YOU'RE ALL CAUGHT UP</Text>
+                  <Text style={styles.emptyCopy}>Game updates and important account messages will show up here.</Text>
+                  <Pressable onPress={() => setActivityRefresh((value) => value + 1)} style={styles.emptyButton}><Text style={styles.emptyButtonText}>REFRESH INBOX</Text></Pressable>
+                </View>
+              ) : null}
+              {tab === "notifications" && user && !activityBusy && !activityError && notifications.length > 0 ? (
+                <View style={styles.activityList}>
+                  <View style={styles.activityToolbar}>
+                    <Text style={styles.resultCount}>{notifications.filter((item) => !item.read_at).length} UNREAD NOTIFICATIONS</Text>
+                    <Pressable onPress={() => setActivityRefresh((value) => value + 1)}><Text style={styles.refreshText}>REFRESH ↻</Text></Pressable>
+                  </View>
+                  {notifications.map((item) => (
+                    <Pressable key={item.id} onPress={() => { void markNotificationRead(item); }} style={[styles.notificationCard, !item.read_at && styles.notificationUnread]}>
+                      <View style={styles.notificationTop}>
+                        <Text style={styles.notificationTitle}>{item.title}</Text>
+                        <Text style={[styles.notificationReadState, !item.read_at && styles.notificationUnreadText]}>{item.read_at ? "READ" : "NEW"}</Text>
+                      </View>
+                      <Text style={styles.notificationMessage}>{item.message}</Text>
+                      <Text style={styles.activityCardDate}>{dateLabel(item.created_at)} · {item.notification_type.replaceAll("_", " ").toUpperCase()}</Text>
+                    </Pressable>
+                  ))}
+                  <Text style={styles.activityFootnote}>Tap a notification to mark it as read.</Text>
+                </View>
+              ) : null}
+
               {tab === "wishlist" && visibleGames.length === 0 ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyIcon}>♡</Text>
@@ -522,7 +767,7 @@ export default function App() {
                   </Pressable>
                 </View>
               ) : null}
-              {tab !== "library" && visibleGames.length > 0 ? (
+              {(tab === "discover" || tab === "wishlist") && visibleGames.length > 0 ? (
                 <Text style={styles.resultCount}>{visibleGames.length} GAMES TO EXPLORE</Text>
               ) : null}
             </View>
@@ -537,7 +782,7 @@ export default function App() {
             />
           )}
           ListEmptyComponent={
-            tab === "library" || tab === "wishlist" ? undefined : (
+            tab === "library" || tab === "wishlist" || tab === "purchases" || tab === "notifications" ? undefined : (
               <View style={styles.emptyState}>
                 <Text style={styles.emptyIcon}>⌕</Text>
                 <Text style={styles.emptyTitle}>NO GAMES FOUND</Text>
@@ -552,6 +797,8 @@ export default function App() {
           <TabButton label="DISCOVER" icon="⌕" active={tab === "discover"} onPress={() => setTab("discover")} />
           <TabButton label="LIBRARY" icon="▣" active={tab === "library"} onPress={() => setTab("library")} />
           <TabButton label="WISHLIST" icon="♡" active={tab === "wishlist"} onPress={() => setTab("wishlist")} />
+          <TabButton label="PURCHASES" icon="▤" active={tab === "purchases"} onPress={() => setTab("purchases")} />
+          <TabButton label="INBOX" icon="♧" active={tab === "notifications"} onPress={() => setTab("notifications")} />
         </View>
       </View>
 
@@ -738,6 +985,28 @@ const styles = StyleSheet.create({
   libraryToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
   libraryStatus: { minHeight: 110, alignItems: "center", justifyContent: "center", gap: 12 },
   libraryStatusText: { color: "#91a5bb", fontSize: 9, fontWeight: "800", letterSpacing: 1.2 },
+  activityList: { gap: 10, marginTop: 4 },
+  activityToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 2 },
+  activityCard: { borderWidth: 1, borderColor: "#23364c", borderRadius: 11, backgroundColor: "#0d1827", padding: 14 },
+  activityCardTop: { flexDirection: "row", alignItems: "flex-start", justifyContent: "space-between", gap: 10 },
+  activityCardTitleBlock: { flex: 1 },
+  activityCardTitle: { color: "#f0f7ff", fontSize: 14, fontWeight: "800" },
+  activityCardDate: { color: "#7f93a9", fontSize: 9, marginTop: 5 },
+  activityMeta: { color: "#778ca4", fontSize: 8, letterSpacing: 0.9, marginTop: 12 },
+  purchaseAmount: { color: "#bfefff", fontSize: 17, fontWeight: "900", marginTop: 8 },
+  orderStatus: { fontSize: 8, fontWeight: "900", letterSpacing: 0.9, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 5, overflow: "hidden" },
+  orderStatusPaid: { color: "#a7e6bd", backgroundColor: "#17372b" },
+  orderStatusRefunded: { color: "#f0c28a", backgroundColor: "#3a2b1b" },
+  orderStatusOther: { color: "#b8c8d9", backgroundColor: "#263548" },
+  refundStatus: { color: "#e6bd89", fontSize: 9, fontWeight: "800", marginTop: 10 },
+  activityFootnote: { color: "#657990", fontSize: 9, lineHeight: 15, marginTop: 3, marginBottom: 12 },
+  notificationCard: { borderWidth: 1, borderColor: "#23364c", borderRadius: 11, backgroundColor: "#0d1827", padding: 14 },
+  notificationUnread: { borderColor: "#18647a", backgroundColor: "#0d202e" },
+  notificationTop: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", gap: 10 },
+  notificationTitle: { color: "#f0f7ff", fontSize: 13, fontWeight: "800", flex: 1 },
+  notificationReadState: { color: "#8295aa", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  notificationUnreadText: { color: "#18d9f4" },
+  notificationMessage: { color: "#9fb0c3", fontSize: 11, lineHeight: 18, marginTop: 8 },
   refreshText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   ownedNotice: { borderWidth: 1, borderColor: "#366b59", borderRadius: 9, backgroundColor: "#10251f", padding: 14, marginTop: 18 },
   ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
