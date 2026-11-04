@@ -20,6 +20,19 @@ jobs:
           node-version: 22
       - name: Install locked workspace dependencies
         run: npm ci --no-audit --no-fund
+      - name: Install GAME ON STORE native dependencies
+        working-directory: mobile/store
+        run: npm install --no-audit --no-fund
+      - name: Check Expo SDK dependency alignment
+        working-directory: mobile/store
+        run: npx expo install --check
+      - name: Type-check GAME ON STORE native app
+        working-directory: mobile/store
+        run: npm run typecheck
+      - name: Run Expo project diagnostics
+        working-directory: mobile/store
+        run: npx expo-doctor
+
       - name: Run strict release configuration preflight
         run: npm run release:preflight
       - name: Upload generated root lockfile for review
