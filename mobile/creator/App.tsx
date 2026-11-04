@@ -55,6 +55,20 @@ type BuildRow = {
 
 type Section = "overview" | "games" | "submit" | "builds" | "studio";
 type PickedBuild = { uri: string; name: string; size: number };
+type AnalyticsRow = {
+  game_id: string; game_title: string; game_status: string;
+  download_link_issues: number; latest_download_link_at: string | null;
+  approved_builds: number; latest_approved_version: string | null;
+};
+type SalesRow = {
+  game_id: string; game_title: string; paid_orders: number;
+  gross_sales_minor: number; platform_fees_minor: number;
+  developer_net_minor: number; latest_sale_at: string | null;
+};
+type CreatorNotification = {
+  id: string; title: string; message: string; notification_type: string;
+  read_at: string | null; created_at: string;
+};
 type AuthMode = "signup" | "signin";
 
 const USER_KEY = "gameon.creator.demo.user.v1";
@@ -162,6 +176,15 @@ export default function App() {
   const [builds, setBuilds] = useState<BuildRow[]>([]);
   const [buildsError, setBuildsError] = useState("");
   const [buildsBusy, setBuildsBusy] = useState(false);
+  const [analyticsRows, setAnalyticsRows] = useState<AnalyticsRow[]>([]);
+  const [analyticsBusy, setAnalyticsBusy] = useState(false);
+  const [analyticsMessage, setAnalyticsMessage] = useState("");
+  const [salesRows, setSalesRows] = useState<SalesRow[]>([]);
+  const [salesBusy, setSalesBusy] = useState(false);
+  const [salesMessage, setSalesMessage] = useState("");
+  const [notifications, setNotifications] = useState<CreatorNotification[]>([]);
+  const [notificationsBusy, setNotificationsBusy] = useState(false);
+  const [notificationsMessage, setNotificationsMessage] = useState("");
   const [selectedBuildGameId, setSelectedBuildGameId] = useState("");
   const [selectedBuildPlatform, setSelectedBuildPlatform] = useState("android");
   const [buildVersion, setBuildVersion] = useState("1.0.0");
@@ -634,6 +657,96 @@ export default function App() {
     }
   }
 
+  async function loadAnalytics() {
+    setAnalyticsMessage("");
+    if (!supabase || !user || user.demo) {
+      setAnalyticsRows([]);
+      setAnalyticsMessage("Connect a real Game ON developer account to view live studio analytics.");
+      return;
+    }
+    setAnalyticsBusy(true);
+    const { data, error: queryError } = await supabase.rpc("get_creator_game_analytics");
+    if (queryError) {
+      setAnalyticsMessage(queryError.message.includes("function")
+        ? "Apply database migration 0008 to enable creator analytics."
+        : queryError.message);
+    } else {
+      setAnalyticsRows((data ?? []) as AnalyticsRow[]);
+    }
+    setAnalyticsBusy(false);
+  }
+
+  async function loadSales() {
+    setSalesMessage("");
+    if (!supabase || !user || user.demo) {
+      setSalesRows([]);
+      setSalesMessage("Connect a real Game ON developer account to view verified sales.");
+      return;
+    }
+    setSalesBusy(true);
+    const { data, error: queryError } = await supabase.rpc("get_creator_sales_summary");
+    if (queryError) {
+      setSalesMessage(queryError.message.includes("function")
+        ? "Apply database migration 0009 to enable the verified sales ledger."
+        : queryError.message);
+    } else {
+      setSalesRows((data ?? []) as SalesRow[]);
+    }
+    setSalesBusy(false);
+  }
+
+  async function loadNotifications() {
+    setNotificationsMessage("");
+    if (!supabase || !user || user.demo) {
+      setNotifications([]);
+      setNotificationsMessage("Connect a real Game ON developer account to receive publishing notifications.");
+      return;
+    }
+    setNotificationsBusy(true);
+    const { data, error: queryError } = await supabase
+      .from("notifications")
+      .select("id,title,message,notification_type,read_at,created_at")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(50);
+    if (queryError) setNotificationsMessage(queryError.message);
+    else setNotifications((data ?? []) as CreatorNotification[]);
+    setNotificationsBusy(false);
+  }
+
+  async function markCreatorNotificationRead(item: CreatorNotification) {
+    if (!supabase || !user || item.read_at) return;
+    const readAt = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("id", item.id)
+      .eq("user_id", user.id);
+    if (updateError) {
+      setNotificationsMessage("Notification could not be updated. " + updateError.message);
+      return;
+    }
+    setNotifications((current) => current.map((row) =>
+      row.id === item.id ? { ...row, read_at: readAt } : row
+    ));
+  }
+
+  async function markAllCreatorNotificationsRead() {
+    if (!supabase || !user || user.demo) return;
+    const readAt = new Date().toISOString();
+    const { error: updateError } = await supabase
+      .from("notifications")
+      .update({ read_at: readAt })
+      .eq("user_id", user.id)
+      .is("read_at", null);
+    if (updateError) {
+      setNotificationsMessage("Notifications could not be updated. " + updateError.message);
+      return;
+    }
+    setNotifications((current) => current.map((row) => row.read_at ? row : { ...row, read_at: readAt }));
+    setNotificationsMessage("All notifications marked as read.");
+  }
+
   async function signOut() {
     setError("");
     setNotice("");
@@ -763,6 +876,9 @@ export default function App() {
           <NavButton label="MY GAMES" active={section === "games"} onPress={() => setSection("games")} />
           <NavButton label="SUBMIT GAME" active={section === "submit"} onPress={() => setSection("submit")} />
           <NavButton label="BUILDS" active={section === "builds"} onPress={() => { setSection("builds"); void loadBuilds(); }} />
+          <NavButton label="ANALYTICS" active={section === "analytics"} onPress={() => { setSection("analytics"); void loadAnalytics(); }} />
+          <NavButton label="SALES" active={section === "sales"} onPress={() => { setSection("sales"); void loadSales(); }} />
+          <NavButton label="INBOX" active={section === "notifications"} onPress={() => { setSection("notifications"); void loadNotifications(); }} />
           <NavButton label="STUDIO" active={section === "studio"} onPress={() => setSection("studio")} />
         </ScrollView>
         <ScrollView style={styles.mainScroll} contentContainerStyle={styles.mainContent} keyboardShouldPersistTaps="handled">
@@ -922,6 +1038,82 @@ export default function App() {
             </>
           ) : null}
 
+          {section === "analytics" ? (
+            <>
+              <Text style={styles.eyebrow}>UNDERSTAND YOUR REACH</Text>
+              <Text style={styles.pageTitle}>STUDIO ANALYTICS</Text>
+              <Text style={styles.bodyCopy}>Track secure download-link requests and approved releases. Link issuance is not proof of a completed download.</Text>
+              <ActionButton label="REFRESH ANALYTICS" onPress={() => { void loadAnalytics(); }} busy={analyticsBusy} secondary />
+              {!!analyticsMessage && <Text style={styles.noticeText}>{analyticsMessage}</Text>}
+              <View style={styles.statsGrid}>
+                <StatCard label="DOWNLOAD LINKS ISSUED" value={analyticsBusy ? "—" : analyticsRows.reduce((sum, row) => sum + Number(row.download_link_issues || 0), 0).toLocaleString()} />
+                <StatCard label="APPROVED BUILDS" value={analyticsBusy ? "—" : analyticsRows.reduce((sum, row) => sum + Number(row.approved_builds || 0), 0).toLocaleString()} />
+                <StatCard label="TRACKED GAMES" value={analyticsBusy ? "—" : String(analyticsRows.length)} />
+                <StatCard label="PUBLISHED GAMES" value={analyticsBusy ? "—" : String(analyticsRows.filter((row) => row.game_status === "published").length)} />
+              </View>
+              {analyticsBusy ? <ActivityIndicator color="#18d9f4" /> : analyticsRows.length === 0 ? <EmptyState title="NO ANALYTICS YET" copy="Approved games and download-link activity will appear here when the backend has recorded them." /> : analyticsRows.map((row) => (
+                <View key={row.game_id} style={styles.gameCard}>
+                  <Text style={styles.gameTitle}>{row.game_title}</Text>
+                  <Text style={styles.mutedCopy}>{statusLabel(row.game_status)} · {Number(row.approved_builds).toLocaleString()} approved build(s){row.latest_approved_version ? " · v" + row.latest_approved_version : ""}</Text>
+                  <Text style={styles.statValue}>{Number(row.download_link_issues).toLocaleString()}</Text>
+                  <Text style={styles.mutedCopy}>Download links issued · {row.latest_download_link_at ? new Date(row.latest_download_link_at).toLocaleString() : "No links issued"}</Text>
+                </View>
+              ))}
+              <Text style={styles.demoBanner}>DOWNLOAD-LINK COUNTS DO NOT PROVE THAT A FILE TRANSFER FINISHED OR THAT A GAME WAS INSTALLED.</Text>
+            </>
+          ) : null}
+
+          {section === "sales" ? (
+            <>
+              <Text style={styles.eyebrow}>YOUR STUDIO REVENUE</Text>
+              <Text style={styles.pageTitle}>SALES & EARNINGS</Text>
+              <Text style={styles.bodyCopy}>Verified paid orders and the estimated developer share from Game ON's sales ledger.</Text>
+              <ActionButton label="REFRESH SALES" onPress={() => { void loadSales(); }} busy={salesBusy} secondary />
+              {!!salesMessage && <Text style={styles.noticeText}>{salesMessage}</Text>}
+              <View style={styles.statsGrid}>
+                <StatCard label="GROSS SALES" value={salesBusy ? "—" : money(salesRows.reduce((sum, row) => sum + Number(row.gross_sales_minor || 0), 0))} />
+                <StatCard label="PLATFORM FEES" value={salesBusy ? "—" : money(salesRows.reduce((sum, row) => sum + Number(row.platform_fees_minor || 0), 0))} />
+                <StatCard label="ESTIMATED DEVELOPER NET" value={salesBusy ? "—" : money(salesRows.reduce((sum, row) => sum + Number(row.developer_net_minor || 0), 0))} />
+                <StatCard label="PAID ORDERS" value={salesBusy ? "—" : salesRows.reduce((sum, row) => sum + Number(row.paid_orders || 0), 0).toLocaleString()} />
+              </View>
+              {salesBusy ? <ActivityIndicator color="#18d9f4" /> : salesRows.length === 0 ? <EmptyState title="NO VERIFIED SALES YET" copy="Verified paid purchases of your published games will appear here." /> : salesRows.map((row) => (
+                <View key={row.game_id} style={styles.gameCard}>
+                  <Text style={styles.gameTitle}>{row.game_title}</Text>
+                  <Text style={styles.mutedCopy}>{Number(row.paid_orders).toLocaleString()} verified paid order(s)</Text>
+                  <Text style={styles.statValue}>{money(Number(row.developer_net_minor))}</Text>
+                  <Text style={styles.mutedCopy}>Estimated developer net</Text>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.moneyText}>GROSS {money(Number(row.gross_sales_minor))}</Text>
+                    <Text style={styles.moneyText}>FEE {money(Number(row.platform_fees_minor))}</Text>
+                  </View>
+                  <Text style={styles.mutedCopy}>{row.latest_sale_at ? "Latest sale " + new Date(row.latest_sale_at).toLocaleString() : "No sales recorded"}</Text>
+                </View>
+              ))}
+              <Text style={styles.demoBanner}>THESE ARE LEDGER ESTIMATES, NOT PAYOUTS. PROCESSOR FEES, TAXES, REFUNDS AND PAYOUT TIMING ARE SEPARATE. DEVELOPER TRANSFERS ARE NOT ENABLED.</Text>
+            </>
+          ) : null}
+
+          {section === "notifications" ? (
+            <>
+              <Text style={styles.eyebrow}>STUDIO ACTIVITY</Text>
+              <Text style={styles.pageTitle}>NOTIFICATIONS</Text>
+              <Text style={styles.bodyCopy}>Publishing decisions and important updates about your developer account.</Text>
+              <ActionButton label="MARK ALL AS READ" onPress={() => { void markAllCreatorNotificationsRead(); }} disabled={!notifications.some((item) => !item.read_at)} secondary />
+              <ActionButton label="REFRESH INBOX" onPress={() => { void loadNotifications(); }} busy={notificationsBusy} secondary />
+              {!!notificationsMessage && <Text style={styles.noticeText}>{notificationsMessage}</Text>}
+              {notificationsBusy ? <ActivityIndicator color="#18d9f4" /> : notifications.length === 0 ? <EmptyState title="NO NOTIFICATIONS YET" copy="Studio verification and game publishing updates will appear here." /> : notifications.map((item) => (
+                <Pressable key={item.id} onPress={() => { void markCreatorNotificationRead(item); }} style={[styles.gameCard, !item.read_at && styles.notificationUnread]}>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.gameTitle}>{item.title}</Text>
+                    <StatusPill value={item.read_at ? "read" : "new"} />
+                  </View>
+                  <Text style={styles.gameDescription}>{item.message}</Text>
+                  <Text style={styles.mutedCopy}>{statusLabel(item.notification_type)} · {new Date(item.created_at).toLocaleString()}</Text>
+                </Pressable>
+              ))}
+            </>
+          ) : null}
+
           {section === "studio" ? (
             <>
               <Text style={styles.eyebrow}>YOUR DEVELOPER PROFILE</Text>
@@ -1047,6 +1239,7 @@ const styles = StyleSheet.create({
   gameTitle: { color: "#f0f7ff", fontSize: 14, fontWeight: "900" },
   gameDescription: { color: "#a5b5c7", fontSize: 11, lineHeight: 17, marginTop: 9, marginBottom: 10 },
   selectedFile: { color: "#bceff6", fontSize: 10, lineHeight: 15, marginTop: 10, fontWeight: "800" },
+  notificationUnread: { borderColor: "#18647a", backgroundColor: "#0d202e" },
   moneyText: { color: "#8ba1b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   choiceColumn: { gap: 7, marginBottom: 7 },
