@@ -47,3 +47,31 @@ jobs:
         run: npx expo-doctor
       - name: Bundle GAME ON STORE for Android and iOS
         run: npx expo export --platform android --platform ios --output-dir dist
+      - name: Set up Java for Android build
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate Android native project
+        run: npx expo prebuild --platform android --no-install --non-interactive
+
+      - name: Bundle JavaScript into installable debug APK
+        run: |
+          if grep -q "debuggableVariants" android/app/build.gradle; then
+            sed -i 's/debuggableVariants = .*/debuggableVariants = []/' android/app/build.gradle
+          else
+            sed -i '/react {/a\    debuggableVariants = []' android/app/build.gradle
+          fi
+          cd android
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload GAME ON STORE Android debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-on-store-android-debug-apk
+          path: mobile/store/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 14
