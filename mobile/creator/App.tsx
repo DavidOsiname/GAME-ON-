@@ -14,6 +14,8 @@ import {
   View
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import * as DocumentPicker from "expo-document-picker";
+import { File } from "expo-file-system";
 import { creatorApiUrl, isSupabaseConfigured, supabase } from "./src/lib/supabase";
 
 type Account = { id: string; email?: string; demo?: boolean };
@@ -52,6 +54,7 @@ type BuildRow = {
 };
 
 type Section = "overview" | "games" | "submit" | "builds" | "studio";
+type PickedBuild = { uri: string; name: string; size: number };
 type AuthMode = "signup" | "signin";
 
 const USER_KEY = "gameon.creator.demo.user.v1";
@@ -159,6 +162,11 @@ export default function App() {
   const [builds, setBuilds] = useState<BuildRow[]>([]);
   const [buildsError, setBuildsError] = useState("");
   const [buildsBusy, setBuildsBusy] = useState(false);
+  const [selectedBuildGameId, setSelectedBuildGameId] = useState("");
+  const [selectedBuildPlatform, setSelectedBuildPlatform] = useState("android");
+  const [buildVersion, setBuildVersion] = useState("1.0.0");
+  const [pickedBuild, setPickedBuild] = useState<PickedBuild | null>(null);
+  const [uploadBusy, setUploadBusy] = useState(false);
 
   const [authMode, setAuthMode] = useState<AuthMode>("signup");
   const [email, setEmail] = useState("");
@@ -278,6 +286,23 @@ export default function App() {
   const published = useMemo(() => games.filter((game) => game.status === "published").length, [games]);
   const inReview = useMemo(() => games.filter((game) => game.status === "submitted" || game.status === "in_review").length, [games]);
   const drafts = useMemo(() => games.filter((game) => game.status === "draft").length, [games]);
+  const buildEligibleGames = useMemo(
+    () => games.filter((game) => ["draft", "submitted", "rejected"].includes(game.status)),
+    [games]
+  );
+  const selectedBuildGame = buildEligibleGames.find((game) => game.id === selectedBuildGameId) ?? null;
+  const buildPlatforms = (selectedBuildGame?.supported_platforms ?? ["android"])
+    .filter((value) => ["android", "windows", "web"].includes(value.toLowerCase()));
+
+  useEffect(() => {
+    if (!selectedBuildGameId && buildEligibleGames.length) {
+      const first = buildEligibleGames[0];
+      setSelectedBuildGameId(first.id);
+      const firstPlatform = (first.supported_platforms ?? ["android"])
+        .find((value) => ["android", "windows", "web"].includes(value.toLowerCase()));
+      setSelectedBuildPlatform(firstPlatform ?? "android");
+    }
+  }, [buildEligibleGames, selectedBuildGameId]);
 
   async function handleAuth() {
     setError("");
@@ -475,6 +500,137 @@ export default function App() {
       setBuildsError(caught instanceof Error ? caught.message : "Build history could not be loaded.");
     } finally {
       setBuildsBusy(false);
+    }
+  }
+
+  async function pickBuildFile() {
+    setError("");
+    if (!selectedBuildGame) {
+      setBuildsError("Create a draft or submitted game listing before choosing a build.");
+      return;
+    }
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+      multiple: false
+    });
+    if (result.canceled) return;
+    const asset = result.assets[0];
+    const file = new File(asset.uri);
+    const size = asset.size ?? file.size;
+    if (!size || size < 1) {
+      setBuildsError("The selected file is empty or could not be read.");
+      setPickedBuild(null);
+      return;
+    }
+    if (size > 50 * 1024 * 1024) {
+      setBuildsError("The current secure upload limit is 50 MB per file.");
+      setPickedBuild(null);
+      return;
+    }
+    const extensions: Record<string, string[]> = {
+      android: ["apk", "aab"],
+      windows: ["exe", "msi", "zip"],
+      web: ["zip"]
+    };
+    const extension = asset.name.split(".").pop()?.toLowerCase() ?? "";
+    if (!(extensions[selectedBuildPlatform] ?? []).includes(extension)) {
+      setBuildsError("For " + selectedBuildPlatform + ", choose: " +
+        (extensions[selectedBuildPlatform] ?? []).join(", ") + ".");
+      setPickedBuild(null);
+      return;
+    }
+    setPickedBuild({ uri: asset.uri, name: asset.name, size });
+    setBuildsError("");
+  }
+
+  async function uploadBuild() {
+    setBuildsError("");
+    setNotice("");
+    if (!supabase || !user || user.demo) {
+      setBuildsError("Connect Supabase and sign in with a real developer account before uploading builds.");
+      return;
+    }
+    if (!creatorApiUrl) {
+      setBuildsError("The secure Creator server URL is not configured. Build upload is disabled until the adult project owner configures EXPO_PUBLIC_CREATOR_API_URL.");
+      return;
+    }
+    if (!selectedBuildGame || !pickedBuild) {
+      setBuildsError("Choose an eligible game and a build file first.");
+      return;
+    }
+    if (!buildPlatforms.includes(selectedBuildPlatform)) {
+      setBuildsError("This game listing does not declare the selected build platform.");
+      return;
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._+-]{0,39}$/.test(buildVersion.trim())) {
+      setBuildsError("Version must be 1–40 characters using letters, numbers, dots, underscores, plus signs or hyphens.");
+      return;
+    }
+    if (pickedBuild.size > 50 * 1024 * 1024) {
+      setBuildsError("The current secure upload limit is 50 MB per file.");
+      return;
+    }
+
+    setUploadBusy(true);
+    try {
+      const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const token = sessionData.session?.access_token;
+      if (!token) throw new Error("Your session expired. Sign in again.");
+
+      const prepareResponse = await fetch(creatorApiUrl + "/api/builds/upload-url", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token
+        },
+        body: JSON.stringify({
+          gameId: selectedBuildGame.id,
+          version: buildVersion.trim(),
+          platform: selectedBuildPlatform,
+          fileName: pickedBuild.name,
+          fileSize: pickedBuild.size
+        })
+      });
+      const prepared = await prepareResponse.json().catch(() => ({})) as {
+        bucket?: string; path?: string; token?: string; buildId?: string; error?: string
+      };
+      if (!prepareResponse.ok) throw new Error(prepared.error || "Secure upload could not be prepared.");
+      if (!prepared.bucket || !prepared.path || !prepared.token || !prepared.buildId) {
+        throw new Error("The Creator server returned an incomplete upload reservation.");
+      }
+
+      const nativeFile = new File(pickedBuild.uri);
+      const bytes = await nativeFile.arrayBuffer();
+      if (bytes.byteLength !== pickedBuild.size) {
+        throw new Error("The selected file changed while preparing the upload. Please select it again.");
+      }
+      const { error: uploadError } = await supabase.storage
+        .from(prepared.bucket)
+        .uploadToSignedUrl(prepared.path, prepared.token, bytes, {
+          contentType: "application/octet-stream",
+          cacheControl: "3600"
+        });
+      if (uploadError) throw new Error("Private file transfer failed: " + uploadError.message);
+
+      const finishResponse = await fetch(creatorApiUrl + "/api/builds/finalize", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer " + token
+        },
+        body: JSON.stringify({ buildId: prepared.buildId })
+      });
+      const finished = await finishResponse.json().catch(() => ({})) as { error?: string; message?: string };
+      if (!finishResponse.ok) throw new Error(finished.error || "The upload arrived but could not be finalized.");
+      setNotice("Build uploaded into private quarantine. It is not downloadable until a trusted malware scanner reports it clean and Game ON approves the release.");
+      setPickedBuild(null);
+      await loadBuilds();
+    } catch (caught) {
+      setBuildsError(caught instanceof Error ? caught.message : "Build upload failed. Refresh the build history and contact Game ON support if a pending upload remains.");
+    } finally {
+      setUploadBusy(false);
     }
   }
 
@@ -712,17 +868,49 @@ export default function App() {
             <>
               <Text style={styles.eyebrow}>PRIVATE GAME FILES</Text>
               <Text style={styles.pageTitle}>BUILD MANAGER</Text>
-              <Text style={styles.bodyCopy}>Builds stay in private quarantine until scanning and Game ON release review are complete.</Text>
+              <Text style={styles.bodyCopy}>Upload a build into private quarantine. Game ON requires a trusted malware scan and release approval before players can receive it.</Text>
               <View style={styles.verificationCard}>
-                <Text style={styles.cardTitle}>SECURE UPLOAD PIPELINE</Text>
-                <Text style={styles.mutedCopy}>The mobile app never writes directly to private build storage. Uploads and build records are managed by the authenticated Creator server.</Text>
+                <Text style={styles.cardTitle}>SECURE UPLOAD</Text>
+                <Text style={styles.mutedCopy}>The Creator server checks your developer session, studio ownership, listing status, declared platform and file size before creating a one-time private upload URL.</Text>
+                <Text style={styles.fieldLabel}>GAME LISTING</Text>
+                {buildEligibleGames.length === 0 ? (
+                  <Text style={styles.mutedCopy}>Create a draft or submitted game listing before uploading a build.</Text>
+                ) : buildEligibleGames.map((game) => (
+                  <Pressable
+                    key={game.id}
+                    onPress={() => {
+                      setSelectedBuildGameId(game.id);
+                      const available = (game.supported_platforms ?? ["android"])
+                        .find((value) => ["android", "windows", "web"].includes(value.toLowerCase()));
+                      setSelectedBuildPlatform(available ?? "android");
+                      setPickedBuild(null);
+                    }}
+                    style={[styles.choiceChip, styles.choiceFull, selectedBuildGameId === game.id && styles.choiceChipActive]}
+                  >
+                    <Text style={[styles.choiceText, selectedBuildGameId === game.id && styles.choiceTextActive]}>{game.title} · {statusLabel(game.status)}</Text>
+                  </Pressable>
+                ))}
+                <Text style={styles.fieldLabel}>PLATFORM</Text>
+                <View style={styles.choiceRow}>
+                  {buildPlatforms.map((item) => (
+                    <Pressable key={item} onPress={() => { setSelectedBuildPlatform(item.toLowerCase()); setPickedBuild(null); }} style={[styles.choiceChip, selectedBuildPlatform === item.toLowerCase() && styles.choiceChipActive]}>
+                      <Text style={[styles.choiceText, selectedBuildPlatform === item.toLowerCase() && styles.choiceTextActive]}>{item.toUpperCase()}</Text>
+                    </Pressable>
+                  ))}
+                </View>
+                <Text style={styles.fieldLabel}>VERSION LABEL</Text>
+                <TextInput value={buildVersion} onChangeText={setBuildVersion} placeholder="e.g. 1.0.0" placeholderTextColor="#718198" style={styles.input} maxLength={40} autoCapitalize="none" />
+                <ActionButton label="CHOOSE BUILD FILE" onPress={() => { void pickBuildFile(); }} secondary />
+                {pickedBuild ? <Text style={styles.selectedFile}>{pickedBuild.name} · {(pickedBuild.size / 1024 / 1024).toFixed(1)} MB</Text> : <Text style={styles.mutedCopy}>Android: APK/AAB · Windows: EXE/MSI/ZIP · Web: ZIP · 50 MB maximum</Text>}
+                <ActionButton label="UPLOAD TO PRIVATE QUARANTINE" onPress={() => { void uploadBuild(); }} busy={uploadBusy} disabled={!pickedBuild || !selectedBuildGame || !creatorApiUrl || !supabase || Boolean(user.demo)} />
                 <ActionButton label="REFRESH BUILD HISTORY" onPress={() => { void loadBuilds(); }} busy={buildsBusy} secondary />
               </View>
               {!!buildsError && <Text style={styles.errorText}>{buildsError}</Text>}
-              {buildsBusy ? <ActivityIndicator color="#18d9f4" /> : builds.length === 0 ? <EmptyState title="NO BUILD RECORDS" copy="Build history will appear here after the secure Creator API is connected and a build has been uploaded." /> : builds.map((build) => (
+              {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
+              {buildsBusy ? <ActivityIndicator color="#18d9f4" /> : builds.length === 0 ? <EmptyState title="NO BUILD RECORDS" copy="Build history appears here after the private Creator API is connected and a build is uploaded." /> : builds.map((build) => (
                 <View key={build.id} style={styles.gameCard}>
                   <Text style={styles.gameTitle}>{build.game_title} · v{build.version_label}</Text>
-                  <Text style={styles.mutedCopy}>{build.platform.toUpperCase()} · {(Number(build.file_size_bytes) / 1024 / 1024).toFixed(1)} MB</Text>
+                  <Text style={styles.mutedCopy}>{build.platform.toUpperCase()} · {(Number(build.file_size_bytes) / 1024 / 1024).toFixed(1)} MB · {new Date(build.created_at).toLocaleDateString()}</Text>
                   <View style={styles.choiceRow}>
                     <StatusPill value={build.upload_status} />
                     <StatusPill value={build.scan_status} />
@@ -730,7 +918,7 @@ export default function App() {
                   </View>
                 </View>
               ))}
-              <Text style={styles.demoBanner}>UPLOADS ARE LOCKED UNTIL THE PRIVATE CREATOR API AND TRUSTED SCANNER ARE CONFIGURED.</Text>
+              {!creatorApiUrl ? <Text style={styles.demoBanner}>PRIVATE UPLOAD IS LOCKED UNTIL THE ADULT PROJECT OWNER CONFIGURES THE CREATOR SERVER URL.</Text> : null}
             </>
           ) : null}
 
@@ -858,6 +1046,7 @@ const styles = StyleSheet.create({
   gameCard: { borderWidth: 1, borderColor: "#22364b", borderRadius: 11, backgroundColor: "#0d1827", padding: 14, marginTop: 11 },
   gameTitle: { color: "#f0f7ff", fontSize: 14, fontWeight: "900" },
   gameDescription: { color: "#a5b5c7", fontSize: 11, lineHeight: 17, marginTop: 9, marginBottom: 10 },
+  selectedFile: { color: "#bceff6", fontSize: 10, lineHeight: 15, marginTop: 10, fontWeight: "800" },
   moneyText: { color: "#8ba1b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
   choiceColumn: { gap: 7, marginBottom: 7 },
