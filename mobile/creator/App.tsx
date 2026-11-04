@@ -1,0 +1,878 @@
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TextInput,
+  View
+} from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { User } from "@supabase/supabase-js";
+import { creatorApiUrl, isSupabaseConfigured, supabase } from "./src/lib/supabase";
+
+type Account = { id: string; email?: string; demo?: boolean };
+type Studio = {
+  id: string;
+  studio_name: string;
+  slug: string;
+  description?: string | null;
+  website_url?: string | null;
+  verification_status?: string;
+  demo?: boolean;
+};
+type GameRow = {
+  id: string;
+  title: string;
+  slug: string;
+  genre: string;
+  status: string;
+  short_description: string;
+  monetization_type: string;
+  created_at?: string;
+  price_minor?: number | null;
+  currency?: string | null;
+  supported_platforms?: string[];
+};
+type BuildRow = {
+  id: string;
+  game_title: string;
+  version_label: string;
+  platform: string;
+  file_size_bytes: number;
+  upload_status: string;
+  scan_status: string;
+  release_status: string;
+  created_at: string;
+};
+
+type Section = "overview" | "games" | "submit" | "builds" | "studio";
+type AuthMode = "signup" | "signin";
+
+const USER_KEY = "gameon.creator.demo.user.v1";
+const STUDIO_KEY = "gameon.creator.demo.studio.v1";
+const GAMES_KEY = "gameon.creator.demo.games.v1";
+const DEMO_GAMES: GameRow[] = [
+  {
+    id: "demo-001",
+    title: "Neon Drift",
+    slug: "neon-drift",
+    genre: "Racing",
+    status: "published",
+    short_description: "High-speed racing through a neon city.",
+    monetization_type: "free"
+  },
+  {
+    id: "demo-002",
+    title: "Emberfall",
+    slug: "emberfall",
+    genre: "Adventure",
+    status: "in_review",
+    short_description: "Explore ancient ruins in a story-rich world.",
+    monetization_type: "demo"
+  },
+  {
+    id: "demo-003",
+    title: "Orbit Keepers",
+    slug: "orbit-keepers",
+    genre: "Strategy",
+    status: "draft",
+    short_description: "Build and defend a frontier space outpost.",
+    monetization_type: "free"
+  }
+];
+
+function makeSlug(value: string): string {
+  return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function statusLabel(value: string): string {
+  return value.replaceAll("_", " ").toUpperCase();
+}
+
+function money(minor: number | null | undefined, currency = "NGN"): string {
+  if (minor == null) return "Free";
+  try {
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2
+    }).format(minor / 100);
+  } catch {
+    return currency + " " + (minor / 100).toFixed(2);
+  }
+}
+
+function ActionButton({
+  label,
+  onPress,
+  secondary = false,
+  disabled = false,
+  busy = false
+}: {
+  label: string;
+  onPress: () => void;
+  secondary?: boolean;
+  disabled?: boolean;
+  busy?: boolean;
+}) {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled || busy}
+      onPress={onPress}
+      style={({ pressed }) => [
+        styles.actionButton,
+        secondary && styles.secondaryButton,
+        (disabled || busy) && styles.disabledButton,
+        pressed && styles.pressed
+      ]}
+    >
+      {busy ? <ActivityIndicator color={secondary ? "#bceff6" : "#06111e"} /> : (
+        <Text style={[styles.actionButtonText, secondary && styles.secondaryButtonText]}>{label}</Text>
+      )}
+    </Pressable>
+  );
+}
+
+function StatusPill({ value }: { value: string }) {
+  const normalized = value.toLowerCase();
+  const kind = normalized === "published" || normalized === "approved" || normalized === "clean"
+    ? styles.statusSuccess
+    : normalized === "rejected" || normalized === "failed" || normalized === "suspended"
+      ? styles.statusDanger
+      : styles.statusPending;
+  return <Text style={[styles.statusPill, kind]}>{statusLabel(value)}</Text>;
+}
+
+export default function App() {
+  const [ready, setReady] = useState(false);
+  const [section, setSection] = useState<Section>("overview");
+  const [user, setUser] = useState<Account | null>(null);
+  const [studio, setStudio] = useState<Studio | null>(null);
+  const [games, setGames] = useState<GameRow[]>([]);
+  const [builds, setBuilds] = useState<BuildRow[]>([]);
+  const [buildsError, setBuildsError] = useState("");
+  const [buildsBusy, setBuildsBusy] = useState(false);
+
+  const [authMode, setAuthMode] = useState<AuthMode>("signup");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [studioName, setStudioName] = useState("");
+  const [studioDescription, setStudioDescription] = useState("");
+  const [studioWebsite, setStudioWebsite] = useState("");
+
+  const [gameTitle, setGameTitle] = useState("");
+  const [gameDescription, setGameDescription] = useState("");
+  const [genre, setGenre] = useState("Adventure");
+  const [platform, setPlatform] = useState("android");
+  const [monetization, setMonetization] = useState("free");
+  const [priceNaira, setPriceNaira] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    async function bootstrap() {
+      try {
+        if (!supabase) {
+          const [savedUser, savedStudio, savedGames] = await Promise.all([
+            AsyncStorage.getItem(USER_KEY),
+            AsyncStorage.getItem(STUDIO_KEY),
+            AsyncStorage.getItem(GAMES_KEY)
+          ]);
+          if (!active) return;
+          setUser(savedUser ? JSON.parse(savedUser) as Account : null);
+          setStudio(savedStudio ? JSON.parse(savedStudio) as Studio : null);
+          setGames(savedGames ? JSON.parse(savedGames) as GameRow[] : DEMO_GAMES);
+        } else {
+          const { data, error: sessionError } = await supabase.auth.getSession();
+          if (sessionError) throw sessionError;
+          if (!active) return;
+          setUser(data.session?.user ? {
+            id: data.session.user.id,
+            email: data.session.user.email
+          } : null);
+        }
+      } catch {
+        if (active) {
+          setGames(DEMO_GAMES);
+          setError("Some saved app data could not be restored. You can continue.");
+        }
+      } finally {
+        if (active) {
+          setReady(true);
+        }
+      }
+    }
+    void bootstrap();
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: authState } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ? {
+        id: session.user.id,
+        email: session.user.email
+      } : null);
+    });
+    return () => authState.subscription.unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!ready || isSupabaseConfigured) return;
+    Promise.all([
+      user ? AsyncStorage.setItem(USER_KEY, JSON.stringify(user)) : AsyncStorage.removeItem(USER_KEY),
+      studio ? AsyncStorage.setItem(STUDIO_KEY, JSON.stringify(studio)) : AsyncStorage.removeItem(STUDIO_KEY),
+      AsyncStorage.setItem(GAMES_KEY, JSON.stringify(games))
+    ]).catch(() => undefined);
+  }, [ready, user, studio, games]);
+
+  useEffect(() => {
+    if (!ready || !user || user.demo || !supabase) {
+      if (!user) {
+        setStudio(null);
+        setGames([]);
+      }
+      return;
+    }
+    let active = true;
+    async function loadStudio() {
+      const { data, error: queryError } = await supabase!
+        .from("developer_studios")
+        .select("id,studio_name,slug,description,website_url,verification_status")
+        .eq("owner_user_id", user!.id)
+        .maybeSingle();
+      if (!active) return;
+      if (queryError) setError("Studio could not be loaded: " + queryError.message);
+      setStudio(data as Studio | null);
+    }
+    void loadStudio();
+    return () => { active = false; };
+  }, [ready, user]);
+
+  useEffect(() => {
+    if (!studio || studio.demo || !supabase) return;
+    let active = true;
+    async function loadGames() {
+      const { data, error: queryError } = await supabase!
+        .from("games")
+        .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms")
+        .eq("studio_id", studio!.id)
+        .order("created_at", { ascending: false });
+      if (!active) return;
+      if (queryError) setError("Game listings could not be loaded: " + queryError.message);
+      else setGames((data ?? []) as GameRow[]);
+    }
+    void loadGames();
+    return () => { active = false; };
+  }, [studio]);
+
+  const published = useMemo(() => games.filter((game) => game.status === "published").length, [games]);
+  const inReview = useMemo(() => games.filter((game) => game.status === "submitted" || game.status === "in_review").length, [games]);
+  const drafts = useMemo(() => games.filter((game) => game.status === "draft").length, [games]);
+
+  async function handleAuth() {
+    setError("");
+    setNotice("");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()) || password.length < 8) {
+      setError("Enter a valid email and a password with at least 8 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!supabase) {
+        setUser({
+          id: "demo-user-" + Date.now().toString(),
+          email: email.trim(),
+          demo: true
+        });
+        setNotice("Demo account opened on this device. Connect Supabase for a real developer account.");
+      } else if (authMode === "signup") {
+        const { data, error: authError } = await supabase.auth.signUp({
+          email: email.trim(),
+          password
+        });
+        if (authError) throw authError;
+        if (!data.session) {
+          setNotice("Check your email to confirm your developer account, then sign in.");
+        } else {
+          setNotice("Developer account created.");
+        }
+      } else {
+        const { error: authError } = await supabase.auth.signInWithPassword({
+          email: email.trim(),
+          password
+        });
+        if (authError) throw authError;
+        setNotice("Signed in successfully.");
+      }
+      setPassword("");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Account sign-in failed. Please try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function createStudio() {
+    setError("");
+    setNotice("");
+    const name = studioName.trim();
+    if (name.length < 2 || name.length > 80) {
+      setError("Studio name must be between 2 and 80 characters.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const slug = makeSlug(name);
+      if (!user) throw new Error("Sign in before creating a studio.");
+      if (user.demo || !supabase) {
+        const next: Studio = {
+          id: "demo-studio-" + Date.now().toString(),
+          studio_name: name,
+          slug,
+          description: studioDescription.trim(),
+          website_url: studioWebsite.trim() || null,
+          verification_status: "pending",
+          demo: true
+        };
+        setStudio(next);
+        setNotice("Demo studio created on this device.");
+      } else {
+        const { data, error: insertError } = await supabase
+          .from("developer_studios")
+          .insert({
+            owner_user_id: user.id,
+            studio_name: name,
+            slug,
+            description: studioDescription.trim() || null,
+            website_url: studioWebsite.trim() || null
+          })
+          .select("id,studio_name,slug,description,website_url,verification_status")
+          .single();
+        if (insertError) throw insertError;
+        setStudio(data as Studio);
+        setNotice("Studio created. Verification status is pending until Game ON reviews it.");
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Studio could not be created.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitGame() {
+    setError("");
+    setNotice("");
+    if (!studio) {
+      setError("Create your studio before submitting a game.");
+      return;
+    }
+    const title = gameTitle.trim();
+    const description = gameDescription.trim();
+    if (title.length < 2 || title.length > 100) {
+      setError("Game title must be between 2 and 100 characters.");
+      return;
+    }
+    if (description.length < 10 || description.length > 180) {
+      setError("Short description must be between 10 and 180 characters.");
+      return;
+    }
+    let priceMinor: number | null = null;
+    if (monetization === "paid") {
+      const amount = Number(priceNaira);
+      if (!Number.isFinite(amount) || amount <= 0 || !Number.isSafeInteger(Math.round(amount * 100))) {
+        setError("Enter a valid NGN price greater than zero for a paid game.");
+        return;
+      }
+      priceMinor = Math.round(amount * 100);
+    }
+    setBusy(true);
+    try {
+      const slug = makeSlug(title) + "-" + Date.now().toString(36);
+      if (studio.demo || !supabase) {
+        const row: GameRow = {
+          id: "demo-game-" + Date.now().toString(),
+          title,
+          slug,
+          genre,
+          status: "submitted",
+          short_description: description,
+          monetization_type: monetization,
+          price_minor: priceMinor,
+          currency: priceMinor === null ? null : "NGN",
+          supported_platforms: [platform]
+        };
+        setGames((current) => [row, ...current]);
+        setNotice("Demo listing saved locally. Connect the shared backend for real review and publishing.");
+      } else {
+        const { data, error: insertError } = await supabase
+          .from("games")
+          .insert({
+            studio_id: studio.id,
+            title,
+            slug,
+            short_description: description,
+            description,
+            genre,
+            supported_platforms: [platform],
+            monetization_type: monetization,
+            price_minor: priceMinor,
+            currency: priceMinor === null ? null : "NGN",
+            status: "submitted"
+          })
+          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms")
+          .single();
+        if (insertError) throw insertError;
+        setGames((current) => [data as GameRow, ...current]);
+        setNotice("Your game listing was submitted for Game ON review.");
+      }
+      setGameTitle("");
+      setGameDescription("");
+      setPriceNaira("");
+      setSection("games");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Game listing could not be submitted.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function loadBuilds() {
+    setError("");
+    setBuildsError("");
+    if (!creatorApiUrl) {
+      setBuildsError("Secure build history is not connected yet. Configure the Creator server URL before using private build uploads.");
+      return;
+    }
+    if (!supabase || !user || user.demo) {
+      setBuildsError("Sign in with a real Game ON developer account and connect Supabase to load private build history.");
+      return;
+    }
+    setBuildsBusy(true);
+    try {
+      const { data, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError) throw sessionError;
+      const token = data.session?.access_token;
+      if (!token) throw new Error("Your session has expired. Sign in again.");
+      const response = await fetch(creatorApiUrl + "/api/builds", {
+        method: "GET",
+        headers: { Authorization: "Bearer " + token },
+        cache: "no-store"
+      });
+      const payload = await response.json().catch(() => ({})) as { builds?: BuildRow[]; error?: string };
+      if (!response.ok) throw new Error(payload.error || "Build history could not be loaded.");
+      setBuilds(Array.isArray(payload.builds) ? payload.builds : []);
+    } catch (caught) {
+      setBuildsError(caught instanceof Error ? caught.message : "Build history could not be loaded.");
+    } finally {
+      setBuildsBusy(false);
+    }
+  }
+
+  async function signOut() {
+    setError("");
+    setNotice("");
+    if (supabase && user && !user.demo) {
+      const { error: signOutError } = await supabase.auth.signOut();
+      if (signOutError) {
+        setError(signOutError.message);
+        return;
+      }
+    }
+    setUser(null);
+    setStudio(null);
+    setGames([]);
+    setBuilds([]);
+    if (!supabase) {
+      await Promise.all([
+        AsyncStorage.removeItem(USER_KEY),
+        AsyncStorage.removeItem(STUDIO_KEY),
+        AsyncStorage.removeItem(GAMES_KEY)
+      ]).catch(() => undefined);
+    }
+  }
+
+  if (!ready) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingScreen}>
+          <ActivityIndicator color="#18d9f4" size="large" />
+          <Text style={styles.loadingText}>LOADING GAME ON CREATOR…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!user) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <KeyboardAvoidingView style={styles.authScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.brandRow}>
+            <View style={styles.brandMark}><Text style={styles.brandMarkText}>G</Text></View>
+            <View><Text style={styles.brandName}>GAME ON</Text><Text style={styles.brandSub}>CREATOR</Text></View>
+          </View>
+          <View style={styles.authPanel}>
+            <Text style={styles.eyebrow}>BUILT FOR THE PEOPLE WHO BUILD GAMES</Text>
+            <Text style={styles.authTitle}>{authMode === "signup" ? "YOUR GAME. YOUR AUDIENCE." : "WELCOME BACK."}</Text>
+            <Text style={styles.bodyCopy}>Create your developer account, set up your studio and manage your Game ON listings.</Text>
+            <TextInput
+              value={email}
+              onChangeText={setEmail}
+              placeholder="Email address"
+              placeholderTextColor="#718198"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              style={styles.input}
+            />
+            <TextInput
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Password (at least 8 characters)"
+              placeholderTextColor="#718198"
+              secureTextEntry
+              autoCapitalize="none"
+              autoComplete={authMode === "signup" ? "new-password" : "current-password"}
+              style={styles.input}
+              onSubmitEditing={() => { void handleAuth(); }}
+            />
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
+            {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
+            <ActionButton label={authMode === "signup" ? "CREATE DEVELOPER ACCOUNT" : "SIGN IN TO CREATOR"} onPress={() => { void handleAuth(); }} busy={busy} />
+            <Pressable onPress={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setError(""); setNotice(""); }}>
+              <Text style={styles.switchText}>{authMode === "signup" ? "Already registered? Sign in" : "New to Creator? Create an account"}</Text>
+            </Pressable>
+            {!isSupabaseConfigured && <Text style={styles.demoBanner}>DEMO MODE · No real account is created until Supabase is connected.</Text>}
+          </View>
+          <Text style={styles.footerText}>GAME ON CREATOR · A SEPARATE DEVELOPER APP</Text>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  if (!studio) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <StatusBar barStyle="light-content" />
+        <KeyboardAvoidingView style={styles.onboardingScreen} behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <View style={styles.topBar}>
+            <Brand />
+            <Pressable onPress={() => { void signOut(); }}><Text style={styles.linkText}>SIGN OUT</Text></Pressable>
+          </View>
+          <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
+            <Text style={styles.eyebrow}>ONE QUICK STEP</Text>
+            <Text style={styles.pageTitle}>SET UP YOUR STUDIO.</Text>
+            <Text style={styles.bodyCopy}>Your studio is the home for the games you publish on Game ON. You can update these details later.</Text>
+            <Text style={styles.fieldLabel}>STUDIO NAME</Text>
+            <TextInput value={studioName} onChangeText={setStudioName} placeholder="e.g. Blue Lantern Games" placeholderTextColor="#718198" style={styles.input} maxLength={80} />
+            <Text style={styles.fieldLabel}>SHORT DESCRIPTION</Text>
+            <TextInput value={studioDescription} onChangeText={setStudioDescription} placeholder="Tell players and Game ON about your studio." placeholderTextColor="#718198" multiline style={[styles.input, styles.multilineInput]} />
+            <Text style={styles.fieldLabel}>WEBSITE (OPTIONAL)</Text>
+            <TextInput value={studioWebsite} onChangeText={setStudioWebsite} placeholder="https://yourstudio.com" placeholderTextColor="#718198" autoCapitalize="none" keyboardType="url" style={styles.input} />
+            {!!error && <Text style={styles.errorText}>{error}</Text>}
+            {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
+            <ActionButton label="CREATE MY STUDIO" onPress={() => { void createStudio(); }} busy={busy} />
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    );
+  }
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar barStyle="light-content" />
+      <View style={styles.appShell}>
+        <View style={styles.topBar}>
+          <Brand />
+          <Pressable onPress={() => Alert.alert("Developer account", user.email || "Signed in", [
+            { text: "Close", style: "cancel" },
+            { text: "Sign out", style: "destructive", onPress: () => { void signOut(); } }
+          ])} style={styles.accountButton}>
+            <Text style={styles.accountButtonText}>ACCOUNT</Text>
+          </Pressable>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.navRow}>
+          <NavButton label="OVERVIEW" active={section === "overview"} onPress={() => setSection("overview")} />
+          <NavButton label="MY GAMES" active={section === "games"} onPress={() => setSection("games")} />
+          <NavButton label="SUBMIT GAME" active={section === "submit"} onPress={() => setSection("submit")} />
+          <NavButton label="BUILDS" active={section === "builds"} onPress={() => { setSection("builds"); void loadBuilds(); }} />
+          <NavButton label="STUDIO" active={section === "studio"} onPress={() => setSection("studio")} />
+        </ScrollView>
+        <ScrollView style={styles.mainScroll} contentContainerStyle={styles.mainContent} keyboardShouldPersistTaps="handled">
+          {section === "overview" ? (
+            <>
+              <Text style={styles.eyebrow}>DEVELOPER WORKSPACE</Text>
+              <Text style={styles.pageTitle}>WELCOME, {studio.studio_name.toUpperCase()}</Text>
+              <Text style={styles.bodyCopy}>Your studio dashboard. Keep your listings organised and follow their review status.</Text>
+              <View style={styles.verificationCard}>
+                <View style={styles.rowBetween}>
+                  <View style={styles.flexOne}>
+                    <Text style={styles.cardLabel}>STUDIO VERIFICATION</Text>
+                    <Text style={styles.cardTitle}>{studio.verification_status ? statusLabel(studio.verification_status) : "PENDING"}</Text>
+                  </View>
+                  <StatusPill value={studio.verification_status || "pending"} />
+                </View>
+                <Text style={styles.mutedCopy}>Game ON reviews studio details before publishing rights are granted. You cannot verify your own studio.</Text>
+              </View>
+              <View style={styles.statsGrid}>
+                <StatCard label="TOTAL GAMES" value={String(games.length)} />
+                <StatCard label="PUBLISHED" value={String(published)} />
+                <StatCard label="IN REVIEW" value={String(inReview)} />
+                <StatCard label="DRAFTS" value={String(drafts)} />
+              </View>
+              <ActionButton label="+ SUBMIT A GAME" onPress={() => setSection("submit")} />
+              <ActionButton label="VIEW ALL MY GAMES" onPress={() => setSection("games")} secondary />
+              {!isSupabaseConfigured && <Text style={styles.demoBanner}>LOCAL DEMO DATA · Changes stay on this device and are not submitted to Game ON.</Text>}
+            </>
+          ) : null}
+
+          {section === "games" ? (
+            <>
+              <Text style={styles.eyebrow}>YOUR STUDIO CATALOGUE</Text>
+              <Text style={styles.pageTitle}>MY GAMES</Text>
+              <Text style={styles.bodyCopy}>{games.length} listing{games.length === 1 ? "" : "s"} connected to this studio.</Text>
+              <ActionButton label="+ SUBMIT A GAME" onPress={() => setSection("submit")} />
+              {games.length === 0 ? <EmptyState title="NO GAMES SUBMITTED" copy="Submit your first listing to start the Game ON review process." /> : games.map((game) => (
+                <View key={game.id} style={styles.gameCard}>
+                  <View style={styles.rowBetween}>
+                    <View style={styles.flexOne}>
+                      <Text style={styles.gameTitle}>{game.title}</Text>
+                      <Text style={styles.mutedCopy}>{game.genre} · {game.supported_platforms?.join(", ").toUpperCase() || "ANDROID"}</Text>
+                    </View>
+                    <StatusPill value={game.status} />
+                  </View>
+                  <Text style={styles.gameDescription}>{game.short_description}</Text>
+                  <View style={styles.rowBetween}>
+                    <Text style={styles.moneyText}>{game.monetization_type.replaceAll("_", " ").toUpperCase()}</Text>
+                    <Text style={styles.moneyText}>{money(game.price_minor, game.currency || "NGN")}</Text>
+                  </View>
+                </View>
+              ))}
+            </>
+          ) : null}
+
+          {section === "submit" ? (
+            <>
+              <Text style={styles.eyebrow}>PUBLISH ON GAME ON</Text>
+              <Text style={styles.pageTitle}>SUBMIT A GAME</Text>
+              <Text style={styles.bodyCopy}>Create your game listing. Game ON reviews submissions before a title can be published.</Text>
+              <Text style={styles.fieldLabel}>GAME TITLE</Text>
+              <TextInput value={gameTitle} onChangeText={setGameTitle} placeholder="Your game's name" placeholderTextColor="#718198" style={styles.input} maxLength={100} />
+              <Text style={styles.fieldLabel}>SHORT DESCRIPTION (10–180 CHARACTERS)</Text>
+              <TextInput value={gameDescription} onChangeText={setGameDescription} placeholder="Tell players what makes your game special." placeholderTextColor="#718198" style={[styles.input, styles.multilineInput]} multiline maxLength={180} />
+              <Text style={styles.fieldLabel}>GENRE</Text>
+              <TextInput value={genre} onChangeText={setGenre} placeholder="Adventure, Racing, Puzzle…" placeholderTextColor="#718198" style={styles.input} />
+              <Text style={styles.fieldLabel}>PLATFORM</Text>
+              <View style={styles.choiceRow}>
+                {["android", "ios", "windows", "web"].map((item) => (
+                  <Pressable key={item} onPress={() => setPlatform(item)} style={[styles.choiceChip, platform === item && styles.choiceChipActive]}>
+                    <Text style={[styles.choiceText, platform === item && styles.choiceTextActive]}>{item.toUpperCase()}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              <Text style={styles.fieldLabel}>MONETIZATION</Text>
+              <View style={styles.choiceColumn}>
+                {[
+                  { value: "free", label: "Free" },
+                  { value: "paid", label: "Paid" },
+                  { value: "free_with_ads", label: "Free with ads" },
+                  { value: "free_with_iap", label: "Free with in-app purchases" },
+                  { value: "demo", label: "Free demo" }
+                ].map((item) => (
+                  <Pressable key={item.value} onPress={() => setMonetization(item.value)} style={[styles.choiceChip, styles.choiceFull, monetization === item.value && styles.choiceChipActive]}>
+                    <Text style={[styles.choiceText, monetization === item.value && styles.choiceTextActive]}>{item.label}</Text>
+                  </Pressable>
+                ))}
+              </View>
+              {monetization === "paid" ? (
+                <>
+                  <Text style={styles.fieldLabel}>PRICE (NGN)</Text>
+                  <TextInput value={priceNaira} onChangeText={setPriceNaira} placeholder="e.g. 2500" placeholderTextColor="#718198" style={styles.input} keyboardType="decimal-pad" />
+                </>
+              ) : null}
+              {!!error && <Text style={styles.errorText}>{error}</Text>}
+              {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
+              <ActionButton label="SUBMIT FOR REVIEW" onPress={() => { void submitGame(); }} busy={busy} />
+              <Text style={styles.mutedCopy}>Submitting a listing does not publish it. Only authorised Game ON reviewers can approve a game.</Text>
+            </>
+          ) : null}
+
+          {section === "builds" ? (
+            <>
+              <Text style={styles.eyebrow}>PRIVATE GAME FILES</Text>
+              <Text style={styles.pageTitle}>BUILD MANAGER</Text>
+              <Text style={styles.bodyCopy}>Builds stay in private quarantine until scanning and Game ON release review are complete.</Text>
+              <View style={styles.verificationCard}>
+                <Text style={styles.cardTitle}>SECURE UPLOAD PIPELINE</Text>
+                <Text style={styles.mutedCopy}>The mobile app never writes directly to private build storage. Uploads and build records are managed by the authenticated Creator server.</Text>
+                <ActionButton label="REFRESH BUILD HISTORY" onPress={() => { void loadBuilds(); }} busy={buildsBusy} secondary />
+              </View>
+              {!!buildsError && <Text style={styles.errorText}>{buildsError}</Text>}
+              {buildsBusy ? <ActivityIndicator color="#18d9f4" /> : builds.length === 0 ? <EmptyState title="NO BUILD RECORDS" copy="Build history will appear here after the secure Creator API is connected and a build has been uploaded." /> : builds.map((build) => (
+                <View key={build.id} style={styles.gameCard}>
+                  <Text style={styles.gameTitle}>{build.game_title} · v{build.version_label}</Text>
+                  <Text style={styles.mutedCopy}>{build.platform.toUpperCase()} · {(Number(build.file_size_bytes) / 1024 / 1024).toFixed(1)} MB</Text>
+                  <View style={styles.choiceRow}>
+                    <StatusPill value={build.upload_status} />
+                    <StatusPill value={build.scan_status} />
+                    <StatusPill value={build.release_status} />
+                  </View>
+                </View>
+              ))}
+              <Text style={styles.demoBanner}>UPLOADS ARE LOCKED UNTIL THE PRIVATE CREATOR API AND TRUSTED SCANNER ARE CONFIGURED.</Text>
+            </>
+          ) : null}
+
+          {section === "studio" ? (
+            <>
+              <Text style={styles.eyebrow}>YOUR DEVELOPER PROFILE</Text>
+              <Text style={styles.pageTitle}>STUDIO SETTINGS</Text>
+              <View style={styles.verificationCard}>
+                <Text style={styles.cardLabel}>STUDIO NAME</Text>
+                <Text style={styles.cardTitle}>{studio.studio_name}</Text>
+                <Text style={styles.cardLabel}>STUDIO SLUG</Text>
+                <Text style={styles.mutedCopy}>{studio.slug}</Text>
+                <Text style={styles.cardLabel}>VERIFICATION</Text>
+                <StatusPill value={studio.verification_status || "pending"} />
+                {!!studio.description && <Text style={styles.mutedCopy}>{studio.description}</Text>}
+                {!!studio.website_url && <Text style={styles.linkText}>{studio.website_url}</Text>}
+              </View>
+              <Text style={styles.bodyCopy}>Studio identity and verification changes are managed by Game ON. Contact support for a change request.</Text>
+              <ActionButton label="SIGN OUT" onPress={() => { void signOut(); }} secondary />
+            </>
+          ) : null}
+
+          {!!error && section !== "submit" && section !== "builds" ? <Text style={styles.errorText}>{error}</Text> : null}
+          {!!notice && section !== "overview" && section !== "submit" ? <Text style={styles.noticeText}>{notice}</Text> : null}
+          <View style={styles.footer}>
+            <Text style={styles.footerBrand}>GAME ON <Text style={styles.footerAccent}>CREATOR</Text></Text>
+            <Text style={styles.footerText}>A home for the people who make games.</Text>
+          </View>
+        </ScrollView>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function Brand() {
+  return (
+    <View style={styles.brandRow}>
+      <View style={styles.brandMark}><Text style={styles.brandMarkText}>G</Text></View>
+      <View><Text style={styles.brandName}>GAME ON</Text><Text style={styles.brandSub}>CREATOR</Text></View>
+    </View>
+  );
+}
+
+function NavButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return (
+    <Pressable onPress={onPress} style={[styles.navButton, active && styles.navButtonActive]}>
+      <Text style={[styles.navButtonText, active && styles.navButtonTextActive]}>{label}</Text>
+    </Pressable>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
+
+function EmptyState({ title, copy }: { title: string; copy: string }) {
+  return (
+    <View style={styles.emptyState}>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.mutedCopy}>{copy}</Text>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: "#070b14" },
+  appShell: { flex: 1, backgroundColor: "#070b14" },
+  loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
+  loadingText: { color: "#90a6bd", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
+  authScreen: { flex: 1, paddingHorizontal: 22, justifyContent: "center" },
+  authPanel: { width: "100%", maxWidth: 480, alignSelf: "center", backgroundColor: "#0d1726", borderWidth: 1, borderColor: "#1b344a", borderRadius: 18, padding: 22, marginTop: 28 },
+  brandRow: { flexDirection: "row", alignItems: "center", gap: 11 },
+  brandMark: { width: 42, height: 42, borderRadius: 10, backgroundColor: "#102d40", borderWidth: 1, borderColor: "#18d9f4", alignItems: "center", justifyContent: "center" },
+  brandMarkText: { color: "#18d9f4", fontSize: 26, fontWeight: "900" },
+  brandName: { color: "#f0f7ff", fontWeight: "900", fontSize: 18, letterSpacing: 2 },
+  brandSub: { color: "#18d9f4", fontWeight: "800", fontSize: 9, letterSpacing: 4, marginTop: 2 },
+  eyebrow: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1.8, marginBottom: 10 },
+  authTitle: { color: "#f2f7ff", fontSize: 31, lineHeight: 36, fontWeight: "900", marginBottom: 10 },
+  pageTitle: { color: "#f2f7ff", fontSize: 27, lineHeight: 33, fontWeight: "900", marginBottom: 8 },
+  bodyCopy: { color: "#9aadc1", fontSize: 12, lineHeight: 19, marginBottom: 18 },
+  input: { minHeight: 48, borderWidth: 1, borderColor: "#293b50", backgroundColor: "#07101c", color: "#f0f7ff", borderRadius: 8, paddingHorizontal: 13, marginBottom: 12, fontSize: 12 },
+  multilineInput: { minHeight: 88, paddingTop: 13, textAlignVertical: "top" },
+  switchText: { color: "#18d9f4", textAlign: "center", fontSize: 10, fontWeight: "800", paddingVertical: 17 },
+  demoBanner: { color: "#e6bd89", borderWidth: 1, borderColor: "#654c2b", backgroundColor: "#241d16", borderRadius: 8, padding: 12, fontSize: 9, lineHeight: 15, fontWeight: "800", marginTop: 13 },
+  footerText: { color: "#71849a", fontSize: 9, letterSpacing: 1.2, textAlign: "center", marginTop: 23 },
+  onboardingScreen: { flex: 1 },
+  topBar: { minHeight: 72, paddingHorizontal: 19, flexDirection: "row", alignItems: "center", justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#1a2a3d" },
+  linkText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  formContent: { padding: 22, paddingBottom: 50 },
+  fieldLabel: { color: "#8298af", fontSize: 8, fontWeight: "900", letterSpacing: 1.4, marginBottom: 8, marginTop: 8 },
+  actionButton: { minHeight: 47, alignItems: "center", justifyContent: "center", backgroundColor: "#18d9f4", borderRadius: 8, paddingHorizontal: 16, marginTop: 10 },
+  actionButtonText: { color: "#06111e", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  secondaryButton: { backgroundColor: "#0e2030", borderWidth: 1, borderColor: "#265168" },
+  secondaryButtonText: { color: "#bdeef5" },
+  disabledButton: { opacity: 0.55 },
+  pressed: { opacity: 0.82 },
+  appShell: { flex: 1, backgroundColor: "#070b14" },
+  accountButton: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#0b1e2b", borderWidth: 1, borderColor: "#1a9db5", borderRadius: 8 },
+  accountButtonText: { color: "#bceff6", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  navRow: { gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#192a3c" },
+  navButton: { paddingHorizontal: 13, paddingVertical: 9, borderWidth: 1, borderColor: "#26384d", backgroundColor: "#0b1421", borderRadius: 7 },
+  navButtonActive: { borderColor: "#18d9f4", backgroundColor: "#103042" },
+  navButtonText: { color: "#91a3b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  navButtonTextActive: { color: "#c0f8ff" },
+  mainScroll: { flex: 1 },
+  mainContent: { padding: 19, paddingBottom: 45 },
+  verificationCard: { borderWidth: 1, borderColor: "#1e4052", borderRadius: 12, backgroundColor: "#0d1c2b", padding: 15, marginBottom: 14 },
+  rowBetween: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10 },
+  flexOne: { flex: 1 },
+  cardLabel: { color: "#8298af", fontSize: 8, fontWeight: "900", letterSpacing: 1.4, marginBottom: 6, marginTop: 5 },
+  cardTitle: { color: "#f1f7ff", fontSize: 15, fontWeight: "900" },
+  mutedCopy: { color: "#8da1b7", fontSize: 10, lineHeight: 16, marginTop: 8 },
+  statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 13 },
+  statCard: { width: "48%", minHeight: 85, borderWidth: 1, borderColor: "#26384c", borderRadius: 10, backgroundColor: "#0d1726", padding: 13, justifyContent: "center" },
+  statValue: { color: "#18d9f4", fontSize: 26, fontWeight: "900" },
+  statLabel: { color: "#8298af", fontSize: 8, fontWeight: "900", letterSpacing: 1.2, marginTop: 5 },
+  statusPill: { color: "#d0deeb", fontSize: 8, fontWeight: "900", letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5, overflow: "hidden" },
+  statusSuccess: { backgroundColor: "#17372b", color: "#a7e6bd" },
+  statusDanger: { backgroundColor: "#3a1f26", color: "#f2a8b4" },
+  statusPending: { backgroundColor: "#263548", color: "#c3d1df" },
+  gameCard: { borderWidth: 1, borderColor: "#22364b", borderRadius: 11, backgroundColor: "#0d1827", padding: 14, marginTop: 11 },
+  gameTitle: { color: "#f0f7ff", fontSize: 14, fontWeight: "900" },
+  gameDescription: { color: "#a5b5c7", fontSize: 11, lineHeight: 17, marginTop: 9, marginBottom: 10 },
+  moneyText: { color: "#8ba1b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
+  choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
+  choiceColumn: { gap: 7, marginBottom: 7 },
+  choiceChip: { borderWidth: 1, borderColor: "#293a50", backgroundColor: "#0b1421", borderRadius: 7, paddingHorizontal: 12, paddingVertical: 10 },
+  choiceFull: { width: "100%" },
+  choiceChipActive: { borderColor: "#18d9f4", backgroundColor: "#103042" },
+  choiceText: { color: "#91a4b8", fontSize: 9, fontWeight: "800" },
+  choiceTextActive: { color: "#c0f8ff" },
+  errorText: { color: "#ff9aa8", fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 5 },
+  noticeText: { color: "#9be3bb", fontSize: 10, lineHeight: 15, marginTop: 8, marginBottom: 5 },
+  emptyState: { borderWidth: 1, borderColor: "#26384e", borderStyle: "dashed", borderRadius: 12, padding: 22, alignItems: "center", marginTop: 13 },
+  emptyTitle: { color: "#f0f7ff", fontSize: 12, fontWeight: "900", letterSpacing: 0.8, textAlign: "center" },
+  footer: { borderTopWidth: 1, borderTopColor: "#1b2b3d", paddingTop: 20, marginTop: 27 },
+  footerBrand: { color: "#f2f7ff", fontSize: 17, fontWeight: "900", letterSpacing: 2 },
+  footerAccent: { color: "#18d9f4" }
+});
