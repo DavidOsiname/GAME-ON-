@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "GAME ON STORE",
+    "slug": "game-on-store",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "gameonstore",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gameon.store"
+    },
+    "android": {
+      "package": "com.gameon.store",
+      "versionCode": 1
+    },
+    "splash": {
+      "backgroundColor": "#070b14"
+    }
+  }
+}
