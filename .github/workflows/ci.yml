@@ -6,7 +6,7 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: write
+  contents: read
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -18,13 +18,8 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-      - name: Install workspace dependencies and generate genuine lockfile
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci --no-audit --no-fund
-          else
-            npm install --no-audit --no-fund
-          fi
+      - name: Install locked workspace dependencies
+        run: npm ci --no-audit --no-fund
       - name: Run strict release configuration preflight
         run: npm run release:preflight
       - name: Upload generated root lockfile for review
@@ -34,27 +29,6 @@ jobs:
           path: package-lock.json
           if-no-files-found: error
           retention-days: 14
-      - name: Commit generated root lockfile to the PR branch
-        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
-        env:
-          BRANCH_NAME: ${{ github.head_ref }}
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
-            echo "Root package-lock.json is already committed."
-            exit 0
-          fi
-          LOCKFILE_COPY="${RUNNER_TEMP}/game-on-package-lock.json"
-          BRANCH_WORKTREE="${RUNNER_TEMP}/game-on-pr-branch"
-          cp package-lock.json "${LOCKFILE_COPY}"
-          git fetch origin "+refs/heads/${BRANCH_NAME}:refs/remotes/origin/${BRANCH_NAME}"
-          git worktree add "${BRANCH_WORKTREE}" "refs/remotes/origin/${BRANCH_NAME}"
-          cp "${LOCKFILE_COPY}" "${BRANCH_WORKTREE}/package-lock.json"
-          git -C "${BRANCH_WORKTREE}" config user.name "github-actions[bot]"
-          git -C "${BRANCH_WORKTREE}" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git -C "${BRANCH_WORKTREE}" add package-lock.json
-          git -C "${BRANCH_WORKTREE}" commit -m "Add reproducible npm workspace lockfile"
-          git -C "${BRANCH_WORKTREE}" push origin "HEAD:${BRANCH_NAME}"
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
