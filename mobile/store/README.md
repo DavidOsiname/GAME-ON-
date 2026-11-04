@@ -13,6 +13,7 @@ This is the first native mobile client in the GAME ON ecosystem. It is a separat
 - Add-to-library flow for published free titles, subject to database RLS; paid titles cannot be self-granted
 - Purchase history and refund-status display from the signed-in player's own server-verified records
 - Player notification inbox with read-state updates restricted to the signed-in account
+- Player ratings and reviews for games in the player's library; new or edited reviews return to moderation, and self-reviews of developer-owned games are blocked by database policy
 - Explicit demo data when no live Supabase project is configured
 - EAS profiles for internal Android APK builds and iOS builds
 
