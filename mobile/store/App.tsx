@@ -177,6 +177,25 @@ export default function App() {
     return () => { alive = false; };
   }, []);
 
+
+
+  useEffect(() => {
+    if (!supabase || !user) return;
+    let alive = true;
+
+    supabase
+      .from("wishlists")
+      .select("game_id")
+      .eq("user_id", user.id)
+      .then(({ data, error }) => {
+        if (!alive || error || !data) return;
+        const liveIds = data.map((row) => String(row.game_id));
+        setWishlist(liveIds);
+      });
+
+    return () => { alive = false; };
+  }, [user]);
+
   const visibleGames = useMemo(() => {
     const source = tab === "wishlist"
       ? games.filter((game) => wishlist.includes(game.id))
