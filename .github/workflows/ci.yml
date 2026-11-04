@@ -6,7 +6,8 @@ on:
     branches: [main]
   workflow_dispatch:
 permissions:
-  contents: read
+  contents: write
+  actions: write
 jobs:
   validate:
     runs-on: ubuntu-latest
@@ -34,6 +35,22 @@ jobs:
           path: package-lock.json
           if-no-files-found: error
           retention-days: 14
+      - name: Commit generated root lockfile to the PR branch
+        if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+        env:
+          BRANCH_NAME: ${{ github.head_ref }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if git ls-files --error-unmatch package-lock.json >/dev/null 2>&1; then
+            echo "Root package-lock.json is already committed."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          git commit -m "Add reproducible npm workspace lockfile"
+          git push origin "HEAD:${BRANCH_NAME}"
+          gh workflow run ci.yml --ref "${BRANCH_NAME}"
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v1
         with:
