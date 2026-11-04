@@ -42,6 +42,14 @@ type PlayerNotification = {
   read_at: string | null;
   created_at: string;
 };
+type PlayerReview = {
+  id: string;
+  user_id: string;
+  rating: number;
+  review_text: string | null;
+  moderation_status: "pending" | "approved" | "rejected" | "hidden" | string;
+  created_at: string;
+};
 
 const GENRES = ["All", "Action", "Adventure", "Casual", "Puzzle", "Racing", "Strategy"];
 const WISHLIST_KEY = "gameon.store.wishlist.v1";
@@ -140,6 +148,15 @@ export default function App() {
   const [query, setQuery] = useState("");
   const [genre, setGenre] = useState("All");
   const [selected, setSelected] = useState<Game | null>(null);
+  const [gameReviews, setGameReviews] = useState<PlayerReview[]>([]);
+  const [myReview, setMyReview] = useState<PlayerReview | null>(null);
+  const [canReview, setCanReview] = useState(false);
+  const [reviewsBusy, setReviewsBusy] = useState(false);
+  const [reviewsError, setReviewsError] = useState("");
+  const [reviewRating, setReviewRating] = useState(5);
+  const [reviewText, setReviewText] = useState("");
+  const [reviewSaving, setReviewSaving] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState("");
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<AuthMode>("signin");
   const [email, setEmail] = useState("");
@@ -290,6 +307,77 @@ export default function App() {
   }, [tab, user, libraryRefresh]);
 
   useEffect(() => {
+    if (!selected || selected.id.startsWith("demo-") || !supabase) {
+      setGameReviews([]);
+      setMyReview(null);
+      setCanReview(false);
+      setReviewsBusy(false);
+      setReviewsError("");
+      setReviewMessage("");
+      return;
+    }
+
+    let alive = true;
+    setReviewsBusy(true);
+    setReviewsError("");
+    setReviewMessage("");
+    setGameReviews([]);
+    setMyReview(null);
+    setCanReview(false);
+
+    async function loadGameReviews() {
+      const { data: reviewRows, error: reviewQueryError } = await supabase!
+        .from("reviews")
+        .select("id,user_id,rating,review_text,moderation_status,created_at")
+        .eq("game_id", selected!.id)
+        .order("created_at", { ascending: false })
+        .limit(30);
+
+      if (reviewQueryError) throw reviewQueryError;
+
+      const mappedReviews = (reviewRows ?? []) as PlayerReview[];
+      const own = user ? mappedReviews.find((review) => review.user_id === user.id) ?? null : null;
+
+      let entitled = false;
+      if (user) {
+        const { data: entitlement, error: entitlementError } = await supabase!
+          .from("user_library")
+          .select("game_id")
+          .eq("user_id", user.id)
+          .eq("game_id", selected!.id)
+          .maybeSingle();
+
+        if (entitlementError) throw entitlementError;
+        entitled = Boolean(entitlement);
+      }
+
+      if (alive) {
+        setGameReviews(mappedReviews);
+        setMyReview(own);
+        setCanReview(entitled);
+        if (own) {
+          setReviewRating(own.rating);
+          setReviewText(own.review_text ?? "");
+        } else {
+          setReviewRating(5);
+          setReviewText("");
+        }
+      }
+    }
+
+    loadGameReviews()
+      .catch((error: unknown) => {
+        if (!alive) return;
+        setReviewsError(error instanceof Error ? error.message : "Ratings and reviews could not be loaded.");
+      })
+      .finally(() => {
+        if (alive) setReviewsBusy(false);
+      });
+
+    return () => { alive = false; };
+  }, [selected, user]);
+
+  useEffect(() => {
     if (tab !== "purchases" && tab !== "notifications") return;
     if (!supabase || !user) {
       setPurchases([]);
@@ -408,6 +496,79 @@ export default function App() {
     setWishlist((current) =>
       wasSaved ? current.filter((id) => id !== game.id) : [...current, game.id]
     );
+  }
+
+  async function submitGameReview() {
+    if (!selected || selected.id.startsWith("demo-") || !supabase || !user) {
+      setReviewMessage("Sign in and open a published GAME ON listing to write a review.");
+      return;
+    }
+    if (!canReview) {
+      setReviewMessage("Add this game to your library before reviewing it.");
+      return;
+    }
+
+    const cleanedText = reviewText.trim();
+    if (cleanedText.length > 3000) {
+      setReviewMessage("Your review must be 3,000 characters or fewer.");
+      return;
+    }
+    if (myReview && !["pending", "rejected"].includes(myReview.moderation_status)) {
+      setReviewMessage("This review has already been approved and can no longer be edited.");
+      return;
+    }
+
+    setReviewSaving(true);
+    setReviewMessage("");
+
+    try {
+      if (myReview) {
+        const { data, error } = await supabase
+          .from("reviews")
+          .update({
+            rating: reviewRating,
+            review_text: cleanedText || null,
+            moderation_status: "pending"
+          })
+          .eq("id", myReview.id)
+          .eq("user_id", user.id)
+          .select("id,user_id,rating,review_text,moderation_status,created_at")
+          .maybeSingle();
+
+        if (error) throw error;
+        if (!data) throw new Error("Your review could not be updated. It may already have been moderated.");
+        const updated = data as PlayerReview;
+        setMyReview(updated);
+        setGameReviews((current) => [
+          updated,
+          ...current.filter((review) => review.id !== updated.id)
+        ]);
+      } else {
+        const { data, error } = await supabase
+          .from("reviews")
+          .insert({
+            user_id: user.id,
+            game_id: selected.id,
+            rating: reviewRating,
+            review_text: cleanedText || null
+          })
+          .select("id,user_id,rating,review_text,moderation_status,created_at")
+          .single();
+
+        if (error) throw error;
+        const created = data as PlayerReview;
+        setMyReview(created);
+        setGameReviews((current) => [created, ...current.filter((review) => review.id !== created.id)]);
+      }
+
+      setReviewMessage("Thanks! Your review has been submitted for GAME ON moderation.");
+    } catch (error) {
+      setReviewMessage(error instanceof Error
+        ? error.message
+        : "Your review could not be submitted. Please try again.");
+    } finally {
+      setReviewSaving(false);
+    }
   }
 
   async function markNotificationRead(item: PlayerNotification) {
@@ -843,6 +1004,114 @@ export default function App() {
                       {wishlist.includes(selected.id) ? "♥  SAVED TO WISHLIST" : "♡  ADD TO WISHLIST"}
                     </Text>
                   </Pressable>
+                  <View style={styles.reviewSection}>
+                    <View style={styles.reviewSectionHeading}>
+                      <View>
+                        <Text style={styles.eyebrowSmall}>PLAYER FEEDBACK</Text>
+                        <Text style={styles.reviewSectionTitle}>RATINGS & REVIEWS</Text>
+                      </View>
+                      {gameReviews.some((review) => review.moderation_status === "approved") ? (
+                        <Text style={styles.reviewAverage}>
+                          {(gameReviews.filter((review) => review.moderation_status === "approved").reduce((sum, review) => sum + review.rating, 0) /
+                            gameReviews.filter((review) => review.moderation_status === "approved").length).toFixed(1)} / 5
+                        </Text>
+                      ) : null}
+                    </View>
+
+                    {reviewsBusy ? (
+                      <View style={styles.reviewLoading}>
+                        <ActivityIndicator color="#18d9f4" />
+                        <Text style={styles.reviewHint}>LOADING PLAYER REVIEWS…</Text>
+                      </View>
+                    ) : reviewsError ? (
+                      <Text style={styles.reviewMessageError}>{reviewsError}</Text>
+                    ) : (
+                      <>
+                        {gameReviews.filter((review) =>
+                          review.moderation_status === "approved" ||
+                          (user && review.user_id === user.id)
+                        ).length > 0 ? (
+                          <View style={styles.reviewCards}>
+                            {gameReviews.filter((review) =>
+                              review.moderation_status === "approved" ||
+                              (user && review.user_id === user.id)
+                            ).map((review) => (
+                              <View key={review.id} style={styles.reviewCard}>
+                                <View style={styles.reviewCardTop}>
+                                  <Text style={styles.reviewStars}>
+                                    {"★".repeat(review.rating)}{"☆".repeat(Math.max(0, 5 - review.rating))}
+                                  </Text>
+                                  {review.user_id === user?.id && review.moderation_status !== "approved" ? (
+                                    <Text style={styles.reviewPending}>{review.moderation_status.toUpperCase()}</Text>
+                                  ) : null}
+                                </View>
+                                <Text style={styles.reviewAuthor}>
+                                  {review.user_id === user?.id ? "YOUR REVIEW" : "GAME ON PLAYER"}
+                                </Text>
+                                {review.review_text ? (
+                                  <Text style={styles.reviewBody}>{review.review_text}</Text>
+                                ) : (
+                                  <Text style={styles.reviewBodyMuted}>Rating only</Text>
+                                )}
+                                <Text style={styles.activityCardDate}>{dateLabel(review.created_at)}</Text>
+                              </View>
+                            ))}
+                          </View>
+                        ) : (
+                          <Text style={styles.reviewHint}>No approved player reviews yet. Be the first eligible player to rate this game.</Text>
+                        )}
+
+                        {!user ? (
+                          <Pressable onPress={openProfile} style={styles.secondaryButton}>
+                            <Text style={styles.secondaryButtonText}>SIGN IN TO WRITE A REVIEW</Text>
+                          </Pressable>
+                        ) : canReview && (!myReview || ["pending", "rejected"].includes(myReview.moderation_status)) ? (
+                          <View style={styles.reviewForm}>
+                            <Text style={styles.reviewFormTitle}>{myReview ? "UPDATE YOUR REVIEW" : "RATE THIS GAME"}</Text>
+                            <View style={styles.ratingPicker}>
+                              {[1, 2, 3, 4, 5].map((value) => (
+                                <Pressable
+                                  key={value}
+                                  accessibilityRole="button"
+                                  accessibilityLabel={`Rate ${value} out of 5 stars`}
+                                  onPress={() => setReviewRating(value)}
+                                  style={styles.ratingStarButton}
+                                >
+                                  <Text style={[styles.ratingStar, value <= reviewRating && styles.ratingStarSelected]}>★</Text>
+                                </Pressable>
+                              ))}
+                            </View>
+                            <TextInput
+                              value={reviewText}
+                              onChangeText={setReviewText}
+                              placeholder="Share a helpful, respectful review (optional)"
+                              placeholderTextColor="#718198"
+                              style={styles.reviewInput}
+                              multiline
+                              maxLength={3000}
+                              textAlignVertical="top"
+                              accessibilityLabel="Write your game review"
+                            />
+                            <Pressable
+                              disabled={reviewSaving}
+                              onPress={() => { void submitGameReview(); }}
+                              style={[styles.primaryButton, reviewSaving && styles.buttonDisabled]}
+                            >
+                              {reviewSaving
+                                ? <ActivityIndicator color="#06111e" />
+                                : <Text style={styles.primaryButtonText}>{myReview ? "RESUBMIT REVIEW" : "SUBMIT REVIEW"}</Text>}
+                            </Pressable>
+                            <Text style={styles.reviewHint}>Only players with this game in their library can review it. New and edited reviews are checked by GAME ON before publication.</Text>
+                            {reviewMessage ? <Text style={styles.reviewMessage}>{reviewMessage}</Text> : null}
+                          </View>
+                        ) : myReview?.moderation_status === "approved" ? (
+                          <Text style={styles.reviewHint}>Your review is approved. Approved reviews are locked to preserve the moderation record.</Text>
+                        ) : (
+                          <Text style={styles.reviewHint}>Add this game to your library to unlock player ratings and reviews.</Text>
+                        )}
+                      </>
+                    )}
+                  </View>
                   <Text style={styles.disclaimer}>Sample catalogue entries are for interface testing only. They are not live listings or downloadable game files.</Text>
                 </View>
               </ScrollView>
@@ -1006,6 +1275,29 @@ const styles = StyleSheet.create({
   notificationUnreadText: { color: "#18d9f4" },
   notificationMessage: { color: "#9fb0c3", fontSize: 11, lineHeight: 18, marginTop: 8 },
   refreshText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  reviewSection: { marginTop: 24, paddingTop: 20, borderTopWidth: 1, borderTopColor: "#23354a" },
+  reviewSectionHeading: { flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14 },
+  reviewSectionTitle: { color: "#f0f7ff", fontSize: 20, fontWeight: "900", letterSpacing: 0.5 },
+  reviewAverage: { color: "#bfefff", fontSize: 17, fontWeight: "900" },
+  reviewLoading: { minHeight: 70, alignItems: "center", justifyContent: "center", gap: 8 },
+  reviewHint: { color: "#8195aa", fontSize: 9, lineHeight: 15, marginTop: 10 },
+  reviewCards: { gap: 9, marginBottom: 14 },
+  reviewCard: { backgroundColor: "#101b2a", borderWidth: 1, borderColor: "#25384d", borderRadius: 9, padding: 12 },
+  reviewCardTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between" },
+  reviewStars: { color: "#f3c56d", fontSize: 16, letterSpacing: 2 },
+  reviewPending: { color: "#e9bd80", fontSize: 8, fontWeight: "900", letterSpacing: 0.9 },
+  reviewAuthor: { color: "#18d9f4", fontSize: 8, fontWeight: "900", letterSpacing: 1.1, marginTop: 8 },
+  reviewBody: { color: "#c1cfdd", fontSize: 11, lineHeight: 17, marginTop: 7 },
+  reviewBodyMuted: { color: "#788da4", fontSize: 10, fontStyle: "italic", marginTop: 7 },
+  reviewForm: { marginTop: 14, padding: 13, borderWidth: 1, borderColor: "#1c5063", borderRadius: 10, backgroundColor: "#0c1c2a" },
+  reviewFormTitle: { color: "#e9f6ff", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  ratingPicker: { flexDirection: "row", gap: 9, marginTop: 12, marginBottom: 12 },
+  ratingStarButton: { padding: 4 },
+  ratingStar: { color: "#52677e", fontSize: 27 },
+  ratingStarSelected: { color: "#f3c56d" },
+  reviewInput: { minHeight: 100, borderWidth: 1, borderColor: "#293c53", backgroundColor: "#07101c", borderRadius: 8, padding: 11, color: "#edf6ff", fontSize: 11, lineHeight: 17 },
+  reviewMessage: { color: "#a6e6c2", fontSize: 10, lineHeight: 15, marginTop: 9 },
+  reviewMessageError: { color: "#f1a3a3", fontSize: 10, lineHeight: 15, marginTop: 8 },
   ownedNotice: { borderWidth: 1, borderColor: "#366b59", borderRadius: 9, backgroundColor: "#10251f", padding: 14, marginTop: 18 },
   ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
