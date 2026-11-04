@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 export const dynamic = "force-dynamic";
 
 type AdminContext =
-  | { ok: true; admin: ReturnType<typeof createClient>; user: { id: string } }
+  | { ok: true; admin: ReturnType<typeof createClient<any>>; user: { id: string } }
   | { ok: false; error: string; status: number };
 
 function jsonError(message: string, status: number) {
@@ -33,7 +33,7 @@ async function getAdminClients(request: NextRequest): Promise<AdminContext> {
   if (error || !data.user) return { ok: false, error: "Your session is invalid or has expired. Sign in again.", status: 401 };
   if (!allowedIds.includes(data.user.id)) return { ok: false, error: "This account is not authorised to moderate Game ON listings.", status: 403 };
 
-  const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const admin = createClient<any>(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } });
   return { ok: true, admin, user: { id: data.user.id } };
 }
 
