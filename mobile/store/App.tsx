@@ -568,8 +568,6 @@ export default function App() {
               ) : null}
 
               <View style={styles.sectionHeading}>
-
-              <View style={styles.sectionHeading}>
                 <View>
                   <Text style={styles.eyebrowSmall}>THE GAME ON UNIVERSE</Text>
                   <Text style={styles.sectionTitle}>
@@ -580,7 +578,8 @@ export default function App() {
               </View>
 
               {tab !== "purchases" && tab !== "notifications" ? (
-                <View style={styles.searchBox}>
+                <>
+                  <View style={styles.searchBox}>
                   <Text style={styles.searchIcon}>⌕</Text>
                   <TextInput
                     value={query}
@@ -607,8 +606,7 @@ export default function App() {
                     </Pressable>
                   ))}
                 </ScrollView>
-  
-  
+                </>
               ) : null}
 
               {tab !== "purchases" && tab !== "notifications" ? (
