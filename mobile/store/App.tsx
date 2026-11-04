@@ -42,11 +42,13 @@ function money(amountMinor: number | null, currency: string): string {
 function GameCard({
   game,
   saved,
+  owned = false,
   onOpen,
   onToggleSave
 }: {
   game: Game;
   saved: boolean;
+  owned?: boolean;
   onOpen: () => void;
   onToggleSave: () => void;
 }) {
@@ -80,7 +82,7 @@ function GameCard({
         </Pressable>
       </View>
       <View style={styles.gameTags}>
-        <Text style={styles.tag}>{money(game.priceMinor, game.currency)}</Text>
+        <Text style={styles.tag}>{owned ? "IN YOUR LIBRARY" : money(game.priceMinor, game.currency)}</Text>
         <Text style={styles.tag}>{game.offline ? "OFFLINE" : "ONLINE"}</Text>
         {game.ads ? <Text style={styles.tag}>ADS</Text> : null}
       </View>
@@ -94,6 +96,10 @@ function GameCard({
 export default function App() {
   const [tab, setTab] = useState<Tab>("discover");
   const [games, setGames] = useState<Game[]>(demoGames);
+  const [libraryGames, setLibraryGames] = useState<Game[]>([]);
+  const [libraryBusy, setLibraryBusy] = useState(false);
+  const [libraryError, setLibraryError] = useState("");
+  const [libraryRefresh, setLibraryRefresh] = useState(0);
   const [wishlist, setWishlist] = useState<string[]>([]);
   const [user, setUser] = useState<User | null>(null);
   const [query, setQuery] = useState("");
@@ -191,11 +197,68 @@ export default function App() {
     return () => { alive = false; };
   }, [user]);
 
+  useEffect(() => {
+    if (tab !== "library") return;
+    if (!supabase || !user) {
+      setLibraryGames([]);
+      setLibraryBusy(false);
+      setLibraryError("");
+      return;
+    }
+
+    let alive = true;
+    setLibraryBusy(true);
+    setLibraryError("");
+
+    async function loadLibrary() {
+      const { data: libraryRows, error: libraryQueryError } = await supabase!
+        .from("user_library")
+        .select("game_id,added_at")
+        .eq("user_id", user!.id)
+        .order("added_at", { ascending: false });
+
+      if (libraryQueryError) throw libraryQueryError;
+
+      const gameIds = (libraryRows ?? []).map((row) => String(row.game_id));
+      if (gameIds.length === 0) {
+        if (alive) setLibraryGames([]);
+        return;
+      }
+
+      const { data: gameRows, error: gamesQueryError } = await supabase!
+        .from("games")
+        .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,price_minor,currency,offline_support,contains_ads,has_in_app_purchases,developer_studios(studio_name)")
+        .in("id", gameIds)
+        .eq("status", "published");
+
+      if (gamesQueryError) throw gamesQueryError;
+
+      if (alive) {
+        const mappedGames = ((gameRows ?? []) as unknown as Record<string, unknown>[]).map(mapGame);
+        const position = new Map(gameIds.map((id, index) => [id, index]));
+        mappedGames.sort((a, b) => (position.get(a.id) ?? 0) - (position.get(b.id) ?? 0));
+        setLibraryGames(mappedGames);
+      }
+    }
+
+    loadLibrary()
+      .catch((error: unknown) => {
+        if (!alive) return;
+        setLibraryGames([]);
+        setLibraryError(error instanceof Error ? error.message : "Your library could not be loaded. Try again.");
+      })
+      .finally(() => {
+        if (alive) setLibraryBusy(false);
+      });
+
+    return () => { alive = false; };
+  }, [tab, user, libraryRefresh]);
+
   const visibleGames = useMemo(() => {
     const source = tab === "wishlist"
       ? games.filter((game) => wishlist.includes(game.id))
       : tab === "library"
-        ? games.filter((game) => false)
+        ? libraryGames
         : games;
     const normalizedQuery = query.trim().toLowerCase();
 
@@ -205,7 +268,7 @@ export default function App() {
         `${game.title} ${game.genre} ${game.studio} ${game.description}`.toLowerCase().includes(normalizedQuery);
       return matchesGenre && matchesQuery;
     });
-  }, [games, genre, query, tab, wishlist]);
+  }, [games, libraryGames, genre, query, tab, wishlist]);
 
   async function toggleWishlist(game: Game) {
     const wasSaved = wishlist.includes(game.id);
@@ -226,6 +289,46 @@ export default function App() {
 
     setWishlist((current) =>
       wasSaved ? current.filter((id) => id !== game.id) : [...current, game.id]
+    );
+  }
+
+  async function addFreeGameToLibrary(game: Game) {
+    if (!supabase || !user) {
+      setSelected(null);
+      setAuthMode("signin");
+      setAuthOpen(true);
+      return;
+    }
+    if (game.id.startsWith("demo-")) {
+      Alert.alert("Sample listing", "This is a sample game, not a real downloadable title.");
+      return;
+    }
+    if (!["Free", "Free with ads", "Free with optional purchases", "Free demo"].includes(game.monetization)) {
+      Alert.alert(
+        "Secure checkout required",
+        "This is a paid game. GAME ON will only add it to your library after the payment provider has securely confirmed your purchase."
+      );
+      return;
+    }
+
+    const { error } = await supabase
+      .from("user_library")
+      .upsert(
+        { user_id: user.id, game_id: game.id },
+        { onConflict: "user_id,game_id", ignoreDuplicates: true }
+      );
+
+    if (error) {
+      Alert.alert("Could not add game", error.message);
+      return;
+    }
+
+    setLibraryGames((current) =>
+      current.some((item) => item.id === game.id) ? current : [game, ...current]
+    );
+    Alert.alert(
+      "Added to your library",
+      `${game.title} is now in your Game ON library. Secure game downloads will be enabled when the delivery service is connected.`
     );
   }
 
@@ -365,13 +468,47 @@ export default function App() {
                 <Text style={styles.catalogStatusText}>{catalogMessage}</Text>
               </View>
 
-              {tab === "library" ? (
+              {tab === "library" && !user ? (
                 <View style={styles.emptyState}>
                   <Text style={styles.emptyIcon}>🎮</Text>
-                  <Text style={styles.emptyTitle}>YOUR LIBRARY IS WAITING</Text>
-                  <Text style={styles.emptyCopy}>Purchased and downloaded games will appear here once secure checkout and game delivery are connected.</Text>
+                  <Text style={styles.emptyTitle}>SIGN IN TO SEE YOUR GAMES</Text>
+                  <Text style={styles.emptyCopy}>Your owned games are tied to your Game ON account, so sign in to load your library.</Text>
+                  <Pressable onPress={openProfile} style={styles.emptyButton}>
+                    <Text style={styles.emptyButtonText}>SIGN IN TO GAME ON</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {tab === "library" && user && libraryBusy ? (
+                <View style={styles.libraryStatus}>
+                  <ActivityIndicator color="#18d9f4" />
+                  <Text style={styles.libraryStatusText}>LOADING YOUR GAME LIBRARY…</Text>
+                </View>
+              ) : null}
+              {tab === "library" && user && !libraryBusy && libraryError ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>!</Text>
+                  <Text style={styles.emptyTitle}>LIBRARY NOT AVAILABLE</Text>
+                  <Text style={styles.emptyCopy}>{libraryError}</Text>
+                  <Pressable onPress={() => setLibraryRefresh((value) => value + 1)} style={styles.emptyButton}>
+                    <Text style={styles.emptyButtonText}>TRY AGAIN</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {tab === "library" && user && !libraryBusy && !libraryError && libraryGames.length === 0 ? (
+                <View style={styles.emptyState}>
+                  <Text style={styles.emptyIcon}>▣</Text>
+                  <Text style={styles.emptyTitle}>YOUR LIBRARY IS READY</Text>
+                  <Text style={styles.emptyCopy}>Free games you add and purchases verified by GAME ON will appear here.</Text>
                   <Pressable onPress={() => setTab("discover")} style={styles.emptyButton}>
                     <Text style={styles.emptyButtonText}>EXPLORE THE STORE</Text>
+                  </Pressable>
+                </View>
+              ) : null}
+              {tab === "library" && user && !libraryBusy && libraryGames.length > 0 ? (
+                <View style={styles.libraryToolbar}>
+                  <Text style={styles.resultCount}>{libraryGames.length} GAMES IN YOUR LIBRARY</Text>
+                  <Pressable onPress={() => setLibraryRefresh((value) => value + 1)}>
+                    <Text style={styles.refreshText}>REFRESH ↻</Text>
                   </Pressable>
                 </View>
               ) : null}
@@ -394,6 +531,7 @@ export default function App() {
             <GameCard
               game={item}
               saved={wishlist.includes(item.id)}
+              owned={tab === "library"}
               onOpen={() => setSelected(item)}
               onToggleSave={() => { void toggleWishlist(item); }}
             />
@@ -438,17 +576,23 @@ export default function App() {
                     <Fact label="PLAY MODE" value={selected.offline ? "Offline supported" : "Online"} />
                     <Fact label="MONETIZATION" value={selected.monetization} />
                   </View>
-                  <Pressable
-                    onPress={() => {
-                      Alert.alert(
-                        "Not available yet",
-                        "Secure purchases and verified game downloads are being connected to the Game ON backend. This sample listing cannot be purchased."
-                      );
-                    }}
-                    style={styles.primaryButton}
-                  >
-                    <Text style={styles.primaryButtonText}>GET THIS GAME  →</Text>
-                  </Pressable>
+                  {libraryGames.some((item) => item.id === selected.id) ? (
+                    <View style={styles.ownedNotice}>
+                      <Text style={styles.ownedNoticeTitle}>✓  IN YOUR GAME ON LIBRARY</Text>
+                      <Text style={styles.ownedNoticeCopy}>Your ownership is linked to your account. Secure downloads will be available when the game-delivery service is connected.</Text>
+                    </View>
+                  ) : (
+                    <Pressable
+                      onPress={() => { void addFreeGameToLibrary(selected); }}
+                      style={styles.primaryButton}
+                    >
+                      <Text style={styles.primaryButtonText}>
+                        {["Free", "Free with ads", "Free with optional purchases", "Free demo"].includes(selected.monetization)
+                          ? "ADD TO LIBRARY  →"
+                          : "PURCHASE NOT YET AVAILABLE"}
+                      </Text>
+                    </Pressable>
+                  )}
                   <Pressable onPress={() => { void toggleWishlist(selected); }} style={styles.secondaryButton}>
                     <Text style={styles.secondaryButtonText}>
                       {wishlist.includes(selected.id) ? "♥  SAVED TO WISHLIST" : "♡  ADD TO WISHLIST"}
@@ -591,6 +735,13 @@ const styles = StyleSheet.create({
   statusDotDemo: { backgroundColor: "#e7ad46" },
   catalogStatusText: { color: "#8294a8", fontSize: 8, letterSpacing: 1.1, fontWeight: "800", flex: 1 },
   resultCount: { color: "#7e92a9", fontWeight: "800", fontSize: 8, letterSpacing: 1.5, marginBottom: 10 },
+  libraryToolbar: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 8 },
+  libraryStatus: { minHeight: 110, alignItems: "center", justifyContent: "center", gap: 12 },
+  libraryStatusText: { color: "#91a5bb", fontSize: 9, fontWeight: "800", letterSpacing: 1.2 },
+  refreshText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
+  ownedNotice: { borderWidth: 1, borderColor: "#366b59", borderRadius: 9, backgroundColor: "#10251f", padding: 14, marginTop: 18 },
+  ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
+  ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
   gameCard: { backgroundColor: "#0d1625", borderWidth: 1, borderColor: "#1a2a3d", borderRadius: 13, overflow: "hidden", marginBottom: 15 },
   gameArtwork: { height: 164, padding: 15, justifyContent: "space-between", alignItems: "center" },
   artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between" },
