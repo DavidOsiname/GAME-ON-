@@ -14,7 +14,6 @@ import {
   View
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { User } from "@supabase/supabase-js";
 import { creatorApiUrl, isSupabaseConfigured, supabase } from "./src/lib/supabase";
 
 type Account = { id: string; email?: string; demo?: boolean };
@@ -833,7 +832,6 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: "#bdeef5" },
   disabledButton: { opacity: 0.55 },
   pressed: { opacity: 0.82 },
-  appShell: { flex: 1, backgroundColor: "#070b14" },
   accountButton: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#0b1e2b", borderWidth: 1, borderColor: "#1a9db5", borderRadius: 8 },
   accountButtonText: { color: "#bceff6", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   navRow: { gap: 8, paddingHorizontal: 14, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: "#192a3c" },
