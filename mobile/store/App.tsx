@@ -290,7 +290,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar barStyle="light-content" backgroundColor="#070b14" />
+      <StatusBar barStyle="light-content" />
       <View style={styles.appShell}>
         <View style={styles.header}>
           <View style={styles.brandBlock}>
