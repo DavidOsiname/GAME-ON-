@@ -45,3 +45,44 @@ jobs:
         run: npm run typecheck
       - name: Build both apps
         run: npm run build
+      - name: Build separate production deployment containers
+        run: |
+          cat > deploy/store.env <<'EOF'
+          STORE_DOMAIN=store.ci.invalid
+          CREATOR_DOMAIN=creator.ci.invalid
+          NEXT_PUBLIC_SUPABASE_URL=https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ci_placeholder
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          PAYSTACK_SECRET_KEY=
+          GAMEON_PAYMENTS_ENABLED=false
+          GAMEON_PAYMENTS_MODE=test
+          GAMEON_LIVE_PAYMENTS_APPROVED=false
+          GAMEON_PLATFORM_FEE_BPS=1000
+          GAMEON_STORE_URL=https://store.ci.invalid
+          NEXT_PUBLIC_STORE_URL=https://store.ci.invalid
+          NEXT_PUBLIC_SITE_URL=https://store.ci.invalid
+          EOF
+          cat > deploy/creator.env <<'EOF'
+          NEXT_PUBLIC_SUPABASE_URL=https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ci_placeholder
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          GAMEON_ADMIN_USER_IDS=00000000-0000-4000-8000-000000000001
+          GAMEON_SCANNER_WEBHOOK_SECRET=ci-only-not-a-real-secret-0123456789abcdef
+          GAMEON_MAX_BUILD_BYTES=52428800
+          PAYSTACK_SECRET_KEY=
+          GAMEON_PAYMENTS_ENABLED=false
+          GAMEON_PAYMENTS_MODE=test
+          GAMEON_LIVE_PAYMENTS_APPROVED=false
+          NEXT_PUBLIC_STORE_URL=https://store.ci.invalid
+          EOF
+          cat > services/build-scanner/.env <<'EOF'
+          SUPABASE_URL=https://ci.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          GAMEON_CREATOR_BASE_URL=https://creator.ci.invalid
+          GAMEON_SCANNER_WEBHOOK_SECRET=ci-only-not-a-real-secret-0123456789abcdef
+          CLAMAV_HOST=clamav
+          CLAMAV_PORT=3310
+          EOF
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env config --quiet
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env build --parallel 1 store creator
+          docker compose -f services/build-scanner/compose.yaml build build-scanner
