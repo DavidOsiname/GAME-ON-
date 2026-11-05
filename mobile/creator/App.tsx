@@ -1151,6 +1151,7 @@ export default function App() {
               <Text style={styles.fieldLabel}>SHORT DESCRIPTION (10–180 CHARACTERS)</Text>
               <TextInput value={gameDescription} onChangeText={setGameDescription} placeholder="Tell players what makes your game special." placeholderTextColor="#718198" style={[styles.input, styles.multilineInput]} multiline maxLength={180} />
               {!editingGameId ? (
+                <>
                 <Text style={styles.fieldLabel}>GAME COVER (OPTIONAL)</Text>
                 <View style={styles.coverPickerRow}>
                   {pickedCover ? (
@@ -1176,7 +1177,7 @@ export default function App() {
                     ) : null}
                   </View>
                 </View>
-  
+                </>
               ) : null}
               <Text style={styles.fieldLabel}>GENRE</Text>
               <TextInput value={genre} onChangeText={setGenre} placeholder="Adventure, Racing, Puzzle…" placeholderTextColor="#718198" style={styles.input} />
