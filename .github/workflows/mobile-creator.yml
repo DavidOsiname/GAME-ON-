@@ -71,6 +71,8 @@ jobs:
             sed -i '/react {/a\    debuggableVariants = []' android/app/build.gradle
           fi
           cd android
+          # CI runners may need longer than Gradle's 10-second wrapper download default.
+          sed -i '/^distributionUrl=/a networkTimeout=120000' gradle/wrapper/gradle-wrapper.properties
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           test -s app/build/outputs/apk/debug/app-debug.apk
