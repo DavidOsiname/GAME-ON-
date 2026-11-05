@@ -71,6 +71,7 @@ const required = [
   "services/build-scanner/README.md",
   "scripts/test-build-scanner.mjs",
   "SCANNER_TEST_RESULTS.md",
+  "RELEASE_READINESS.md",
 ];
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
 if (missing.length) {
