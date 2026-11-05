@@ -112,6 +112,24 @@ function makeSlug(value: string): string {
   return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
+function getOwnedCoverObjectPath(url: string | null | undefined, studioId: string, gameId: string): string | null {
+  if (!url) return null;
+  const marker = "/object/public/game-covers/";
+  const markerIndex = url.indexOf(marker);
+  if (markerIndex < 0) return null;
+  try {
+    const encodedPath = url.slice(markerIndex + marker.length).split(/[?#]/, 1)[0];
+    const objectPath = decodeURIComponent(encodedPath);
+    const prefix = `${studioId}/${gameId}/`;
+    if (!objectPath.startsWith(prefix)) return null;
+    const filename = objectPath.slice(prefix.length);
+    if (!/^cover(?:-[a-z0-9-]{1,48})?\.(?:jpg|jpeg|png|webp)$/.test(filename)) return null;
+    return objectPath;
+  } catch {
+    return null;
+  }
+}
+
 function statusLabel(value: string): string {
   return value.replaceAll("_", " ").toUpperCase();
 }
@@ -556,6 +574,27 @@ export default function App() {
           setGames((items) => items.map((game) => game.id === editingGameId ? updated : game));
           setNotice("Demo listing updated locally. It has not been sent to Game ON.");
         } else {
+          let replacementCoverPath: string | null = null;
+          let replacementCoverUrl: string | null = null;
+          if (pickedCover) {
+            const imageFile = new File(pickedCover.uri);
+            const bytes = await imageFile.arrayBuffer();
+            if (bytes.byteLength !== pickedCover.size) {
+              throw new Error("The selected cover image changed while uploading. Please choose it again.");
+            }
+            const uniqueSuffix = Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 10);
+            replacementCoverPath = `${studio.id}/${editingGameId}/cover-${uniqueSuffix}.${pickedCover.extension}`;
+            const { error: replacementUploadError } = await supabase.storage
+              .from("game-covers")
+              .upload(replacementCoverPath, bytes, {
+                contentType: pickedCover.mimeType,
+                cacheControl: "31536000",
+                upsert: false
+              });
+            if (replacementUploadError) throw new Error("Replacement cover upload failed: " + replacementUploadError.message);
+            replacementCoverUrl = supabase.storage.from("game-covers").getPublicUrl(replacementCoverPath).data.publicUrl;
+          }
+
           const { data: updated, error: updateError } = await supabase
             .from("games")
             .update({
@@ -566,13 +605,28 @@ export default function App() {
               supported_platforms: [platform],
               monetization_type: monetization,
               price_minor: priceMinor,
-              currency: priceMinor === null ? null : "NGN"
+              currency: priceMinor === null ? null : "NGN",
+              ...(replacementCoverUrl ? { cover_image_url: replacementCoverUrl } : {})
             })
             .eq("id", editingGameId)
             .eq("studio_id", studio.id)
             .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url,rejection_reason")
             .single();
-          if (updateError) throw updateError;
+          if (updateError) {
+            if (replacementCoverPath) {
+              await supabase.storage.from("game-covers").remove([replacementCoverPath]).catch(() => undefined);
+            }
+            throw updateError;
+          }
+
+          // Keep the old cover until the database points at the new, successfully uploaded object.
+          if (replacementCoverPath) {
+            const previousCoverPath = getOwnedCoverObjectPath(current.cover_image_url, studio.id, editingGameId);
+            if (previousCoverPath && previousCoverPath !== replacementCoverPath) {
+              await supabase.storage.from("game-covers").remove([previousCoverPath]).catch(() => undefined);
+            }
+          }
+
           let finalGame = updated as GameRow;
           if (current.status === "rejected") {
             const { error: resubmitError } = await supabase.rpc("resubmit_game", { p_game_id: editingGameId });
@@ -581,8 +635,12 @@ export default function App() {
           }
           setGames((items) => items.map((game) => game.id === editingGameId ? finalGame : game));
           setNotice(current.status === "rejected"
-            ? "Your changes were saved and the rejected listing was resubmitted for Game ON review."
-            : "Your listing changes were saved. Its Game ON review status has not been changed.");
+            ? (pickedCover
+              ? "Your listing and replacement cover were saved and the rejected listing was resubmitted for Game ON review."
+              : "Your changes were saved and the rejected listing was resubmitted for Game ON review.")
+            : (pickedCover
+              ? "Your listing and replacement cover were saved. Its Game ON review status has not been changed."
+              : "Your listing changes were saved. Its Game ON review status has not been changed."));
         }
       } else if (studio.demo || !supabase) {
         const row: GameRow = {
@@ -1136,15 +1194,32 @@ export default function App() {
               <Text style={styles.pageTitle}>{editingGameId ? "EDIT GAME" : "SUBMIT A GAME"}</Text>
               <Text style={styles.bodyCopy}>{editingGameId ? "Update your listing details. Game ON keeps control of review and publication status." : "Create your game listing. Game ON reviews submissions before a title can be published."}</Text>
               {editingGameId && editingGame ? (
-                <View style={styles.coverPickerRow}>
-                  {editingGame.cover_image_url ? <Image source={{ uri: editingGame.cover_image_url }} resizeMode="cover" style={styles.coverPreview} /> : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>ART</Text></View>}
-                  <View style={styles.flexOne}>
-                    <Text style={styles.gameTitle}>Current cover artwork</Text>
-                    <Text style={styles.mutedCopy}>Cover artwork stays unchanged when editing listing details.</Text>
-                    <StatusPill value={editingGame.status} />
-                    {editingGame.status === "rejected" && editingGame.rejection_reason ? <Text style={styles.errorText}>GAME ON FEEDBACK: {editingGame.rejection_reason}</Text> : null}
+                <>
+                  <View style={styles.coverPickerRow}>
+                    {pickedCover
+                      ? <Image source={{ uri: pickedCover.uri }} resizeMode="cover" style={styles.coverPreview} />
+                      : editingGame.cover_image_url
+                        ? <Image source={{ uri: editingGame.cover_image_url }} resizeMode="cover" style={styles.coverPreview} />
+                        : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>ART</Text></View>}
+                    <View style={styles.flexOne}>
+                      <Text style={styles.gameTitle}>{pickedCover ? pickedCover.name : editingGame.cover_image_url ? "Current cover artwork" : "No cover artwork yet"}</Text>
+                      <Text style={styles.mutedCopy}>JPG, PNG or WebP · Maximum 5 MB. A replacement is saved before the previous cover is removed.</Text>
+                      <ActionButton
+                        label={pickedCover ? "CHANGE SELECTED COVER" : editingGame.cover_image_url ? "REPLACE COVER ART" : "ADD COVER ART"}
+                        onPress={() => { void pickCoverImage(); }}
+                        secondary
+                        disabled={!supabase || Boolean(studio?.demo) || Boolean(user?.demo)}
+                      />
+                      {pickedCover ? (
+                        <Pressable onPress={() => setPickedCover(null)} style={styles.removeCoverButton}>
+                          <Text style={styles.linkText}>DISCARD NEW IMAGE</Text>
+                        </Pressable>
+                      ) : null}
+                      <StatusPill value={editingGame.status} />
+                      {editingGame.status === "rejected" && editingGame.rejection_reason ? <Text style={styles.errorText}>GAME ON FEEDBACK: {editingGame.rejection_reason}</Text> : null}
+                    </View>
                   </View>
-                </View>
+                </>
               ) : null}
               <Text style={styles.fieldLabel}>GAME TITLE</Text>
               <TextInput value={gameTitle} onChangeText={setGameTitle} placeholder="Your game's name" placeholderTextColor="#718198" style={styles.input} maxLength={100} />
