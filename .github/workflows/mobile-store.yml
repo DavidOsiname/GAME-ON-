@@ -68,14 +68,22 @@ jobs:
             sed -i '/react {/a\    debuggableVariants = []' android/app/build.gradle
           fi
           cd android
-          # Replace Expo's existing 10-second wrapper timeout instead of adding a duplicate key.
+          # Bypass the redirecting services host and allow up to five minutes for the distribution CDN.
+          sed -i 's#services.gradle.org/distributions#downloads.gradle.org/distributions#' gradle/wrapper/gradle-wrapper.properties
           if grep -q '^networkTimeout=' gradle/wrapper/gradle-wrapper.properties; then
             sed -i 's/^networkTimeout=.*/networkTimeout=300000/' gradle/wrapper/gradle-wrapper.properties
           else
             sed -i '/^distributionUrl=/a networkTimeout=300000' gradle/wrapper/gradle-wrapper.properties
           fi
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          built=0
+          for attempt in 1 2 3; do
+            if ./gradlew assembleDebug --no-daemon; then built=1; break; fi
+            echo "Gradle attempt $attempt failed; retrying after a short pause."
+            rm -rf "$HOME/.gradle/wrapper/dists/gradle-9.4.1-bin"
+            sleep 15
+          done
+          test "$built" -eq 1
           test -s app/build/outputs/apk/debug/app-debug.apk
 
       - name: Upload GAME ON STORE Android debug APK
