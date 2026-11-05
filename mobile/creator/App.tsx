@@ -208,6 +208,7 @@ export default function App() {
   const [monetization, setMonetization] = useState("free");
   const [priceNaira, setPriceNaira] = useState("");
   const [pickedCover, setPickedCover] = useState<PickedCover | null>(null);
+  const [editingGameId, setEditingGameId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -318,6 +319,7 @@ export default function App() {
     [games]
   );
   const selectedBuildGame = buildEligibleGames.find((game) => game.id === selectedBuildGameId) ?? null;
+  const editingGame = games.find((game) => game.id === editingGameId) ?? null;
   const buildPlatforms = (selectedBuildGame?.supported_platforms ?? ["android"])
     .filter((value) => ["android", "windows", "web"].includes(value.toLowerCase()));
 
@@ -466,6 +468,38 @@ export default function App() {
     });
   }
 
+  function beginEditGame(game: GameRow) {
+    if (!["draft", "submitted", "rejected"].includes(game.status)) {
+      Alert.alert("Listing locked", "Published games and listings already under active review cannot be edited here.");
+      return;
+    }
+    setEditingGameId(game.id);
+    setGameTitle(game.title);
+    setGameDescription(game.short_description);
+    setGenre(game.genre);
+    setPlatform(game.supported_platforms?.[0] ?? "android");
+    setMonetization(game.monetization_type);
+    setPriceNaira(game.price_minor == null ? "" : String(game.price_minor / 100));
+    setPickedCover(null);
+    setError("");
+    setNotice("");
+    setSection("submit");
+  }
+
+  function cancelGameEdit() {
+    setEditingGameId(null);
+    setGameTitle("");
+    setGameDescription("");
+    setGenre("Adventure");
+    setPlatform("android");
+    setMonetization("free");
+    setPriceNaira("");
+    setPickedCover(null);
+    setError("");
+    setNotice("");
+    setSection("games");
+  }
+
   async function submitGame() {
     setError("");
     setNotice("");
@@ -492,7 +526,7 @@ export default function App() {
       }
       priceMinor = Math.round(amount * 100);
     }
-    if (pickedCover && (!supabase || studio.demo || !user || user.demo)) {
+    if (!editingGameId && pickedCover && (!supabase || studio.demo || !user || user.demo)) {
       setError("A real developer account and the shared Supabase backend are required to upload cover art.");
       return;
     }
@@ -502,7 +536,54 @@ export default function App() {
     let uploadedCoverPath: string | null = null;
     try {
       const slug = makeSlug(title) + "-" + Date.now().toString(36);
-      if (studio.demo || !supabase) {
+      if (editingGameId) {
+        const current = games.find((game) => game.id === editingGameId);
+        if (!current || !["draft", "submitted", "rejected"].includes(current.status)) {
+          throw new Error("This listing can no longer be edited. Refresh your games and try again.");
+        }
+        if (studio.demo || !supabase || user?.demo) {
+          const updated: GameRow = {
+            ...current,
+            title,
+            short_description: description,
+            genre,
+            supported_platforms: [platform],
+            monetization_type: monetization,
+            price_minor: priceMinor,
+            currency: priceMinor === null ? null : "NGN"
+          };
+          setGames((items) => items.map((game) => game.id === editingGameId ? updated : game));
+          setNotice("Demo listing updated locally. It has not been sent to Game ON.");
+        } else {
+          const { data: updated, error: updateError } = await supabase
+            .from("games")
+            .update({
+              title,
+              short_description: description,
+              description,
+              genre,
+              supported_platforms: [platform],
+              monetization_type: monetization,
+              price_minor: priceMinor,
+              currency: priceMinor === null ? null : "NGN"
+            })
+            .eq("id", editingGameId)
+            .eq("studio_id", studio.id)
+            .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+            .single();
+          if (updateError) throw updateError;
+          let finalGame = updated as GameRow;
+          if (current.status === "rejected") {
+            const { error: resubmitError } = await supabase.rpc("resubmit_game", { p_game_id: editingGameId });
+            if (resubmitError) throw new Error("Your listing details were saved, but resubmission could not be completed: " + resubmitError.message);
+            finalGame = { ...finalGame, status: "submitted" };
+          }
+          setGames((items) => items.map((game) => game.id === editingGameId ? finalGame : game));
+          setNotice(current.status === "rejected"
+            ? "Your changes were saved and the rejected listing was resubmitted for Game ON review."
+            : "Your listing changes were saved. Its Game ON review status has not been changed.");
+        }
+      } else if (studio.demo || !supabase) {
         const row: GameRow = {
           id: "demo-game-" + Date.now().toString(),
           title,
@@ -574,6 +655,7 @@ export default function App() {
       setGameDescription("");
       setPriceNaira("");
       setPickedCover(null);
+      setEditingGameId(null);
       setSection("games");
     } catch (caught) {
       if (createdGameId && supabase) {
@@ -1036,6 +1118,9 @@ export default function App() {
                     <Text style={styles.moneyText}>{game.monetization_type.replaceAll("_", " ").toUpperCase()}</Text>
                     <Text style={styles.moneyText}>{money(game.price_minor, game.currency || "NGN")}</Text>
                   </View>
+                  {["draft", "submitted", "rejected"].includes(game.status) ? (
+                    <ActionButton label={game.status === "rejected" ? "EDIT & RESUBMIT" : "EDIT LISTING"} onPress={() => beginEditGame(game)} secondary />
+                  ) : null}
                 </View>
               ))}
             </>
@@ -1043,38 +1128,51 @@ export default function App() {
 
           {section === "submit" ? (
             <>
-              <Text style={styles.eyebrow}>PUBLISH ON GAME ON</Text>
-              <Text style={styles.pageTitle}>SUBMIT A GAME</Text>
-              <Text style={styles.bodyCopy}>Create your game listing. Game ON reviews submissions before a title can be published.</Text>
+              <Text style={styles.eyebrow}>{editingGameId ? "UPDATE YOUR LISTING" : "PUBLISH ON GAME ON"}</Text>
+              <Text style={styles.pageTitle}>{editingGameId ? "EDIT GAME" : "SUBMIT A GAME"}</Text>
+              <Text style={styles.bodyCopy}>{editingGameId ? "Update your listing details. Game ON keeps control of review and publication status." : "Create your game listing. Game ON reviews submissions before a title can be published."}</Text>
+              {editingGameId && editingGame ? (
+                <View style={styles.coverPickerRow}>
+                  {editingGame.cover_image_url ? <Image source={{ uri: editingGame.cover_image_url }} resizeMode="cover" style={styles.coverPreview} /> : <View style={styles.coverPlaceholder}><Text style={styles.coverPlaceholderText}>ART</Text></View>}
+                  <View style={styles.flexOne}>
+                    <Text style={styles.gameTitle}>Current cover artwork</Text>
+                    <Text style={styles.mutedCopy}>Cover artwork stays unchanged when editing listing details.</Text>
+                    <StatusPill value={editingGame.status} />
+                  </View>
+                </View>
+              ) : null}
               <Text style={styles.fieldLabel}>GAME TITLE</Text>
               <TextInput value={gameTitle} onChangeText={setGameTitle} placeholder="Your game's name" placeholderTextColor="#718198" style={styles.input} maxLength={100} />
               <Text style={styles.fieldLabel}>SHORT DESCRIPTION (10–180 CHARACTERS)</Text>
               <TextInput value={gameDescription} onChangeText={setGameDescription} placeholder="Tell players what makes your game special." placeholderTextColor="#718198" style={[styles.input, styles.multilineInput]} multiline maxLength={180} />
-              <Text style={styles.fieldLabel}>GAME COVER (OPTIONAL)</Text>
-              <View style={styles.coverPickerRow}>
-                {pickedCover ? (
-                  <Image source={{ uri: pickedCover.uri }} resizeMode="cover" style={styles.coverPreview} />
-                ) : (
-                  <View style={styles.coverPlaceholder}>
-                    <Text style={styles.coverPlaceholderText}>ART</Text>
-                  </View>
-                )}
-                <View style={styles.flexOne}>
-                  <Text style={styles.gameTitle}>{pickedCover ? pickedCover.name : "Add your game's cover art"}</Text>
-                  <Text style={styles.mutedCopy}>JPG, PNG or WebP · Maximum 5 MB. This image appears in the GAME ON Store.</Text>
-                  <ActionButton
-                    label={pickedCover ? "CHANGE COVER IMAGE" : "CHOOSE COVER IMAGE"}
-                    onPress={() => { void pickCoverImage(); }}
-                    secondary
-                    disabled={!supabase || Boolean(user?.demo)}
-                  />
+              {!editingGameId ? (
+                <Text style={styles.fieldLabel}>GAME COVER (OPTIONAL)</Text>
+                <View style={styles.coverPickerRow}>
                   {pickedCover ? (
-                    <Pressable onPress={() => setPickedCover(null)} style={styles.removeCoverButton}>
-                      <Text style={styles.linkText}>REMOVE COVER</Text>
-                    </Pressable>
-                  ) : null}
+                    <Image source={{ uri: pickedCover.uri }} resizeMode="cover" style={styles.coverPreview} />
+                  ) : (
+                    <View style={styles.coverPlaceholder}>
+                      <Text style={styles.coverPlaceholderText}>ART</Text>
+                    </View>
+                  )}
+                  <View style={styles.flexOne}>
+                    <Text style={styles.gameTitle}>{pickedCover ? pickedCover.name : "Add your game's cover art"}</Text>
+                    <Text style={styles.mutedCopy}>JPG, PNG or WebP · Maximum 5 MB. This image appears in the GAME ON Store.</Text>
+                    <ActionButton
+                      label={pickedCover ? "CHANGE COVER IMAGE" : "CHOOSE COVER IMAGE"}
+                      onPress={() => { void pickCoverImage(); }}
+                      secondary
+                      disabled={!supabase || Boolean(user?.demo)}
+                    />
+                    {pickedCover ? (
+                      <Pressable onPress={() => setPickedCover(null)} style={styles.removeCoverButton}>
+                        <Text style={styles.linkText}>REMOVE COVER</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
-              </View>
+  
+              ) : null}
               <Text style={styles.fieldLabel}>GENRE</Text>
               <TextInput value={genre} onChangeText={setGenre} placeholder="Adventure, Racing, Puzzle…" placeholderTextColor="#718198" style={styles.input} />
               <Text style={styles.fieldLabel}>PLATFORM</Text>
@@ -1107,8 +1205,9 @@ export default function App() {
               ) : null}
               {!!error && <Text style={styles.errorText}>{error}</Text>}
               {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
-              <ActionButton label="SUBMIT FOR REVIEW" onPress={() => { void submitGame(); }} busy={busy} />
-              <Text style={styles.mutedCopy}>Submitting a listing does not publish it. Only authorised Game ON reviewers can approve a game.</Text>
+              <ActionButton label={editingGameId ? (editingGame?.status === "rejected" ? "SAVE & RESUBMIT" : "SAVE CHANGES") : "SUBMIT FOR REVIEW"} onPress={() => { void submitGame(); }} busy={busy} />
+              {editingGameId ? <ActionButton label="CANCEL EDITING" onPress={cancelGameEdit} secondary disabled={busy} /> : null}
+              <Text style={styles.mutedCopy}>{editingGameId ? "These changes cannot approve or publish a game. Game ON controls all review decisions." : "Submitting a listing does not publish it. Only authorised Game ON reviewers can approve a game."}</Text>
             </>
           ) : null}
 
