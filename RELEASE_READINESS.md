@@ -36,7 +36,7 @@ This is the working release checklist. Mark an item complete only after the evid
 - [ ] Test backend readiness, backup/restore and monitoring.
 - [ ] Keep all service-role, database, Paystack and scanner secrets in server-side secret storage only.
 
-**Operator guide:** [Supabase migration runbook](deploy/SUPABASE-MIGRATION-RUNBOOK.md) and [self-host deployment guide](deploy/README.md).
+**Operator guides:** [Supabase migration runbook](deploy/SUPABASE-MIGRATION-RUNBOOK.md), [self-host deployment guide](deploy/README.md), and [Android release/signing runbook](deploy/ANDROID-RELEASE-RUNBOOK.md).
 
 **Current known blockers:** migration 0011 has not been applied to the live Supabase project; the Creator API and scanner deployment have not been confirmed. Do not use `supabase db reset --remote`.
 
@@ -92,7 +92,7 @@ Do this separately from `mobile/store` and `mobile/creator`; do not combine thei
 - [ ] Verify signing certificate fingerprints and securely back up each keystore and recovery information under adult-owner control.
 - [ ] Never commit signing credentials or put service-role/database/payment/scanner secrets into any `EXPO_PUBLIC_` variable.
 
-The app READMEs contain the EAS CLI commands and variable names. Do not post tokens, keystore files or passwords in chat or source control. The manual [Android release workflow](.github/workflows/android-release.yml) requires the protected environment, linked project IDs, production EAS variables and preconfigured remote signing credentials; it builds only and never submits to Google Play.
+Follow the [Android release runbook](deploy/ANDROID-RELEASE-RUNBOOK.md) for the exact setup commands, environment protection and signature-verification procedure. Do not post tokens, keystore files or passwords in chat or source control. The manual [Android release workflow](.github/workflows/android-release.yml) requires the protected environment, linked project IDs, production EAS variables and preconfigured remote signing credentials; it builds only and never submits to Google Play.
 
 ## 6. Signed Android release builds
 
