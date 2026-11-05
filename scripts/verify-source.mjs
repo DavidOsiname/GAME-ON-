@@ -178,6 +178,18 @@ for (const app of ["store", "creator"]) {
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
 }
 
+for (const app of ["store", "creator"]) {
+  const eas = JSON.parse(fs.readFileSync(path.join(root, `mobile/${app}/eas.json`), "utf8"));
+  if (eas.build?.preview?.distribution !== "internal" || eas.build?.preview?.android?.buildType !== "apk") {
+    throw new Error(`${app} must retain an internal APK profile for device testing.`);
+  }
+  if (eas.build?.["production-apk"]?.extends !== "production" || eas.build?.["production-apk"]?.distribution !== "internal" || eas.build?.["production-apk"]?.android?.buildType !== "apk") {
+    throw new Error(`${app} production-apk profile must create an internal Release APK.`);
+  }
+  if (eas.build?.production?.distribution !== "store" || eas.build?.production?.android?.buildType !== "app-bundle") {
+    throw new Error(`${app} production profile must create a Google Play AAB.`);
+  }
+}
 const nativeCreator = fs.readFileSync(path.join(root, "mobile/creator/App.tsx"), "utf8");
 const resubmissionMigration = fs.readFileSync(path.join(root, "supabase/migrations/0002_safe_game_resubmission.sql"), "utf8");
 for (const needle of ["function beginEditGame", "function cancelGameEdit", 'rpc("resubmit_game"', '"draft", "submitted", "rejected"', "EDIT & RESUBMIT", "Game ON controls all review decisions", 'rejection_reason: null']) {
