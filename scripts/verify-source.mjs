@@ -180,7 +180,7 @@ for (const app of ["store", "creator"]) {
 
 const nativeCreator = fs.readFileSync(path.join(root, "mobile/creator/App.tsx"), "utf8");
 const resubmissionMigration = fs.readFileSync(path.join(root, "supabase/migrations/0002_safe_game_resubmission.sql"), "utf8");
-for (const needle of ["function beginEditGame", "function cancelGameEdit", 'rpc("resubmit_game"', '"draft", "submitted", "rejected"', "EDIT & RESUBMIT", "Game ON controls all review decisions"]) {
+for (const needle of ["function beginEditGame", "function cancelGameEdit", 'rpc("resubmit_game"', '"draft", "submitted", "rejected"', "EDIT & RESUBMIT", "Game ON controls all review decisions", 'rejection_reason: null']) {
   if (!nativeCreator.includes(needle)) throw new Error(`Creator mobile listing editor missing required guard or behavior: ${needle}`);
 }
 for (const needle of ["public.resubmit_game(p_game_id uuid)", "old.status = 'rejected'", "new.status = 'submitted'", "owner_user_id = auth.uid()"]) {
