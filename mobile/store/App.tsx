@@ -715,6 +715,9 @@ export default function App() {
             <View>
               {tab === "discover" ? (
                 <View style={styles.hero}>
+                  <View pointerEvents="none" style={styles.heroGlow} />
+                  <View pointerEvents="none" style={styles.heroOrbit} />
+                  <View style={styles.heroAccentLine} />
                   <Text style={styles.eyebrow}>YOUR NEXT ADVENTURE STARTS HERE</Text>
                   <Text style={styles.heroTitle}>PLAY MORE.</Text>
                   <Text style={[styles.heroTitle, styles.heroTitleAccent]}>DISCOVER MORE.</Text>
@@ -726,6 +729,22 @@ export default function App() {
                     <Text style={styles.heroPill}>SAVE</Text>
                     <Text style={styles.heroPill}>PLAY</Text>
                   </View>
+                  {games.length > 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => setSelected(games[0])}
+                      style={({ pressed }) => [styles.heroFeature, pressed && styles.pressed]}
+                    >
+                      <View style={styles.heroFeatureCopy}>
+                        <Text style={styles.heroFeatureEyebrow}>FEATURED DISCOVERY</Text>
+                        <Text numberOfLines={1} style={styles.heroFeatureTitle}>{games[0].title}</Text>
+                        <Text style={styles.heroFeatureMeta}>{games[0].genre} · {games[0].studio}</Text>
+                      </View>
+                      <View style={styles.heroFeatureAction}>
+                        <Text style={styles.heroFeatureActionText}>VIEW  ↗</Text>
+                      </View>
+                    </Pressable>
+                  ) : null}
                 </View>
               ) : null}
 
@@ -1185,7 +1204,7 @@ function TabButton({
   onPress: () => void;
 }) {
   return (
-    <Pressable onPress={onPress} style={styles.tabButton}>
+    <Pressable onPress={onPress} style={[styles.tabButton, active && styles.tabButtonActive]}>
       <Text style={[styles.tabIcon, active && styles.tabIconActive]}>{icon}</Text>
       <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
     </Pressable>
@@ -1205,8 +1224,9 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#070b14" },
   appShell: { flex: 1, backgroundColor: "#070b14" },
   header: {
-    minHeight: 72, paddingHorizontal: 20, flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#1a2a3d"
+    minHeight: 76, paddingHorizontal: 18, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#1b3348",
+    backgroundColor: "#080f1c"
   },
   brandBlock: { flexDirection: "row", alignItems: "center", gap: 11 },
   brandMark: {
@@ -1218,14 +1238,24 @@ const styles = StyleSheet.create({
   brandSub: { color: "#18d9f4", fontWeight: "800", fontSize: 9, letterSpacing: 4, marginTop: 2 },
   profileButton: { borderWidth: 1, borderColor: "#1a9db5", backgroundColor: "#0b1e2b", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 },
   profileButtonText: { color: "#bceff6", fontWeight: "800", fontSize: 9, letterSpacing: 1 },
-  listContent: { paddingHorizontal: 18, paddingTop: 22, paddingBottom: 22 },
+  listContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
   hero: {
-    borderRadius: 18, padding: 23, marginBottom: 28, minHeight: 205,
-    backgroundColor: "#0d2335", borderWidth: 1, borderColor: "#173a53",
-    justifyContent: "center"
+    borderRadius: 22, padding: 22, marginBottom: 26, minHeight: 280,
+    backgroundColor: "#101b34", borderWidth: 1, borderColor: "#244766",
+    justifyContent: "center", overflow: "hidden"
   },
+  heroGlow: { position: "absolute", width: 230, height: 230, borderRadius: 115, right: -92, top: -115, backgroundColor: "#174b70", opacity: 0.58 },
+  heroOrbit: { position: "absolute", width: 170, height: 170, borderRadius: 85, right: -35, top: -45, borderWidth: 1, borderColor: "rgba(24,217,244,0.24)" },
+  heroAccentLine: { width: 43, height: 4, borderRadius: 3, backgroundColor: "#8b75ff", marginBottom: 17 },
+  heroFeature: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 18, padding: 13, borderRadius: 13, borderWidth: 1, borderColor: "rgba(135,190,222,0.25)", backgroundColor: "rgba(5,14,29,0.62)" },
+  heroFeatureCopy: { flex: 1 },
+  heroFeatureEyebrow: { color: "#83eafa", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
+  heroFeatureTitle: { color: "#f4f8ff", fontSize: 15, fontWeight: "900", marginTop: 5 },
+  heroFeatureMeta: { color: "#9aafc6", fontSize: 9, marginTop: 3 },
+  heroFeatureAction: { borderRadius: 9, backgroundColor: "#18d9f4", paddingHorizontal: 12, paddingVertical: 10 },
+  heroFeatureActionText: { color: "#06111e", fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
   eyebrow: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 2, marginBottom: 13 },
-  heroTitle: { color: "#f2f7ff", fontSize: 35, lineHeight: 37, fontWeight: "900", letterSpacing: -1 },
+  heroTitle: { color: "#f2f7ff", fontSize: 36, lineHeight: 38, fontWeight: "900", letterSpacing: -1.2 },
   heroTitleAccent: { color: "#18d9f4" },
   heroCopy: { color: "#a8bbcc", fontSize: 12, lineHeight: 19, maxWidth: 290, marginTop: 12 },
   heroPills: { flexDirection: "row", gap: 8, marginTop: 16 },
@@ -1303,8 +1333,10 @@ const styles = StyleSheet.create({
   ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
   gameCard: { backgroundColor: "#0d1625", borderWidth: 1, borderColor: "#1a2a3d", borderRadius: 13, overflow: "hidden", marginBottom: 15 },
-  gameArtwork: { height: 164, padding: 15, justifyContent: "space-between", alignItems: "center" },
-  artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between" },
+  gameArtwork: { height: 174, padding: 15, justifyContent: "space-between", alignItems: "center", overflow: "hidden" },
+  artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between", zIndex: 1 },
+  artworkGlow: { position: "absolute", width: 190, height: 190, borderRadius: 95, right: -55, top: -95, borderWidth: 2, borderColor: "rgba(255,255,255,0.22)" },
+  artworkOrb: { position: "absolute", width: 105, height: 105, borderRadius: 53, left: -34, bottom: -50, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(255,255,255,0.06)" },
   artLabel: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "900", letterSpacing: 1.3 },
   artPlatform: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   gameEmoji: { fontSize: 55, textShadowColor: "rgba(0,0,0,0.35)", textShadowRadius: 12 },
@@ -1322,7 +1354,8 @@ const styles = StyleSheet.create({
   detailsLink: { alignSelf: "flex-start", marginHorizontal: 14, marginTop: 14, marginBottom: 14, paddingVertical: 5 },
   detailsLinkText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
   tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#1b2b3d", backgroundColor: "#080f1b", paddingBottom: Platform.OS === "ios" ? 4 : 8, paddingTop: 8 },
-  tabButton: { flex: 1, alignItems: "center", gap: 4, paddingVertical: 5 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 7, marginHorizontal: 3, borderRadius: 11 },
+  tabButtonActive: { backgroundColor: "#102a3d", borderWidth: 1, borderColor: "#1b667c" },
   tabIcon: { color: "#71849c", fontSize: 20 },
   tabIconActive: { color: "#18d9f4" },
   tabLabel: { color: "#71849c", fontSize: 8, fontWeight: "800", letterSpacing: 1 },
