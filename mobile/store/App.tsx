@@ -287,7 +287,7 @@ export default function App() {
 
       const { data: gameRows, error: gamesQueryError } = await supabase!
         .from("games")
-        .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,price_minor,currency,offline_support,contains_ads,has_in_app_purchases,developer_studios(studio_name)")
+        .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,price_minor,currency,offline_support,contains_ads,has_in_app_purchases,cover_image_url,developer_studios(studio_name)")
         .in("id", gameIds)
         .eq("status", "published");
 
