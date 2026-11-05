@@ -69,6 +69,10 @@ Open Store at http://localhost:3000 and Creator at http://localhost:3001.
 
 GitHub Actions runs these checks using the committed root package-lock.json. It also builds the separate production Docker images for Store, Creator and the private scanner.
 
+## Android release builds
+
+See [the Android release runbook](deploy/ANDROID-RELEASE-RUNBOOK.md) for the adult-owner EAS project setup, production environment variables, remote signing credentials, protected GitHub release workflow, and APK/AAB verification.
+
 ## Self-hosted staging
 
 Start with [the deployment guide](deploy/README.md). It explains how to configure two hostnames, a Supabase project, the two app environment files, Docker Compose and Caddy HTTPS. The malware scanner has its own [private deployment guide](services/build-scanner/README.md).
