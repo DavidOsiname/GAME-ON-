@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - mobile/store-native-foundation
+      - import/game-on-mvp-0.9.10
     paths:
       - "mobile/store/**"
       - ".github/workflows/mobile-store.yml"
