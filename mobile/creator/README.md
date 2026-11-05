@@ -42,6 +42,10 @@ npm run typecheck
 npm start
 \`\`\`
 
+## Protected Android release workflow
+
+After the adult owner has linked the EAS project, configured the `production` environment variables and prepared remote Android signing credentials, the repository owner must create a protected GitHub Actions environment named `game-on-android-release`, add an adult required reviewer, and save the Expo access token as the environment secret `EXPO_TOKEN`. The manual **GAME ON Android release build** workflow then offers a choice between `production-apk` (signed direct-install APK) and `production` (Google Play AAB). It waits for the EAS build to finish, freezes credential changes, and does not submit the AAB to Google Play or publish a rollout.
+
 ## Configure Expo production environment
 
 EAS Build uses variables stored in the Expo project, not the GitHub Actions repository secrets. After the project owner has run `eas init`, set the public client configuration in the CREATOR EAS project:
