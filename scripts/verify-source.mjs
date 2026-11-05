@@ -195,10 +195,15 @@ for (const needle of [
 if (androidReleaseWorkflow.includes("eas submit") || androidReleaseWorkflow.includes("--auto-submit")) {
   throw new Error("The manual Android release workflow must never submit or publish an app automatically.");
 }
-if (/permissions:\\s*\\n\\s+contents:\\s*write/.test(androidReleaseWorkflow)) {
+if (/permissions:\s*\n\s+contents:\s*write/.test(androidReleaseWorkflow)) {
   throw new Error("The Android release workflow must use read-only repository permissions.");
 }
 for (const app of ["store", "creator"]) {
+  const mobileConfig = JSON.parse(fs.readFileSync(path.join(root, `mobile/${app}/app.json`), "utf8")).expo;
+  const expectedPackage = app === "store" ? "com.gameon.store" : "com.gameon.creator";
+  if (mobileConfig.android?.package !== expectedPackage || mobileConfig.ios?.bundleIdentifier !== expectedPackage) {
+    throw new Error(`${app} must use its own matching Android and iOS application ID (${expectedPackage}).`);
+  }
   const eas = JSON.parse(fs.readFileSync(path.join(root, `mobile/${app}/eas.json`), "utf8"));
   if (eas.build?.preview?.distribution !== "internal" || eas.build?.preview?.android?.buildType !== "apk") {
     throw new Error(`${app} must retain an internal APK profile for device testing.`);
