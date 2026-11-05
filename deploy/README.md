@@ -2,6 +2,10 @@
 
 This deployment keeps **Game ON Store** and **Game ON Creator** as two independent Next.js services and two separate containers. They share the same configured Supabase project, but are not merged into one application. The Compose stack binds to localhost by default so a host reverse proxy can terminate HTTPS.
 
+## Android release preparation
+
+For the separate Android EAS projects, signing credentials, protected GitHub environment, and signed APK/AAB build process, follow [the Android release runbook](ANDROID-RELEASE-RUNBOOK.md). This mobile release process is separate from deploying the shared web/backend services.
+
 ## Requirements
 
 - A Linux server or development computer with Docker Engine and Docker Compose v2.
