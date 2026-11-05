@@ -577,7 +577,7 @@ export default function App() {
           if (current.status === "rejected") {
             const { error: resubmitError } = await supabase.rpc("resubmit_game", { p_game_id: editingGameId });
             if (resubmitError) throw new Error("Your listing details were saved, but resubmission could not be completed: " + resubmitError.message);
-            finalGame = { ...finalGame, status: "submitted" };
+            finalGame = { ...finalGame, status: "submitted", rejection_reason: null };
           }
           setGames((items) => items.map((game) => game.id === editingGameId ? finalGame : game));
           setNotice(current.status === "rejected"
