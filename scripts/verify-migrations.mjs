@@ -15,13 +15,13 @@ for (const marker of ['library_insert_free_or_demo_only', 'library_delete_free_o
   if (!entitlementMigration.toLowerCase().includes(marker.toLowerCase())) throw new Error(`Entitlement security migration is missing: ${marker}`);
 }
 const coverMigration = fs.readFileSync(path.join(migrationsDir, '0011_game_cover_artwork.sql'), 'utf8');
-for (const marker of ['game-covers', 'game_covers_owner_insert', 'game_covers_owner_update', 'game_covers_owner_delete', '5242880', 'image/webp']) {
+for (const marker of ['game-covers', 'game_covers_owner_insert', 'game_covers_owner_update', 'game_covers_owner_delete', '5242880', 'image/webp', 'cover(-[a-z0-9-]{1,48})?']) {
   if (!coverMigration.toLowerCase().includes(marker.toLowerCase())) throw new Error(`Game cover migration is missing: ${marker}`);
 }
 const testFile = path.join(root, 'supabase', 'tests', 'marketplace_security.test.sql');
 if (!fs.existsSync(testFile)) throw new Error('Supabase pgTAP marketplace security tests are missing.');
 const testSql = fs.readFileSync(testFile, 'utf8');
-for (const marker of ['plan(30)', 'complete_marketplace_order', 'marketplace_orders', 'refund_requests', 'game-build-quarantine', 'game-covers', 'game_covers_owner_insert', 'notifications_read_own']) {
+for (const marker of ['plan(31)', 'complete_marketplace_order', 'marketplace_orders', 'refund_requests', 'game-build-quarantine', 'game-covers', 'game_covers_owner_insert', 'notifications_read_own']) {
   if (!testSql.includes(marker)) throw new Error(`Database security test file is missing expected assertion: ${marker}`);
 }
 const config = fs.readFileSync(path.join(root, 'supabase', 'config.toml'), 'utf8');
