@@ -6,7 +6,7 @@ This is the first native mobile client in the GAME ON ecosystem. It is a separat
 
 - Native Store navigation and catalogue UI
 - Search and genre filtering
-- Game detail view
+- Game detail view with published developer cover artwork
 - Local wishlist, with Supabase sync for signed-in users
 - Supabase email sign-up/sign-in and persistent mobile sessions
 - Account-linked player library, loaded from the user's own `user_library` rows
