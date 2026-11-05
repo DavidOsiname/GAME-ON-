@@ -8,6 +8,7 @@ if (result.status !== 0) {
 }
 const output = `${result.stdout}\n${result.stderr}`;
 const expectedChecks = [
+  'Two-app Android release readiness tracker is present.',
   'Root npm workspaces include Store and Creator.',
   'Payments are disabled by default in both app templates.',
   'No server-only service/payment secrets are exposed through NEXT_PUBLIC variables.',
