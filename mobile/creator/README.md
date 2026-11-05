@@ -42,6 +42,18 @@ npm run typecheck
 npm start
 \`\`\`
 
+## Configure Expo production environment
+
+EAS Build uses variables stored in the Expo project, not the GitHub Actions repository secrets. After the project owner has run `eas init`, set the public client configuration in the CREATOR EAS project:
+
+```bash
+npx eas-cli env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://YOUR-PROJECT.supabase.co" --environment production --visibility plaintext
+npx eas-cli env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR_PUBLISHABLE_OR_ANON_KEY" --environment production --visibility sensitive
+npx eas-cli env:set --name EXPO_PUBLIC_CREATOR_API_URL --value "https://YOUR-CREATOR-DOMAIN" --environment production --visibility plaintext
+```
+
+Replace the placeholders with the real Supabase client values and the deployed Creator HTTPS origin. Configure the Creator API URL only after the hosted Creator service is live and its health/readiness checks pass. These are client values, not service-role credentials. Never put a Supabase secret/service-role key, database password, Paystack secret or scanner secret into an Expo public environment variable. The production and production-apk EAS profiles use the `production` environment; the preview profile uses `preview`.
+
 ## Build installable apps
 
 Before the first cloud build, an adult project owner should run these commands from this app directory. Repeat them separately for STORE and CREATOR so each app gets its own EAS project ID in app.json:
