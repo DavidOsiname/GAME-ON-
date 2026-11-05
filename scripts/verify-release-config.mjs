@@ -18,6 +18,7 @@ const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'ut
 const read = (file) => fs.readFileSync(path.join(root, file), 'utf8');
 
 try {
+  check(fs.existsSync(path.join(root, 'RELEASE_READINESS.md')), 'Two-app Android release readiness tracker is present.', 'Two-app Android release readiness tracker is missing.');
   const rootPkg = readJson('package.json');
   const storePkg = readJson('apps/store/package.json');
   const creatorPkg = readJson('apps/creator/package.json');
