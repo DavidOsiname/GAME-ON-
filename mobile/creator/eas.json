@@ -11,14 +11,16 @@
       "distribution": "internal",
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "preview"
     },
     "production": {
       "distribution": "store",
       "autoIncrement": true,
       "android": {
         "buildType": "app-bundle"
-      }
+      },
+      "environment": "production"
     },
     "production-apk": {
       "extends": "production",
@@ -26,7 +28,8 @@
       "autoIncrement": false,
       "android": {
         "buildType": "apk"
-      }
+      },
+      "environment": "production"
     }
   }
 }
