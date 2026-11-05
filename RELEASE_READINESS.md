@@ -18,10 +18,10 @@ This is the working release checklist. Mark an item complete only after the evid
 - [x] Add static checks for the cover replacement order and the two apps' EAS build profiles.
 - [x] Configure separate EAS profiles for internal APK, production-signed direct-install APK and Play AAB.
 - [x] Configure EAS build environments explicitly: `preview` for preview builds and `production` for both production profiles.
-- [ ] Obtain a green CI validation run on the current branch HEAD after the latest release-profile/environment changes.
-- [ ] Obtain green latest mobile build workflows for both apps on the current branch HEAD.
+- [x] Obtain a green CI validation run on branch HEAD `0d52652` after the release-profile/environment changes.
+- [x] Obtain green latest mobile build workflows for both apps on branch HEAD `0d52652`; both debug APK artifacts were uploaded.
 
-**Evidence:** [GitHub Actions for this branch](https://github.com/DavidOsiname/GAME-ON-/actions).
+**Evidence:** [Full validation run](https://github.com/DavidOsiname/GAME-ON-/actions/runs/42013857582), [CREATOR debug APK build](https://github.com/DavidOsiname/GAME-ON-/actions/runs/42013857513), and [STORE debug APK build](https://github.com/DavidOsiname/GAME-ON-/actions/runs/42013857698). All three passed on source commit `0d52652`. Debug artifact downloads are retained through 19 November 2026.
 
 ## 2. Staging backend and hosted services — adult owner/operator
 
@@ -83,6 +83,7 @@ This is the working release checklist. Mark an item complete only after the evid
 Do this separately from `mobile/store` and `mobile/creator`; do not combine their EAS project IDs or signing credentials.
 
 - [ ] Adult owner signs in to Expo and runs `npx eas-cli init` inside each mobile app directory.
+- [ ] Repository owner creates the protected GitHub environment `game-on-android-release`, adds at least one adult required reviewer, and stores the adult-owned Expo access token as the environment secret `EXPO_TOKEN`.
 - [ ] Confirm each app has its own `extra.eas.projectId` and correct `owner` in its app config.
 - [ ] Configure the Store EAS `production` environment with `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 - [ ] Configure the Creator EAS `production` environment with those same public client values plus `EXPO_PUBLIC_CREATOR_API_URL` after deployment.
@@ -91,7 +92,7 @@ Do this separately from `mobile/store` and `mobile/creator`; do not combine thei
 - [ ] Verify signing certificate fingerprints and securely back up each keystore and recovery information under adult-owner control.
 - [ ] Never commit signing credentials or put service-role/database/payment/scanner secrets into any `EXPO_PUBLIC_` variable.
 
-The app READMEs contain the EAS CLI commands and variable names. Do not post tokens, keystore files or passwords in chat or source control.
+The app READMEs contain the EAS CLI commands and variable names. Do not post tokens, keystore files or passwords in chat or source control. The manual [Android release workflow](.github/workflows/android-release.yml) requires the protected environment, linked project IDs, production EAS variables and preconfigured remote signing credentials; it builds only and never submits to Google Play.
 
 ## 6. Signed Android release builds
 
@@ -104,7 +105,7 @@ For **each** application:
 - [ ] Confirm neither artifact uses demo-only data or points at the wrong project.
 - [ ] Archive the exact source commit, build ID, signing certificate fingerprint and final files.
 
-The GitHub mobile workflows currently compile **debug APKs** for automated checks. A debug APK is not the production Release APK. The EAS `production-apk` and `production` profiles have been configured but have not yet been run to create production artifacts.
+The GitHub mobile workflows compile **debug APKs** for automated checks. A debug APK is not the production Release APK. Latest debug artifacts for both apps were built successfully on 5 November 2026; these are for device testing and are not production signing. The manual EAS release workflow has been added, but the EAS `production-apk` and `production` profiles have not yet been run because each adult-owned Expo project, environment and signing credential set still needs setup.
 
 ## 7. Real-device release acceptance
 
@@ -135,7 +136,7 @@ Do not automatically submit to Play or roll out to production without the adult 
 | Release gate | Status |
 |---|---|
 | Core mobile source features | Implemented in code |
-| Latest branch CI validation | Awaiting latest run |
+| Latest branch CI validation | Passed on `0d52652` |
 | Staging backend and Creator API | Not deployed/verified |
 | Complete native marketplace journeys | Incomplete |
 | Icons, privacy policy and Play listing assets | Not ready |
