@@ -8,7 +8,8 @@ GAME ON CREATOR is a separate React Native + Expo app for developers. It is not 
 - On-device demo mode when no Supabase project is configured
 - Developer studio onboarding
 - Studio verification status
-- Game listing creation with platform, genre and monetization details
+- Game listing creation with platform, genre, monetization details and optional cover artwork uploads
+- Cover art uploads to the public `game-covers` bucket with studio-owner Storage policies, a 5 MiB cap and JPG/PNG/WebP validation
 - Developer game list with submission and publication status
 - Build-status screen that calls the authenticated Creator API when its base URL is configured
 - Separate Android APK and iOS build profiles
