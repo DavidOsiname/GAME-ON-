@@ -1020,6 +1020,7 @@ export default function App() {
               {games.length === 0 ? <EmptyState title="NO GAMES SUBMITTED" copy="Submit your first listing to start the Game ON review process." /> : games.map((game) => (
                 <View key={game.id} style={styles.gameCard}>
                   <View style={styles.rowBetween}>
+                    {game.cover_image_url ? <Image source={{ uri: game.cover_image_url }} resizeMode="cover" style={styles.gameCoverThumbnail} /> : null}
                     <View style={styles.flexOne}>
                       <Text style={styles.gameTitle}>{game.title}</Text>
                       <Text style={styles.mutedCopy}>{game.genre} · {game.supported_platforms?.join(", ").toUpperCase() || "ANDROID"}</Text>
@@ -1045,6 +1046,31 @@ export default function App() {
               <TextInput value={gameTitle} onChangeText={setGameTitle} placeholder="Your game's name" placeholderTextColor="#718198" style={styles.input} maxLength={100} />
               <Text style={styles.fieldLabel}>SHORT DESCRIPTION (10–180 CHARACTERS)</Text>
               <TextInput value={gameDescription} onChangeText={setGameDescription} placeholder="Tell players what makes your game special." placeholderTextColor="#718198" style={[styles.input, styles.multilineInput]} multiline maxLength={180} />
+              <Text style={styles.fieldLabel}>GAME COVER (OPTIONAL)</Text>
+              <View style={styles.coverPickerRow}>
+                {pickedCover ? (
+                  <Image source={{ uri: pickedCover.uri }} resizeMode="cover" style={styles.coverPreview} />
+                ) : (
+                  <View style={styles.coverPlaceholder}>
+                    <Text style={styles.coverPlaceholderText}>ART</Text>
+                  </View>
+                )}
+                <View style={styles.flexOne}>
+                  <Text style={styles.gameTitle}>{pickedCover ? pickedCover.name : "Add your game's cover art"}</Text>
+                  <Text style={styles.mutedCopy}>JPG, PNG or WebP · Maximum 5 MB. This image appears in the GAME ON Store.</Text>
+                  <ActionButton
+                    label={pickedCover ? "CHANGE COVER IMAGE" : "CHOOSE COVER IMAGE"}
+                    onPress={() => { void pickCoverImage(); }}
+                    secondary
+                    disabled={!supabase || Boolean(user?.demo)}
+                  />
+                  {pickedCover ? (
+                    <Pressable onPress={() => setPickedCover(null)} style={styles.removeCoverButton}>
+                      <Text style={styles.linkText}>REMOVE COVER</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
+              </View>
               <Text style={styles.fieldLabel}>GENRE</Text>
               <TextInput value={genre} onChangeText={setGenre} placeholder="Adventure, Racing, Puzzle…" placeholderTextColor="#718198" style={styles.input} />
               <Text style={styles.fieldLabel}>PLATFORM</Text>
@@ -1350,6 +1376,12 @@ const styles = StyleSheet.create({
   gameTitle: { color: "#f0f7ff", fontSize: 14, fontWeight: "900" },
   gameDescription: { color: "#a5b5c7", fontSize: 11, lineHeight: 17, marginTop: 9, marginBottom: 10 },
   selectedFile: { color: "#bceff6", fontSize: 10, lineHeight: 15, marginTop: 10, fontWeight: "800" },
+  coverPickerRow: { flexDirection: "row", alignItems: "flex-start", gap: 13, padding: 13, borderWidth: 1, borderColor: "#2b4054", borderRadius: 13, backgroundColor: "#0d1725", marginBottom: 12 },
+  coverPreview: { width: 92, height: 112, borderRadius: 9, backgroundColor: "#16263a" },
+  coverPlaceholder: { width: 92, height: 112, borderRadius: 9, backgroundColor: "#17283a", borderWidth: 1, borderColor: "#30465e", alignItems: "center", justifyContent: "center" },
+  coverPlaceholderText: { color: "#18d9f4", fontSize: 20, fontWeight: "800", letterSpacing: 2 },
+  removeCoverButton: { alignSelf: "flex-start", paddingVertical: 8 },
+  gameCoverThumbnail: { width: 58, height: 64, borderRadius: 8, backgroundColor: "#17283a" },
   notificationUnread: { borderColor: "#18647a", backgroundColor: "#0d202e" },
   moneyText: { color: "#8ba1b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   choiceRow: { flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 8 },
