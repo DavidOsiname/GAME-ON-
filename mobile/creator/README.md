@@ -18,7 +18,7 @@ GAME ON CREATOR is a separate React Native + Expo app for developers. It is not 
 - Edit draft and submitted listing details from the mobile **My Games** screen.
 - Edit and resubmit rejected listings using the database's owner-checked `resubmit_game` function.
 - Published and actively reviewed listings are read-only in the mobile app; review status and publication remain Game ON-controlled.
-- Existing cover artwork remains attached when editing listing details; artwork replacement is not part of this edit flow yet.
+- Replace cover artwork on editable listings with a versioned upload; the prior object is removed only after the game record points to the new image.
 
 ## Secure boundaries
 
