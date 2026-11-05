@@ -18,7 +18,7 @@ GAME ON CREATOR is a separate React Native + Expo app for developers. It is not 
 
 The mobile app uses only the public Supabase URL and publishable/anon key. Supabase Row Level Security is responsible for protecting studio and game records. Never bundle a service-role key, database password, payment secret or scanner secret in a mobile app.
 
-Game build files are sensitive. The mobile app does not write to the private build metadata table or upload directly to the quarantine bucket. Build ingestion remains in the Creator server API, which checks the developer's session and studio ownership before issuing a private upload URL. The upload/scanning service must be configured before real build uploads can be enabled.
+Game cover art is a public catalogue asset. Migration `0011_game_cover_artwork.sql` creates the public `game-covers` bucket and restricts writes to the owning studio; only JPG, PNG and WebP images up to 5 MiB are accepted. The mobile app does not write to the private build metadata table or upload executable game files directly to the quarantine bucket. Build ingestion remains in the Creator server API, which checks the developer's session and studio ownership before issuing a private upload URL. The upload/scanning service must be configured before real build uploads can be enabled.
 
 Analytics and sales are not displayed as live figures in this initial mobile milestone. They require the server-side reporting endpoints and a configured backend.
 
