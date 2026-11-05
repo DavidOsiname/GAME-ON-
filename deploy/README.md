@@ -9,7 +9,7 @@ This deployment keeps **Game ON Store** and **Game ON Creator** as two independe
 - A configured Supabase project with all eleven migrations in `supabase/migrations` applied and the Auth/Storage policies reviewed.
 - A domain and HTTPS reverse proxy for public access. The supplied Compose file deliberately binds ports to `127.0.0.1` by default.
 
-## Configure
+## Apply Supabase migrations\n\nFor the exact operator procedure to compare remote migration history, preview pending changes, apply them safely and verify Storage policies, follow the [Supabase migration runbook](SUPABASE-MIGRATION-RUNBOOK.md). The runbook is for the adult project owner or an authorised database operator.\n\n## Configure
 
 From the repository root:
 
