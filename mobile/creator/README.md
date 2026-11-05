@@ -48,3 +48,19 @@ npx eas-cli build --platform ios --profile preview
 The preview profile creates an Android APK for internal testing. A physical iPhone install or App Store release requires the appropriate Apple signing and distribution account. The GitHub validation workflow exports the Android and iOS bundles and compiles a debug Android APK; it does not sign an iOS IPA.
 
 Demo mode is for interface testing only. It does not create real developer accounts, studios or marketplace listings.
+
+## Connect the mobile app to the hosted Creator API
+
+The private build-history and executable-build upload features call the same Next.js Creator server used by the web portal. They are not hosted by the mobile app and must never be pointed directly at a database or service-role key.
+
+After the Creator service is deployed behind HTTPS:
+
+1. Confirm the Creator server responds at `https://YOUR-CREATOR-DOMAIN/api/health` and that its readiness endpoint reports the required backend configuration.
+2. In the GitHub repository, open **Settings → Secrets and variables → Actions → New repository secret**.
+3. Create the secret named `EXPO_PUBLIC_CREATOR_API_URL` with only the Creator HTTPS origin, for example `https://creator.example.com` (no trailing slash and no `/api` suffix).
+4. Confirm the existing mobile workflow reads this secret, then run the **GAME ON CREATOR mobile** workflow again. The URL is embedded at build time, so an APK built before the secret was set must be rebuilt.
+5. Install the new APK and verify the Build history screen can call `/api/builds`.
+
+The server's `/api/builds/upload-url` and `/api/builds/finalize` routes require a valid signed-in developer session. The server validates the Supabase bearer token and uses its own server-only secret to create a one-time upload URL for the private `game-build-quarantine` bucket. Never put `SUPABASE_SERVICE_ROLE_KEY`, a Supabase secret key, database password, Paystack secret or scanner webhook secret in an `EXPO_PUBLIC_` variable or in the mobile app.
+
+**Important:** real executable-build uploads also require a verified developer studio and a supported game listing. A working URL alone does not bypass studio verification, the 50 MiB upload limit, malware scanning or Game ON release approval. Keep the upload feature for internal testing until the scanner and release workflow are deployed and verified.
