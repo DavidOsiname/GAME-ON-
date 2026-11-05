@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(26);
+select plan(30);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -35,6 +35,12 @@ select ok(not has_table_privilege('authenticated', 'public.game_builds', 'SELECT
 select ok(exists(select 1 from pg_policies where schemaname = 'public' and tablename = 'user_library' and policyname = 'library_insert_free_or_demo_only' and with_check ilike '%monetization_type%' and with_check ilike '%demo%' and with_check ilike '%free%'), 'client library inserts are restricted to free and demo games');
 
 select ok(exists(select 1 from pg_policies where schemaname = 'public' and tablename = 'user_library' and policyname = 'library_delete_free_or_demo_only' and qual ilike '%monetization_type%' and qual ilike '%demo%' and qual ilike '%free%'), 'players cannot directly delete paid-game ownership records');
+
+
+select ok(exists(select 1 from storage.buckets where id = 'game-covers' and public = true and file_size_limit = 5242880), 'game cover assets use a public bucket with a 5 MiB upload cap');
+select ok((select allowed_mime_types @> array['image/jpeg', 'image/png', 'image/webp']::text[] from storage.buckets where id = 'game-covers'), 'game cover bucket accepts only declared safe image formats');
+select ok(exists(select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'game_covers_owner_insert'), 'only owning developers can upload game cover assets');
+select ok(exists(select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'game_covers_owner_delete'), 'only owning developers can delete their game cover assets');
 
 select * from finish();
 rollback;
