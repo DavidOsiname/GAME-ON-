@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(30);
+select plan(31);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -41,6 +41,14 @@ select ok(exists(select 1 from storage.buckets where id = 'game-covers' and publ
 select ok((select allowed_mime_types @> array['image/jpeg', 'image/png', 'image/webp']::text[] from storage.buckets where id = 'game-covers'), 'game cover bucket accepts only declared safe image formats');
 select ok(exists(select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'game_covers_owner_insert'), 'only owning developers can upload game cover assets');
 select ok(exists(select 1 from pg_policies where schemaname = 'storage' and tablename = 'objects' and policyname = 'game_covers_owner_delete'), 'only owning developers can delete their game cover assets');
+select ok((
+  select count(*) = 3
+  from pg_policies
+  where schemaname = 'storage'
+    and tablename = 'objects'
+    and policyname in ('game_covers_owner_insert', 'game_covers_owner_update', 'game_covers_owner_delete')
+    and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%cover(-[a-z0-9-]{1,48})?%'
+), 'cover upload, replacement and delete policies accept versioned filenames');
 
 select * from finish();
 rollback;
