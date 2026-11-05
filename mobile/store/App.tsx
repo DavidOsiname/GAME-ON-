@@ -1224,8 +1224,8 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#070b14" },
   appShell: { flex: 1, backgroundColor: "#070b14" },
   header: {
-    minHeight: 76, paddingHorizontal: 18, flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#1b3348",
+    minHeight: 82, paddingHorizontal: 20, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#23445c",
     backgroundColor: "#080f1c"
   },
   brandBlock: { flexDirection: "row", alignItems: "center", gap: 11 },
@@ -1240,8 +1240,8 @@ const styles = StyleSheet.create({
   profileButtonText: { color: "#bceff6", fontWeight: "800", fontSize: 9, letterSpacing: 1 },
   listContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
   hero: {
-    borderRadius: 22, padding: 22, marginBottom: 26, minHeight: 280,
-    backgroundColor: "#101b34", borderWidth: 1, borderColor: "#244766",
+    borderRadius: 26, padding: 24, marginBottom: 24, minHeight: 300,
+    backgroundColor: "#111b38", borderWidth: 1, borderColor: "#31577a",
     justifyContent: "center", overflow: "hidden"
   },
   heroGlow: { position: "absolute", width: 230, height: 230, borderRadius: 115, right: -92, top: -115, backgroundColor: "#174b70", opacity: 0.58 },
@@ -1265,7 +1265,7 @@ const styles = StyleSheet.create({
   sectionTitle: { color: "#f0f6ff", fontSize: 23, fontWeight: "900", letterSpacing: 0.5 },
   searchBox: {
     minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 13,
-    borderRadius: 9, borderWidth: 1, borderColor: "#23344b", backgroundColor: "#0c1421"
+    borderRadius: 14, borderWidth: 1, borderColor: "#29435d", backgroundColor: "#0c1421"
   },
   searchIcon: { color: "#18d9f4", fontSize: 24, marginRight: 9 },
   searchInput: { flex: 1, color: "#f0f6ff", fontSize: 12, paddingVertical: 10 },
@@ -1332,8 +1332,8 @@ const styles = StyleSheet.create({
   ownedNotice: { borderWidth: 1, borderColor: "#366b59", borderRadius: 9, backgroundColor: "#10251f", padding: 14, marginTop: 18 },
   ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
-  gameCard: { backgroundColor: "#0d1625", borderWidth: 1, borderColor: "#1a2a3d", borderRadius: 13, overflow: "hidden", marginBottom: 15 },
-  gameArtwork: { height: 174, padding: 15, justifyContent: "space-between", alignItems: "center", overflow: "hidden" },
+  gameCard: { backgroundColor: "#0d1728", borderWidth: 1, borderColor: "#29435d", borderRadius: 19, overflow: "hidden", marginBottom: 18, elevation: 3 },
+  gameArtwork: { height: 194, padding: 17, justifyContent: "space-between", alignItems: "center", overflow: "hidden" },
   artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between", zIndex: 1 },
   artworkGlow: { position: "absolute", width: 190, height: 190, borderRadius: 95, right: -55, top: -95, borderWidth: 2, borderColor: "rgba(255,255,255,0.22)" },
   artworkOrb: { position: "absolute", width: 105, height: 105, borderRadius: 53, left: -34, bottom: -50, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(255,255,255,0.06)" },
@@ -1341,7 +1341,7 @@ const styles = StyleSheet.create({
   artPlatform: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   gameEmoji: { fontSize: 55, textShadowColor: "rgba(0,0,0,0.35)", textShadowRadius: 12 },
   artTitle: { color: "#ffffff", fontSize: 21, fontWeight: "900", letterSpacing: 1, textShadowColor: "rgba(0,0,0,0.5)", textShadowRadius: 8 },
-  gameInfo: { paddingHorizontal: 14, paddingTop: 13, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  gameInfo: { paddingHorizontal: 17, paddingTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   gameInfoMain: { flex: 1, paddingRight: 10 },
   gameTitle: { color: "#f0f7ff", fontSize: 15, fontWeight: "800" },
   gameStudio: { color: "#8194aa", fontSize: 10, marginTop: 4 },
@@ -1353,9 +1353,9 @@ const styles = StyleSheet.create({
   tag: { color: "#9cacc0", fontSize: 8, fontWeight: "800", letterSpacing: 0.7, paddingHorizontal: 8, paddingVertical: 5, borderWidth: 1, borderColor: "#25374b", borderRadius: 5 },
   detailsLink: { alignSelf: "flex-start", marginHorizontal: 14, marginTop: 14, marginBottom: 14, paddingVertical: 5 },
   detailsLinkText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
-  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#1b2b3d", backgroundColor: "#080f1b", paddingBottom: Platform.OS === "ios" ? 4 : 8, paddingTop: 8 },
+  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#23445c", backgroundColor: "#080f1b", paddingHorizontal: 4, paddingBottom: Platform.OS === "ios" ? 5 : 10, paddingTop: 10 },
   tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 7, marginHorizontal: 3, borderRadius: 11 },
-  tabButtonActive: { backgroundColor: "#102a3d", borderWidth: 1, borderColor: "#1b667c" },
+  tabButtonActive: { backgroundColor: "#103044", borderWidth: 1, borderColor: "#18d9f4" },
   tabIcon: { color: "#71849c", fontSize: 20 },
   tabIconActive: { color: "#18d9f4" },
   tabLabel: { color: "#71849c", fontSize: 8, fontWeight: "800", letterSpacing: 1 },
