@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Image,
   Platform,
   Pressable,
   SafeAreaView,
@@ -40,6 +41,7 @@ type GameRow = {
   price_minor?: number | null;
   currency?: string | null;
   supported_platforms?: string[];
+  cover_image_url?: string | null;
 };
 type BuildRow = {
   id: string;
@@ -55,6 +57,7 @@ type BuildRow = {
 
 type Section = "overview" | "games" | "submit" | "builds" | "analytics" | "sales" | "notifications" | "studio";
 type PickedBuild = { uri: string; name: string; size: number };
+type PickedCover = { uri: string; name: string; size: number; mimeType: "image/jpeg" | "image/png" | "image/webp"; extension: "jpg" | "jpeg" | "png" | "webp" };
 type AnalyticsRow = {
   game_id: string; game_title: string; game_status: string;
   download_link_issues: number; latest_download_link_at: string | null;
@@ -204,6 +207,7 @@ export default function App() {
   const [platform, setPlatform] = useState("android");
   const [monetization, setMonetization] = useState("free");
   const [priceNaira, setPriceNaira] = useState("");
+  const [pickedCover, setPickedCover] = useState<PickedCover | null>(null);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
@@ -295,7 +299,7 @@ export default function App() {
     async function loadGames() {
       const { data, error: queryError } = await supabase!
         .from("games")
-        .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms")
+        .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
         .eq("studio_id", studio!.id)
         .order("created_at", { ascending: false });
       if (!active) return;
@@ -417,6 +421,51 @@ export default function App() {
     }
   }
 
+  async function pickCoverImage() {
+    setError("");
+    if (!supabase || !studio || studio.demo || !user || user.demo) {
+      setError("Connect the shared Supabase backend and sign in with a real developer account to upload cover art.");
+      return;
+    }
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "image/*",
+      copyToCacheDirectory: true,
+      multiple: false
+    });
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    const extension = asset.name.split(".").pop()?.toLowerCase() ?? "";
+    const mimeByExtension: Record<string, PickedCover["mimeType"]> = {
+      jpg: "image/jpeg",
+      jpeg: "image/jpeg",
+      png: "image/png",
+      webp: "image/webp"
+    };
+    if (!(extension in mimeByExtension)) {
+      setError("Choose a JPG, PNG or WebP image for the game cover.");
+      return;
+    }
+    const mimeType = mimeByExtension[extension];
+    if (asset.mimeType && asset.mimeType !== mimeType) {
+      setError("The selected image type does not match its file extension.");
+      return;
+    }
+    const file = new File(asset.uri);
+    const size = asset.size ?? file.size;
+    if (!size || size < 1 || size > 5 * 1024 * 1024) {
+      setError("Game cover images must be between 1 byte and 5 MB.");
+      return;
+    }
+    setPickedCover({
+      uri: asset.uri,
+      name: asset.name,
+      size,
+      mimeType,
+      extension: extension as PickedCover["extension"]
+    });
+  }
+
   async function submitGame() {
     setError("");
     setNotice("");
@@ -443,7 +492,14 @@ export default function App() {
       }
       priceMinor = Math.round(amount * 100);
     }
+    if (pickedCover && (!supabase || studio.demo || !user || user.demo)) {
+      setError("A real developer account and the shared Supabase backend are required to upload cover art.");
+      return;
+    }
+
     setBusy(true);
+    let createdGameId: string | null = null;
+    let uploadedCoverPath: string | null = null;
     try {
       const slug = makeSlug(title) + "-" + Date.now().toString(36);
       if (studio.demo || !supabase) {
@@ -457,12 +513,13 @@ export default function App() {
           monetization_type: monetization,
           price_minor: priceMinor,
           currency: priceMinor === null ? null : "NGN",
-          supported_platforms: [platform]
+          supported_platforms: [platform],
+          cover_image_url: null
         };
         setGames((current) => [row, ...current]);
-        setNotice("Demo listing saved locally. Connect the shared backend for real review and publishing.");
+        setNotice("Demo listing saved locally. Connect the shared backend to upload a cover image and submit a real listing.");
       } else {
-        const { data, error: insertError } = await supabase
+        const { data: draft, error: insertError } = await supabase
           .from("games")
           .insert({
             studio_id: studio.id,
@@ -475,19 +532,56 @@ export default function App() {
             monetization_type: monetization,
             price_minor: priceMinor,
             currency: priceMinor === null ? null : "NGN",
-            status: "submitted"
+            status: "draft"
           })
-          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms")
+          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
           .single();
         if (insertError) throw insertError;
-        setGames((current) => [data as GameRow, ...current]);
-        setNotice("Your game listing was submitted for Game ON review.");
+        createdGameId = draft.id;
+
+        let coverImageUrl: string | null = null;
+        if (pickedCover) {
+          const imageFile = new File(pickedCover.uri);
+          const bytes = await imageFile.arrayBuffer();
+          if (bytes.byteLength !== pickedCover.size) {
+            throw new Error("The selected cover image changed while uploading. Please choose it again.");
+          }
+          uploadedCoverPath = `${studio.id}/${draft.id}/cover.${pickedCover.extension}`;
+          const { error: uploadError } = await supabase.storage
+            .from("game-covers")
+            .upload(uploadedCoverPath, bytes, {
+              contentType: pickedCover.mimeType,
+              cacheControl: "31536000",
+              upsert: false
+            });
+          if (uploadError) throw new Error("Cover image upload failed: " + uploadError.message);
+          coverImageUrl = supabase.storage.from("game-covers").getPublicUrl(uploadedCoverPath).data.publicUrl;
+        }
+
+        const { data: submitted, error: submitError } = await supabase
+          .from("games")
+          .update({ status: "submitted", cover_image_url: coverImageUrl })
+          .eq("id", draft.id)
+          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+          .single();
+        if (submitError) throw submitError;
+        setGames((current) => [submitted as GameRow, ...current]);
+        setNotice(pickedCover
+          ? "Your game and cover image were submitted for Game ON review."
+          : "Your game listing was submitted for Game ON review. You can add cover artwork before a future update.");
       }
       setGameTitle("");
       setGameDescription("");
       setPriceNaira("");
+      setPickedCover(null);
       setSection("games");
     } catch (caught) {
+      if (createdGameId && supabase) {
+        if (uploadedCoverPath) {
+          await supabase.storage.from("game-covers").remove([uploadedCoverPath]).catch(() => undefined);
+        }
+        await supabase.from("games").delete().eq("id", createdGameId).catch(() => undefined);
+      }
       setError(caught instanceof Error ? caught.message : "Game listing could not be submitted.");
     } finally {
       setBusy(false);
