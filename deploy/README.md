@@ -22,6 +22,11 @@ Edit both files with the real Supabase URL and public key. These public values a
 
 Payments remain disabled and the Paystack secret can remain blank for this first deployment. Add a Paystack test secret only when you are ready to carry out controlled staging checkout/refund tests. Do not enable live payments. Payment activation requires merchant onboarding, approved commercial/legal terms, test transactions, refund and reconciliation checks, and a responsible adult/business owner's explicit approval.
 
+
+### Connect the Creator mobile app
+
+The mobile Creator app calls this same hosted Creator service for private build history and uploads. After the Creator domain is live and `https://CREATOR_DOMAIN/api/health` responds, set the GitHub Actions repository secret `EXPO_PUBLIC_CREATOR_API_URL` to the Creator HTTPS origin (for example, `https://creator.example.com`, without a trailing slash or `/api`). The `.github/workflows/mobile-creator.yml` workflow passes this value into Expo at build time. Rebuild the Creator APK after setting or changing the secret; previously built APKs will not pick up the new URL. See [the mobile Creator API configuration notes](../mobile/creator/README.md#connect-the-mobile-app-to-the-hosted-creator-api).
+
 ## Build and start
 
 ```bash
