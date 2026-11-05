@@ -568,7 +568,7 @@ export default function App() {
         setGames((current) => [submitted as GameRow, ...current]);
         setNotice(pickedCover
           ? "Your game and cover image were submitted for Game ON review."
-          : "Your game listing was submitted for Game ON review. You can add cover artwork before a future update.");
+          : "Your game listing was submitted for Game ON review without cover artwork.");
       }
       setGameTitle("");
       setGameDescription("");
@@ -580,7 +580,11 @@ export default function App() {
         if (uploadedCoverPath) {
           await supabase.storage.from("game-covers").remove([uploadedCoverPath]).catch(() => undefined);
         }
-        await supabase.from("games").delete().eq("id", createdGameId).catch(() => undefined);
+        try {
+          await supabase.from("games").delete().eq("id", createdGameId);
+        } catch {
+          // Best-effort cleanup; preserve the original upload/submission error.
+        }
       }
       setError(caught instanceof Error ? caught.message : "Game listing could not be submitted.");
     } finally {
