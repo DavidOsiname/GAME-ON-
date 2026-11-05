@@ -72,6 +72,7 @@ const required = [
   "scripts/test-build-scanner.mjs",
   "SCANNER_TEST_RESULTS.md",
   "RELEASE_READINESS.md",
+  "deploy/ANDROID-RELEASE-RUNBOOK.md",
   ".github/workflows/android-release.yml",
 ];
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
