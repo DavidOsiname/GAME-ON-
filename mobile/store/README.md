@@ -34,6 +34,17 @@ npm start
 
 Use Expo Go while developing when the installed SDK is compatible. Native build testing should use an EAS development/preview build.
 
+## Configure Expo production environment
+
+EAS Build uses variables stored in the Expo project, not the GitHub Actions repository secrets. After the project owner has run `eas init`, set the public client configuration in the STORE EAS project:
+
+```bash
+npx eas-cli env:set --name EXPO_PUBLIC_SUPABASE_URL --value "https://YOUR-PROJECT.supabase.co" --environment production --visibility plaintext
+npx eas-cli env:set --name EXPO_PUBLIC_SUPABASE_ANON_KEY --value "YOUR_PUBLISHABLE_OR_ANON_KEY" --environment production --visibility sensitive
+```
+
+Use the real URL and publishable/anon key from the project owner's Supabase dashboard. These are client values, not service-role credentials. Never place a Supabase secret key, service-role key, database password, Paystack secret or scanner secret in an Expo public environment variable. The production and production-apk EAS profiles use the `production` environment; the preview profile uses `preview`.
+
 ## Create installable builds
 
 Before the first cloud build, an adult project owner should run these commands from this app directory. Repeat them separately for STORE and CREATOR so each app gets its own EAS project ID in app.json:
