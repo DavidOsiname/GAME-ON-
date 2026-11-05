@@ -177,4 +177,13 @@ for (const app of ["store", "creator"]) {
   for (const needle of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", 'method: "HEAD"', "AbortSignal.timeout", "checks.database = response.ok"]) if (!readiness.includes(needle)) throw new Error(`${app} readiness probe missing ${needle}.`);
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
 }
+
+const nativeCreator = fs.readFileSync(path.join(root, "mobile/creator/App.tsx"), "utf8");
+const resubmissionMigration = fs.readFileSync(path.join(root, "supabase/migrations/0002_safe_game_resubmission.sql"), "utf8");
+for (const needle of ["function beginEditGame", "function cancelGameEdit", 'rpc("resubmit_game"', '"draft", "submitted", "rejected"', "EDIT & RESUBMIT", "Game ON controls all review decisions"]) {
+  if (!nativeCreator.includes(needle)) throw new Error(`Creator mobile listing editor missing required guard or behavior: ${needle}`);
+}
+for (const needle of ["public.resubmit_game(p_game_id uuid)", "old.status = 'rejected'", "new.status = 'submitted'", "owner_user_id = auth.uid()"]) {
+  if (!resubmissionMigration.includes(needle)) throw new Error(`Safe rejected-listing resubmission migration missing: ${needle}`);
+}
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
