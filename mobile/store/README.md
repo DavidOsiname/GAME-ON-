@@ -36,13 +36,21 @@ Use Expo Go while developing when the installed SDK is compatible. Native build 
 
 ## Create installable builds
 
-After an adult project owner creates or links the Expo/EAS project and configures its environment:
+Before the first cloud build, an adult project owner must sign in to Expo and initialise this app as its own EAS project from this directory. Keep GAME ON STORE and GAME ON CREATOR linked to separate EAS projects so their build credentials remain separate. EAS remote credentials are used by default; the project owner must review and securely back up the Android signing credentials.
 
 ```bash
+# Internal testing APK
 npx eas-cli build --platform android --profile preview
+
+# Production-signed, directly installable APK
+npx eas-cli build --platform android --profile production-apk
+
+# Google Play upload bundle (AAB)
+npx eas-cli build --platform android --profile production
+
+# iOS preview build (Apple distribution setup is separate)
 npx eas-cli build --platform ios --profile preview
 ```
 
-The Android preview profile is configured to output an APK for direct device testing. The iOS profile produces a signed iOS build; installing on physical iPhones and App Store release require the appropriate Apple developer account, signing and distribution setup.
+The preview profile is for internal testing, production-apk produces a signed Release APK for direct installation, and production produces the Play-optimised AAB. The Android app targets API 36 by default through Expo SDK 58. A physical iPhone install or App Store release requires the appropriate Apple developer account, signing and distribution setup.
 
-Do not commit signing credentials, service-role keys, payment secrets, database passwords or scanner credentials. Live payments remain disabled until the adult account owner completes the necessary merchant and compliance checks.
