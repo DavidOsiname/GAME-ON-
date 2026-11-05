@@ -889,17 +889,11 @@ export default function App() {
               <Text style={styles.bodyCopy}>Your studio dashboard. Keep your listings organised and follow their review status.</Text>
               <View style={styles.creatorHero}>
                 <View style={styles.creatorHeroTop}>
-                  <Text style={styles.creatorHeroEyebrow}>GAME ON / CREATOR</Text>
-                  <Text style={styles.creatorHeroStatus}>STUDIO SPACE</Text>
+                  <Text style={styles.creatorHeroEyebrow}>GAME ON / CREATOR WORKSPACE</Text>
+                  <Text style={styles.creatorHeroStatus}>STUDIO OVERVIEW</Text>
                 </View>
-                <Text style={styles.creatorHeroTitle}>BUILD IT. SHARE IT.</Text>
-                <Text style={styles.creatorHeroCopy}>Your workspace for game listings, secure builds and studio insights.</Text>
-                <View style={styles.creatorHeroChips}>
-                  <Text style={styles.creatorHeroChip}>YOUR GAMES</Text>
-                  <Text style={styles.creatorHeroChip}>BUILDS</Text>
-                  <Text style={styles.creatorHeroChip}>INSIGHTS</Text>
-                </View>
-                <View style={styles.creatorHeroOrb} />
+                <Text style={styles.creatorHeroTitle}>Your studio, at a glance.</Text>
+                <Text style={styles.creatorHeroCopy}>Manage your game listings, submissions and release activity from one workspace.</Text>
               </View>
               <View style={styles.verificationCard}>
                 <View style={styles.rowBetween}>
@@ -1200,7 +1194,7 @@ const styles = StyleSheet.create({
   loadingScreen: { flex: 1, alignItems: "center", justifyContent: "center", gap: 14 },
   loadingText: { color: "#90a6bd", fontSize: 10, fontWeight: "900", letterSpacing: 1.5 },
   authScreen: { flex: 1, paddingHorizontal: 22, justifyContent: "center" },
-  authPanel: { width: "100%", maxWidth: 480, alignSelf: "center", backgroundColor: "#0d1728", borderWidth: 1, borderColor: "#29445e", borderRadius: 22, padding: 23, marginTop: 28, shadowColor: "#18d9f4", shadowOpacity: 0.12, shadowRadius: 18, elevation: 7 },
+  authPanel: { width: "100%", maxWidth: 480, alignSelf: "center", backgroundColor: "#111a29", borderWidth: 1, borderColor: "#2b3d52", borderRadius: 18, padding: 23, marginTop: 28 },
   brandRow: { flexDirection: "row", alignItems: "center", gap: 11 },
   brandMark: { width: 42, height: 42, borderRadius: 10, backgroundColor: "#102d40", borderWidth: 1, borderColor: "#18d9f4", alignItems: "center", justifyContent: "center" },
   brandMarkText: { color: "#18d9f4", fontSize: 26, fontWeight: "900" },
@@ -1208,8 +1202,8 @@ const styles = StyleSheet.create({
   brandSub: { color: "#18d9f4", fontWeight: "800", fontSize: 9, letterSpacing: 4, marginTop: 2 },
   eyebrow: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1.8, marginBottom: 10 },
   authTitle: { color: "#f2f7ff", fontSize: 31, lineHeight: 36, fontWeight: "900", marginBottom: 10 },
-  pageTitle: { color: "#f2f7ff", fontSize: 27, lineHeight: 33, fontWeight: "900", marginBottom: 8 },
-  bodyCopy: { color: "#9aadc1", fontSize: 12, lineHeight: 19, marginBottom: 18 },
+  pageTitle: { color: "#f2f7ff", fontSize: 26, lineHeight: 32, fontWeight: "800", marginBottom: 8 },
+  bodyCopy: { color: "#a7b6c8", fontSize: 13, lineHeight: 20, marginBottom: 18 },
   input: { minHeight: 48, borderWidth: 1, borderColor: "#293b50", backgroundColor: "#07101c", color: "#f0f7ff", borderRadius: 8, paddingHorizontal: 13, marginBottom: 12, fontSize: 12 },
   multilineInput: { minHeight: 88, paddingTop: 13, textAlignVertical: "top" },
   switchText: { color: "#18d9f4", textAlign: "center", fontSize: 10, fontWeight: "800", paddingVertical: 17 },
@@ -1229,18 +1223,18 @@ const styles = StyleSheet.create({
   accountButton: { paddingHorizontal: 12, paddingVertical: 10, backgroundColor: "#0b1e2b", borderWidth: 1, borderColor: "#1a9db5", borderRadius: 8 },
   accountButtonText: { color: "#bceff6", fontSize: 9, fontWeight: "900", letterSpacing: 1 },
   navRow: { gap: 9, paddingHorizontal: 16, paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: "#24445b", backgroundColor: "#0a1220" },
-  navButton: { paddingHorizontal: 15, paddingVertical: 11, borderWidth: 1, borderColor: "#30465f", backgroundColor: "#0d1727", borderRadius: 12 },
+  navButton: { paddingHorizontal: 14, paddingVertical: 10, borderWidth: 1, borderColor: "#2b3d52", backgroundColor: "#111a29", borderRadius: 9 },
   navButtonActive: { borderColor: "#18d9f4", backgroundColor: "#103042" },
   navButtonText: { color: "#91a3b7", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
   navButtonTextActive: { color: "#c0f8ff" },
   mainScroll: { flex: 1 },
   mainContent: { padding: 18, paddingBottom: 48 },
-  creatorHero: { minHeight: 210, borderRadius: 25, borderWidth: 1, borderColor: "#514b91", backgroundColor: "#171d43", padding: 22, marginBottom: 19, overflow: "hidden", justifyContent: "center", elevation: 4 },
-  creatorHeroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 18 },
-  creatorHeroEyebrow: { color: "#9f9aff", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
-  creatorHeroStatus: { color: "#a8eefa", fontSize: 8, fontWeight: "900", letterSpacing: 1, borderWidth: 1, borderColor: "#31647a", backgroundColor: "#102a40", borderRadius: 20, paddingHorizontal: 9, paddingVertical: 6 },
-  creatorHeroTitle: { color: "#f5f6ff", fontSize: 29, lineHeight: 34, fontWeight: "900", letterSpacing: -0.5 },
-  creatorHeroCopy: { color: "#b1bed6", fontSize: 11, lineHeight: 17, maxWidth: 270, marginTop: 7 },
+  creatorHero: { minHeight: 174, borderRadius: 18, borderWidth: 1, borderColor: "#2c465e", backgroundColor: "#111a29", padding: 20, marginBottom: 17, overflow: "hidden", justifyContent: "center" },
+  creatorHeroTop: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 17 },
+  creatorHeroEyebrow: { color: "#18d9f4", fontSize: 9, fontWeight: "800", letterSpacing: 1 },
+  creatorHeroStatus: { color: "#c5d3e2", fontSize: 8, fontWeight: "800", letterSpacing: 0.5, borderWidth: 1, borderColor: "#304358", backgroundColor: "#182536", borderRadius: 6, paddingHorizontal: 9, paddingVertical: 6 },
+  creatorHeroTitle: { color: "#f2f7ff", fontSize: 26, lineHeight: 32, fontWeight: "800", letterSpacing: -0.4 },
+  creatorHeroCopy: { color: "#a7b6c8", fontSize: 12, lineHeight: 19, maxWidth: 310, marginTop: 8 },
   creatorHeroChips: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 15 },
   creatorHeroChip: { color: "#d7d6ff", backgroundColor: "#282650", borderWidth: 1, borderColor: "#4b4785", borderRadius: 6, paddingHorizontal: 9, paddingVertical: 6, fontSize: 8, fontWeight: "900", letterSpacing: 0.8, overflow: "hidden" },
   creatorHeroOrb: { position: "absolute", width: 150, height: 150, borderRadius: 75, borderWidth: 16, borderColor: "rgba(125,112,255,0.12)", right: -48, bottom: -67 },
@@ -1251,9 +1245,9 @@ const styles = StyleSheet.create({
   cardTitle: { color: "#f1f7ff", fontSize: 15, fontWeight: "900" },
   mutedCopy: { color: "#8da1b7", fontSize: 10, lineHeight: 16, marginTop: 8 },
   statsGrid: { flexDirection: "row", flexWrap: "wrap", gap: 9, marginBottom: 13 },
-  statCard: { width: "47%", minHeight: 104, borderWidth: 1, borderColor: "#31506b", borderRadius: 17, backgroundColor: "#101b2d", padding: 16, justifyContent: "center" },
-  statValue: { color: "#18d9f4", fontSize: 26, fontWeight: "900" },
-  statLabel: { color: "#8298af", fontSize: 8, fontWeight: "900", letterSpacing: 1.2, marginTop: 5 },
+  statCard: { width: "47%", minHeight: 100, borderWidth: 1, borderColor: "#293d53", borderRadius: 15, backgroundColor: "#121d2c", padding: 16, justifyContent: "center" },
+  statValue: { color: "#55d9ee", fontSize: 25, fontWeight: "800" },
+  statLabel: { color: "#9aabbe", fontSize: 9, fontWeight: "700", letterSpacing: 0.5, marginTop: 6 },
   statusPill: { color: "#d0deeb", fontSize: 8, fontWeight: "900", letterSpacing: 0.6, paddingHorizontal: 8, paddingVertical: 6, borderRadius: 5, overflow: "hidden" },
   statusSuccess: { backgroundColor: "#17372b", color: "#a7e6bd" },
   statusDanger: { backgroundColor: "#3a1f26", color: "#f2a8b4" },
