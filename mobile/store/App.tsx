@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  Image,
   FlatList,
   KeyboardAvoidingView,
   Modal,
@@ -98,6 +99,8 @@ function GameCard({
         onPress={onOpen}
         style={({ pressed }) => [styles.gameArtwork, { backgroundColor: game.accent }, pressed && styles.pressed]}
       >
+        {game.coverImageUrl ? <Image source={{ uri: game.coverImageUrl }} resizeMode="cover" style={styles.coverImage} /> : null}
+        {game.coverImageUrl ? <View pointerEvents="none" style={styles.coverScrim} /> : null}
         <View style={styles.artTopLine}>
           <Text style={styles.artLabel}>GAME ON / DISCOVER</Text>
           <Text style={styles.artPlatform}>{game.platforms[0]?.toUpperCase() ?? "GAME"}</Text>
@@ -217,7 +220,7 @@ export default function App() {
     setCatalogBusy(true);
     supabase
       .from("games")
-      .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,price_minor,currency,offline_support,contains_ads,has_in_app_purchases,developer_studios(studio_name)")
+      .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,price_minor,currency,offline_support,contains_ads,has_in_app_purchases,cover_image_url,developer_studios(studio_name)")
       .eq("status", "published")
       .order("created_at", { ascending: false })
       .then(({ data, error }) => {
@@ -987,8 +990,17 @@ export default function App() {
             {selected ? (
               <ScrollView showsVerticalScrollIndicator={false}>
                 <View style={[styles.detailArtwork, { backgroundColor: selected.accent }]}>
-                  <Text style={styles.detailEmoji}>{selected.icon}</Text>
-                  <Text style={styles.detailArtworkTitle}>{selected.title.toUpperCase()}</Text>
+                  {selected.coverImageUrl ? (
+                    <>
+                      <Image source={{ uri: selected.coverImageUrl }} resizeMode="cover" style={styles.detailArtworkImage} />
+                      <View pointerEvents="none" style={styles.detailArtworkScrim} />
+                    </>
+                  ) : (
+                    <>
+                      <Text style={styles.detailEmoji}>{selected.icon}</Text>
+                      <Text style={styles.detailArtworkTitle}>{selected.title.toUpperCase()}</Text>
+                    </>
+                  )}
                 </View>
                 <View style={styles.detailBody}>
                   <Text style={styles.eyebrowSmall}>{selected.genre.toUpperCase()} · BY {selected.studio.toUpperCase()}</Text>
@@ -1332,6 +1344,8 @@ const styles = StyleSheet.create({
   ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
   gameCard: { backgroundColor: "#0d1728", borderWidth: 1, borderColor: "#29435d", borderRadius: 19, overflow: "hidden", marginBottom: 18, elevation: 3 },
   gameArtwork: { height: 174, padding: 18, justifyContent: "space-between", alignItems: "flex-start", overflow: "hidden" },
+  coverImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  coverScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(4,10,18,0.34)" },
   artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between", zIndex: 1 },
   artworkGlow: { position: "absolute", width: 190, height: 190, borderRadius: 95, right: -55, top: -95, borderWidth: 2, borderColor: "rgba(255,255,255,0.22)" },
   artworkOrb: { position: "absolute", width: 105, height: 105, borderRadius: 53, left: -34, bottom: -50, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(255,255,255,0.06)" },
@@ -1376,7 +1390,9 @@ const styles = StyleSheet.create({
   sheetHandle: { width: 42, height: 4, borderRadius: 3, backgroundColor: "#45566b", alignSelf: "center", marginTop: 9, marginBottom: 8 },
   closeButton: { position: "absolute", right: 15, top: 13, zIndex: 3, width: 34, height: 34, borderRadius: 18, backgroundColor: "rgba(0,0,0,0.55)", alignItems: "center", justifyContent: "center" },
   closeButtonText: { color: "#ffffff", fontSize: 25, lineHeight: 28 },
-  detailArtwork: { height: 190, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
+  detailArtwork: { height: 190, alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4, overflow: "hidden" },
+  detailArtworkImage: { ...StyleSheet.absoluteFillObject, width: "100%", height: "100%" },
+  detailArtworkScrim: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(4,10,18,0.28)" },
   detailEmoji: { fontSize: 61 },
   detailArtworkTitle: { color: "#ffffff", fontSize: 25, fontWeight: "900", letterSpacing: 1.3 },
   detailBody: { padding: 22 },
