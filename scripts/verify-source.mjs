@@ -189,6 +189,9 @@ for (const app of ["store", "creator"]) {
   if (eas.build?.production?.distribution !== "store" || eas.build?.production?.android?.buildType !== "app-bundle") {
     throw new Error(`${app} production profile must create a Google Play AAB.`);
   }
+  if (eas.build?.preview?.environment !== "preview" || eas.build?.["production-apk"]?.environment !== "production" || eas.build?.production?.environment !== "production") {
+    throw new Error(`${app} EAS profiles must explicitly select preview/production environments.`);
+  }
 }
 const nativeCreator = fs.readFileSync(path.join(root, "mobile/creator/App.tsx"), "utf8");
 const resubmissionMigration = fs.readFileSync(path.join(root, "supabase/migrations/0002_safe_game_resubmission.sql"), "utf8");
