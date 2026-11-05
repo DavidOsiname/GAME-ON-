@@ -186,4 +186,13 @@ for (const needle of ["function beginEditGame", "function cancelGameEdit", 'rpc(
 for (const needle of ["public.resubmit_game(p_game_id uuid)", "old.status = 'rejected'", "new.status = 'submitted'", "owner_user_id = auth.uid()"]) {
   if (!resubmissionMigration.includes(needle)) throw new Error(`Safe rejected-listing resubmission migration missing: ${needle}`);
 }
+for (const needle of ["function getOwnedCoverObjectPath(", "cover-${uniqueSuffix}", "getPublicUrl(replacementCoverPath)", "REPLACE COVER ART", "DISCARD NEW IMAGE"]) {
+  if (!nativeCreator.includes(needle)) throw new Error(`Creator mobile cover replacement missing required behavior: ${needle}`);
+}
+const replacementUploadAt = nativeCreator.indexOf(".upload(replacementCoverPath", nativeCreator.indexOf("async function submitGame()"));
+const replacementUpdateAt = nativeCreator.indexOf('.from("games")', replacementUploadAt);
+const previousCoverRemovalAt = nativeCreator.indexOf(".remove([previousCoverPath])", replacementUpdateAt);
+if (replacementUploadAt < 0 || replacementUpdateAt <= replacementUploadAt || previousCoverRemovalAt <= replacementUpdateAt) {
+  throw new Error("Cover replacement must upload first, update the game record second, and remove the previous object last.");
+}
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
