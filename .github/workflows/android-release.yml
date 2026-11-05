@@ -67,9 +67,6 @@ jobs:
           if (app.android?.package !== expectedPackage) {
             throw new Error(`Expected Android package ${expectedPackage}; found ${app.android?.package ?? "missing"}.`);
           }
-          if (!app.owner) {
-            throw new Error("Expo app owner is not configured. The adult project owner must run eas init for this app.");
-          }
           const projectId = app.extra?.eas?.projectId;
           if (typeof projectId !== "string" || !/^[0-9a-f-]{36}$/i.test(projectId)) {
             throw new Error("This app has no valid extra.eas.projectId. The adult project owner must initialise/link its own EAS project.");
