@@ -42,6 +42,7 @@ type GameRow = {
   currency?: string | null;
   supported_platforms?: string[];
   cover_image_url?: string | null;
+  rejection_reason?: string | null;
 };
 type BuildRow = {
   id: string;
@@ -300,7 +301,7 @@ export default function App() {
     async function loadGames() {
       const { data, error: queryError } = await supabase!
         .from("games")
-        .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+        .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url,rejection_reason")
         .eq("studio_id", studio!.id)
         .order("created_at", { ascending: false });
       if (!active) return;
@@ -569,7 +570,7 @@ export default function App() {
             })
             .eq("id", editingGameId)
             .eq("studio_id", studio.id)
-            .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+            .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url,rejection_reason")
             .single();
           if (updateError) throw updateError;
           let finalGame = updated as GameRow;
@@ -615,7 +616,7 @@ export default function App() {
             currency: priceMinor === null ? null : "NGN",
             status: "draft"
           })
-          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url,rejection_reason")
           .single();
         if (insertError) throw insertError;
         createdGameId = draft.id;
@@ -643,7 +644,7 @@ export default function App() {
           .from("games")
           .update({ status: "submitted", cover_image_url: coverImageUrl })
           .eq("id", draft.id)
-          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url")
+          .select("id,title,slug,genre,status,short_description,monetization_type,created_at,price_minor,currency,supported_platforms,cover_image_url,rejection_reason")
           .single();
         if (submitError) throw submitError;
         setGames((current) => [submitted as GameRow, ...current]);
@@ -1102,6 +1103,8 @@ export default function App() {
               <Text style={styles.eyebrow}>YOUR STUDIO CATALOGUE</Text>
               <Text style={styles.pageTitle}>MY GAMES</Text>
               <Text style={styles.bodyCopy}>{games.length} listing{games.length === 1 ? "" : "s"} connected to this studio.</Text>
+              {!!notice && <Text style={styles.noticeText}>{notice}</Text>}
+              {!!error && <Text style={styles.errorText}>{error}</Text>}
               <ActionButton label="+ SUBMIT A GAME" onPress={() => setSection("submit")} />
               {games.length === 0 ? <EmptyState title="NO GAMES SUBMITTED" copy="Submit your first listing to start the Game ON review process." /> : games.map((game) => (
                 <View key={game.id} style={styles.gameCard}>
@@ -1114,6 +1117,7 @@ export default function App() {
                     <StatusPill value={game.status} />
                   </View>
                   <Text style={styles.gameDescription}>{game.short_description}</Text>
+                  {game.status === "rejected" && game.rejection_reason ? <Text style={styles.errorText}>GAME ON FEEDBACK: {game.rejection_reason}</Text> : null}
                   <View style={styles.rowBetween}>
                     <Text style={styles.moneyText}>{game.monetization_type.replaceAll("_", " ").toUpperCase()}</Text>
                     <Text style={styles.moneyText}>{money(game.price_minor, game.currency || "NGN")}</Text>
@@ -1138,6 +1142,7 @@ export default function App() {
                     <Text style={styles.gameTitle}>Current cover artwork</Text>
                     <Text style={styles.mutedCopy}>Cover artwork stays unchanged when editing listing details.</Text>
                     <StatusPill value={editingGame.status} />
+                    {editingGame.status === "rejected" && editingGame.rejection_reason ? <Text style={styles.errorText}>GAME ON FEEDBACK: {editingGame.rejection_reason}</Text> : null}
                   </View>
                 </View>
               ) : null}
