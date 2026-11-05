@@ -36,7 +36,15 @@ Use Expo Go while developing when the installed SDK is compatible. Native build 
 
 ## Create installable builds
 
-Before the first cloud build, an adult project owner must sign in to Expo and initialise this app as its own EAS project from this directory. Keep GAME ON STORE and GAME ON CREATOR linked to separate EAS projects so their build credentials remain separate. EAS remote credentials are used by default; the project owner must review and securely back up the Android signing credentials.
+Before the first cloud build, an adult project owner should run these commands from this app directory. Repeat them separately for STORE and CREATOR so each app gets its own EAS project ID in app.json:
+
+```bash
+npx eas-cli login
+npx eas-cli init
+npx eas-cli credentials --platform android
+```
+
+The owner should review and securely back up the Android signing credentials before sharing any APK. Keep GAME ON STORE and GAME ON CREATOR linked to separate EAS projects so their build credentials remain separate. EAS uses remote credentials by default. Keep GAME ON STORE and GAME ON CREATOR linked to separate EAS projects so their build credentials remain separate. EAS remote credentials are used by default; the project owner must review and securely back up the Android signing credentials.
 
 ```bash
 # Internal testing APK
