@@ -72,6 +72,7 @@ const required = [
   "scripts/test-build-scanner.mjs",
   "SCANNER_TEST_RESULTS.md",
   "RELEASE_READINESS.md",
+  ".github/workflows/android-release.yml",
 ];
 const missing = required.filter((file) => !fs.existsSync(path.join(root, file)));
 if (missing.length) {
@@ -179,6 +180,24 @@ for (const app of ["store", "creator"]) {
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
 }
 
+const androidReleaseWorkflow = fs.readFileSync(path.join(root, ".github/workflows/android-release.yml"), "utf8");
+for (const needle of [
+  "workflow_dispatch:",
+  "name: game-on-android-release",
+  "secrets.EXPO_TOKEN",
+  "extra.eas.projectId",
+  "npx --yes eas-cli@27.4.1 build",
+  "--freeze-credentials",
+  "--wait",
+]) {
+  if (!androidReleaseWorkflow.includes(needle)) throw new Error(`Protected Android release workflow is missing: ${needle}`);
+}
+if (androidReleaseWorkflow.includes("eas submit") || androidReleaseWorkflow.includes("--auto-submit")) {
+  throw new Error("The manual Android release workflow must never submit or publish an app automatically.");
+}
+if (/permissions:\\s*\\n\\s+contents:\\s*write/.test(androidReleaseWorkflow)) {
+  throw new Error("The Android release workflow must use read-only repository permissions.");
+}
 for (const app of ["store", "creator"]) {
   const eas = JSON.parse(fs.readFileSync(path.join(root, `mobile/${app}/eas.json`), "utf8"));
   if (eas.build?.preview?.distribution !== "internal" || eas.build?.preview?.android?.buildType !== "apk") {
