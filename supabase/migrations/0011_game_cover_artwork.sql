@@ -14,14 +14,14 @@ set public = true,
     file_size_limit = excluded.file_size_limit,
     allowed_mime_types = excluded.allowed_mime_types;
 
--- Object paths are studio UUID / game UUID / fixed cover filename.
+-- Object paths are studio UUID / game UUID / a fixed or uniquely versioned cover filename.
 -- A developer can only write artwork beneath a game belonging to their own studio.
 create policy "game_covers_owner_insert"
 on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'game-covers'
-  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover(-[a-z0-9-]{1,48})?\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1
     from public.games g
@@ -37,7 +37,7 @@ on storage.objects
 for update to authenticated
 using (
   bucket_id = 'game-covers'
-  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover(-[a-z0-9-]{1,48})?\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1
     from public.games g
@@ -49,7 +49,7 @@ using (
 )
 with check (
   bucket_id = 'game-covers'
-  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover(-[a-z0-9-]{1,48})?\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1
     from public.games g
@@ -65,7 +65,7 @@ on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'game-covers'
-  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/[0-9a-f-]{36}/cover(-[a-z0-9-]{1,48})?\.(jpg|jpeg|png|webp)$'
   and exists (
     select 1
     from public.games g
