@@ -44,16 +44,23 @@ npm start
 
 ## Build installable apps
 
-After the adult project owner links an Expo/EAS project and configures the required build credentials:
+Before the first cloud build, an adult project owner must sign in to Expo and initialise this app as its own EAS project from this directory. Keep GAME ON CREATOR and GAME ON STORE linked to separate EAS projects so their build credentials remain separate. EAS remote credentials are used by default; the project owner must review and securely back up the Android signing credentials.
 
-\`\`\`bash
+```bash
+# Internal testing APK
 npx eas-cli build --platform android --profile preview
+
+# Production-signed, directly installable APK
+npx eas-cli build --platform android --profile production-apk
+
+# Google Play upload bundle (AAB)
+npx eas-cli build --platform android --profile production
+
+# iOS preview build (Apple distribution setup is separate)
 npx eas-cli build --platform ios --profile preview
-\`\`\`
+```
 
-The preview profile creates an Android APK for internal testing. A physical iPhone install or App Store release requires the appropriate Apple signing and distribution account. The GitHub validation workflow exports the Android and iOS bundles and compiles a debug Android APK; it does not sign an iOS IPA.
-
-Demo mode is for interface testing only. It does not create real developer accounts, studios or marketplace listings.
+The preview profile is for internal testing, production-apk produces a signed Release APK for direct installation, and production produces the Play-optimised AAB. Expo SDK 58 supplies Android target API 36 by default. The GitHub validation workflow exports the Android and iOS bundles and compiles a debug Android APK; it does not sign an iOS IPA.
 
 ## Connect the mobile app to the hosted Creator API
 
