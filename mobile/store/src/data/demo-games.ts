@@ -11,6 +11,7 @@ export type Game = {
   iap: boolean;
   priceMinor: number | null;
   currency: string;
+  coverImageUrl?: string | null;
   rating: number;
   icon: string;
   accent: string;
@@ -153,6 +154,7 @@ export function mapGame(row: Record<string, unknown>): Game {
     iap: Boolean(row.has_in_app_purchases),
     priceMinor: typeof row.price_minor === "number" ? row.price_minor : null,
     currency: String(row.currency ?? "NGN"),
+    coverImageUrl: typeof row.cover_image_url === "string" ? row.cover_image_url : null,
     rating: 0,
     icon: "🎮",
     accent: "#123c65"
