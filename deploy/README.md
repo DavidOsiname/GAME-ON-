@@ -6,7 +6,7 @@ This deployment keeps **Game ON Store** and **Game ON Creator** as two independe
 
 - A Linux server or development computer with Docker Engine and Docker Compose v2.
 - Node 22 is used inside both image builds.
-- A configured Supabase project with the ten migrations in `supabase/migrations` applied and the Auth/Storage policies reviewed.
+- A configured Supabase project with all eleven migrations in `supabase/migrations` applied and the Auth/Storage policies reviewed.
 - A domain and HTTPS reverse proxy for public access. The supplied Compose file deliberately binds ports to `127.0.0.1` by default.
 
 ## Configure
