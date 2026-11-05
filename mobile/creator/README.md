@@ -14,6 +14,12 @@ GAME ON CREATOR is a separate React Native + Expo app for developers. It is not 
 - Build-status screen that calls the authenticated Creator API when its base URL is configured
 - Separate Android APK and iOS build profiles
 
+
+- Edit draft and submitted listing details from the mobile **My Games** screen.
+- Edit and resubmit rejected listings using the database's owner-checked `resubmit_game` function.
+- Published and actively reviewed listings are read-only in the mobile app; review status and publication remain Game ON-controlled.
+- Existing cover artwork remains attached when editing listing details; artwork replacement is not part of this edit flow yet.
+
 ## Secure boundaries
 
 The mobile app uses only the public Supabase URL and publishable/anon key. Supabase Row Level Security is responsible for protecting studio and game records. Never bundle a service-role key, database password, payment secret or scanner secret in a mobile app.
