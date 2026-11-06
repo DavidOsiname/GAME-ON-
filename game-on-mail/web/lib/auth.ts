@@ -1,6 +1,6 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
-import { db } from "@/lib/db";
+import { db } from "./db";
 
 const isProduction = process.env.NODE_ENV === "production";
 const mailDeliveryEnabled = process.env.MAIL_DELIVERY_ENABLED === "true";
