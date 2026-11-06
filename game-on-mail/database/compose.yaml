@@ -1,0 +1,23 @@
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    container_name: gameon-mail-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: gameon_mail
+      POSTGRES_USER: gameon_mail_dev
+      POSTGRES_PASSWORD: ${GAMEON_DB_PASSWORD:?Set GAMEON_DB_PASSWORD in database/.env}
+      POSTGRES_INITDB_ARGS: --auth-host=scram-sha-256
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - gameon_mail_pgdata:/var/lib/postgresql
+      - ./migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$${POSTGRES_USER} -d $$${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  gameon_mail_pgdata:
