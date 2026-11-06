@@ -11,7 +11,7 @@ The PostgreSQL database is for application identity and control-plane data. The 
 | Data | System of record |
 |---|---|
 | User profile, account status and verified login identity | PostgreSQL |
-| Password hash and account lock metadata | PostgreSQL |
+| Password hash, sessions and verification tokens | Better Auth-managed PostgreSQL tables |
 | Platform roles and mailbox memberships | PostgreSQL |
 | Verified mail domains, primary mailbox addresses and aliases | PostgreSQL |
 | Invitations and user preferences | PostgreSQL |
@@ -24,8 +24,8 @@ This avoids building a second email store in the product database and limits exp
 
 ## Tables
 
-- `platform_users`: application users and account lifecycle.
-- `user_password_credentials`: Argon2id encoded password hashes and login lock metadata.
+- Better Auth `user`, `account`, `session`, `verification` and `rateLimit` tables: canonical identity, password credentials, sessions, verification/recovery tokens and rate-limit state.
+- `platform_users`: GAME ON application profile projection linked by a foreign key to the Better Auth user ID.
 - `platform_user_roles`: platform owner, admin and support role assignments.
 - `mail_domains`: GAME ON-controlled domains and verification/activation state.
 - `mailboxes`: personal, shared and service mailboxes plus quota and mail-engine reference.
@@ -40,7 +40,7 @@ This avoids building a second email store in the product database and limits exp
 ## Security properties
 
 1. Email identifiers are normalized to lowercase before storage and protected by unique indexes.
-2. Passwords are represented only by encoded Argon2id hashes. Raw passwords must never reach logs or database fields.
+2. Passwords are handled by Better Auth's credential account table and its built-in scrypt password hashing. GAME ON profile tables do not duplicate password hashes. Raw passwords must never reach logs or application-owned profile tables.
 3. Invitation tokens are stored as SHA-256 digests (32 bytes), not as usable tokens.
 4. Mailbox membership is explicit. A signed-in user must not be able to read another mailbox just by guessing an identifier.
 5. Platform and mailbox roles are kept separate.
