@@ -14,3 +14,15 @@
 
 /* MVP 0.9 — purchase ledger and refund-request UI */
 .purchase-row{padding:17px 0;border-top:1px solid rgba(139,178,219,.14);display:grid;gap:12px}.purchase-row-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-start}.purchase-row-head>div{display:grid;gap:5px;min-width:0}.purchase-row-head b{color:#f2f7ff;font-size:14px}.purchase-row-head small{color:#788da6;font-size:9px;overflow-wrap:anywhere}.purchase-row-head strong{color:#b8f6df;font-size:14px;white-space:nowrap}.purchase-row-status{display:flex;gap:8px;flex-wrap:wrap}.purchase-status{display:inline-flex;border-radius:99px;padding:5px 9px;text-transform:uppercase;font-size:8px;font-weight:900;letter-spacing:1px;background:rgba(130,151,175,.1);color:#a8b9ca}.purchase-status.paid,.purchase-status.processed{color:#8cf0bb;background:rgba(75,213,145,.09)}.purchase-status.pending,.purchase-status.processing,.purchase-status.refund{color:#f4d18a;background:rgba(232,176,77,.1)}.purchase-status.failed,.purchase-status.refunded,.purchase-status.rejected{color:#ffaaaa;background:rgba(237,105,105,.1)}.refund-request-form{display:grid;gap:8px;padding:13px;background:#0a1522;border:1px solid rgba(139,178,219,.14);border-radius:10px}.refund-request-form label{font-size:10px;color:#a8bdd2;font-weight:800}.refund-request-form textarea{width:100%;background:#07101b;border:1px solid rgba(139,178,219,.22);border-radius:8px;color:#eef7ff;padding:10px;font:inherit;font-size:11px;resize:vertical;line-height:1.55}.refund-request-form button{justify-self:start}.sales-breakdown{display:flex;gap:15px;flex-wrap:wrap;color:#8ea3ba;font-size:10px}
+
+
+/* GAME ON discovery controls */
+.discovery-filter-row{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin:-25px 0 40px;padding:14px;border:1px solid var(--line);border-radius:10px;background:rgba(11,19,32,.72)}
+.discovery-filter-select{display:flex;flex:1;min-width:140px;flex-direction:column;gap:7px;color:#91a2b8;font-size:9px;font-weight:800;letter-spacing:1.2px;text-transform:uppercase}
+.discovery-filter-select select{width:100%;height:39px;padding:0 11px;border:1px solid var(--line);border-radius:7px;background:#0b1320;color:var(--text);font:inherit;font-size:11px;letter-spacing:0;text-transform:none;outline:none}
+.discovery-filter-select select:focus{border-color:rgba(24,217,244,.65);box-shadow:0 0 0 2px rgba(24,217,244,.1)}
+.discovery-offline{display:flex;align-items:center;gap:8px;min-height:39px;padding:0 7px;color:#c0cddd;font-size:11px;font-weight:700;white-space:nowrap}
+.discovery-offline input{accent-color:var(--cyan);width:15px;height:15px}
+.discovery-clear{height:39px;padding:0 12px;border:1px solid var(--line);border-radius:7px;background:transparent;color:#9eafc4;font-size:10px;font-weight:800}
+.discovery-clear:hover{border-color:rgba(24,217,244,.5);color:var(--cyan)}
+@media(max-width:680px){.discovery-filter-row{margin-top:-25px;gap:10px}.discovery-filter-select{min-width:calc(50% - 10px)}.discovery-offline{flex:1}.discovery-clear{margin-left:auto}}
