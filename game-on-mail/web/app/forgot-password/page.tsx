@@ -45,6 +45,11 @@ export default function ForgotPasswordPage() {
         <p className="eyebrow">ACCOUNT RECOVERY</p>
         <h1>Reset your password</h1>
         <p className="auth-muted">Enter the contact email attached to your account.</p>
+        {process.env.NEXT_PUBLIC_MAIL_DELIVERY_ENABLED !== "true" ? (
+          <div className="auth-notice">
+            Password recovery email delivery is not connected yet. It will be enabled after the GAME ON mail server is operational. Do not use this screen for a production account yet.
+          </div>
+        ) : (
         <form className="auth-form" onSubmit={handleSubmit}>
           <label>
             Email address
@@ -63,6 +68,7 @@ export default function ForgotPasswordPage() {
             {busy ? "Requesting…" : "Request reset link"}
           </button>
         </form>
+        )}
         <div className="auth-links"><Link href="/sign-in">Back to sign in</Link></div>
         <p className="auth-footnote">Recovery links are short-lived. In production, this flow will remain unavailable until GAME ON MAIL can securely deliver them.</p>
       </section>
