@@ -18,15 +18,16 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 - [x] Confirm web-first application architecture
 - [x] Create the initial Next.js App Router web-app foundation
 - [x] Add a demo inbox, compose-draft interaction and application health endpoint
-- [ ] Confirm backend framework and API boundaries
-- [ ] Confirm database schema and migrations
+- [x] Confirm backend framework and API boundaries: Next.js, Better Auth and PostgreSQL
+- [x] Apply and validate initial Better Auth and GAME ON database migrations in CI
+
 - [x] Draft the initial PostgreSQL schema and migration
 - [x] Add a localhost-only PostgreSQL development service
 - [x] Add a database smoke test for mailbox address uniqueness
 - [ ] Complete mail-server proof of concept
 - [ ] Define mailbox provisioning and authentication integration
 - [ ] Define attachment storage, quotas and backups
-- [ ] Document local development and deployment environments
+- [x] Document local development environment and migration order
 
 **Exit criteria:** A documented architecture and a local proof of concept can create a test mailbox and access it securely.
 
@@ -44,12 +45,16 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 
 ## Phase 4 — Identity and mailbox provisioning
 
+- [x] Add Better Auth API route with PostgreSQL-backed identities and sessions
+- [x] Configure password sign-in, verification gate, password-reset hooks and rate limiting
+- [x] Build sign-in, local-development sign-up, account and recovery screens
+- [x] Link Better Auth identities to GAME ON profile records with a database foreign key
+- [ ] Pass the end-to-end account smoke test in CI
 - [ ] Implement invite creation and acceptance
-- [ ] Implement secure application authentication
-- [ ] Implement password recovery and session controls
-- [ ] Connect account records to mailboxes
-- [ ] Implement administrator account management
-- [ ] Add audit events and rate limits
+- [ ] Implement administrator provisioning and account suspension
+- [ ] Connect account records to provisioned mailboxes
+- [ ] Enable real verification and password-reset delivery through GAME ON mail infrastructure
+- [ ] Complete session-management and audit-event controls
 
 **Exit criteria:** An administrator can invite, suspend and recover test accounts without exposing secrets.
 
@@ -101,4 +106,4 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 
 ## Current milestone
 
-**Phase 1 — Product planning.** The first five planning tasks are drafted. Product-owner review remains open.
+**Phase 4 — Account foundation.** The authentication API, local sign-up and sign-in screens, protected account page, PostgreSQL identity integration, and CI migration checks have been added. The end-to-end sign-up test is now part of CI. Production registration and recovery remain disabled until GAME ON mail delivery is implemented and tested.
