@@ -16,8 +16,8 @@ The product application must not pretend to be a mail server. A message is only 
 | Layer | Proposed choice | Responsibility |
 |---|---|---|
 | Web client | Next.js + React + TypeScript | Responsive GAME ON MAIL inbox |
-| API | Node.js + TypeScript | Application logic and controlled mail integration |
-| Application database | PostgreSQL | Accounts, invitations, preferences, aliases, audit metadata |
+| API and identity | Next.js Route Handlers + Better Auth 1.7.18 | Secure account endpoints, password authentication, verification, recovery hooks and server-managed sessions |
+| Application database | PostgreSQL 18 | Better Auth identity tables plus GAME ON-specific mailbox, role, invitation, preference, alias and audit metadata |
 | Mail distribution | Evaluate Mailu stable release | Self-hosted SMTP/IMAP services, mailbox administration and filtering |
 | Mail protocols | SMTP submission + IMAP over TLS | Sending and reading mail |
 | Mail storage | Persistent volumes managed by mail system | Message bodies, mailbox indexes and queue |
@@ -49,11 +49,24 @@ Do not copy complete message bodies into PostgreSQL in the MVP unless a document
 
 ## 4. Authentication and mailbox connection
 
-The application account and mailbox identity must be linked safely. The implementation must not store a user's mailbox password in plaintext.
+The first account implementation uses Better Auth with the official PostgreSQL adapter through a server-side `pg` pool. Better Auth owns the identity, credential, session, verification, password-reset and rate-limit tables. GAME ON's `platform_users` is a product-profile projection linked to the Better Auth user ID; it is not a second password store.
 
-During Phase 2, compare supported authentication approaches:
+Configured controls include:
+- database-backed sessions with a seven-day expiry and daily refresh;
+- password length between 12 and 128 characters;
+- Better Auth's built-in scrypt password hashing;
+- email verification required before sign-in;
+- one-hour verification and password-reset tokens;
+- session revocation after password reset;
+- database-backed rate limiting and stricter rules for sign-in, sign-up and reset endpoints;
+- secure, HTTP-only, SameSite=Lax cookies; secure cookies in production;
+- local-development-only verification-link logging; never log tokens in production.
+
+Production account registration is forcibly disabled until GAME ON mail delivery and abuse controls are operational. The recovery UI remains unavailable while no delivery transport exists. Local registration is explicitly enabled only through a development environment flag.
+
+The application account and mailbox identity must be linked safely. The implementation must not store a user's mailbox password in plaintext. For mailbox access, compare supported authentication approaches:
 - short-lived, per-session credential handling;
-- a supported mailbox authentication integration;
+- a supported mail-system authentication integration;
 - or a controlled mail-access service that enforces user-to-mailbox authorization.
 
 Use the mail system's supported administration interface for mailbox provisioning. Never expose mail-server administrator credentials to the browser or ordinary user API.
