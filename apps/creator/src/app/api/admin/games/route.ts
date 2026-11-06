@@ -14,7 +14,7 @@ function jsonError(message: string, status: number) {
 async function getAdminClients(request: NextRequest): Promise<AdminContext> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.(env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY));
+  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
   const allowedIds = (process.env.GAMEON_ADMIN_USER_IDS || "").split(",").map((value) => value.trim()).filter(Boolean);
 
   if (!url || !anonKey || !serviceKey) {
