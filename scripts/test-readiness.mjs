@@ -9,7 +9,7 @@ const creator = await import(pathToFileURL(path.join(root, "apps/creator/src/lib
 const validEnv = {
   NEXT_PUBLIC_SUPABASE_URL: "https://example-project.supabase.co",
   NEXT_PUBLIC_SUPABASE_ANON_KEY: "anon-key-that-is-long-enough-for-test",
-  SUPABASE_SERVICE_ROLE_KEY: "service-role-key-that-is-long-enough-for-test",
+  SUPABASE_SECRET_KEY: "sb_secret_test-key-that-is-long-enough",
 };
 
 for (const [name, module] of [["Store", store], ["Creator", creator]]) {
@@ -25,11 +25,14 @@ for (const [name, module] of [["Store", store], ["Creator", creator]]) {
   assert.equal(requested.options.headers.apikey, validEnv.NEXT_PUBLIC_SUPABASE_ANON_KEY);
   assert.match(requested.url, /\/rest\/v1\/games\?/);
 
-  const missingSecret = await module.checkReadiness({ ...validEnv, SUPABASE_SERVICE_ROLE_KEY: "" }, async () => {
+  const missingSecret = await module.checkReadiness({ ...validEnv, SUPABASE_SECRET_KEY: "" }, async () => {
     throw new Error("database probe must not run when config is missing");
   });
   assert.equal(missingSecret.ready, false);
   assert.equal(missingSecret.checks.serviceRoleKey, false);
+
+  const legacyFallback = await module.checkReadiness({ ...validEnv, SUPABASE_SECRET_KEY: "", SUPABASE_SERVICE_ROLE_KEY: "legacy-service-role-key-that-is-long-enough" }, async () => new Response(null, { status: 200 }));
+  assert.equal(legacyFallback.ready, true, `${name} should retain legacy-key compatibility during migration`);
 
   const rejectedDb = await module.checkReadiness(validEnv, async () => new Response(null, { status: 401 }));
   assert.equal(rejectedDb.ready, false);
