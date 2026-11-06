@@ -6,6 +6,12 @@ const isProduction = process.env.NODE_ENV === "production";
 const mailDeliveryEnabled = process.env.MAIL_DELIVERY_ENABLED === "true";
 const secret = process.env.BETTER_AUTH_SECRET;
 
+if (mailDeliveryEnabled) {
+  throw new Error(
+    "MAIL_DELIVERY_ENABLED cannot be true until the self-hosted GAME ON mail transport is implemented and tested.",
+  );
+}
+
 if (isProduction && (!secret || secret.length < 32)) {
   throw new Error(
     "BETTER_AUTH_SECRET must be set to at least 32 characters in production.",
@@ -25,16 +31,6 @@ async function handleAuthLink(
   email: string,
   url: string,
 ) {
-  if (mailDeliveryEnabled) {
-    // Public delivery is deliberately not implemented in this phase.
-    // Replace this guarded branch with the self-hosted GAME ON mail transport
-    // before setting MAIL_DELIVERY_ENABLED=true in any deployment.
-    console.error(
-      `GAME ON MAIL: ${label} delivery is enabled in configuration but no transport is installed.`,
-    );
-    return;
-  }
-
   if (isProduction) {
     // Never log tokens or verification URLs in production.
     console.warn(
