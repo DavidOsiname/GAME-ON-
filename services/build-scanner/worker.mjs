@@ -24,9 +24,12 @@ function required(name) {
   return value;
 }
 
+const supabaseSecretKey = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseSecretKey) throw new Error('Missing required environment variable: SUPABASE_SECRET_KEY');
+
 const config = {
   supabaseUrl: required('SUPABASE_URL').replace(/\/$/, ''),
-  serviceRoleKey: required('SUPABASE_SERVICE_ROLE_KEY'),
+  serviceRoleKey: supabaseSecretKey,
   creatorBaseUrl: required('GAMEON_CREATOR_BASE_URL').replace(/\/$/, ''),
   webhookSecret: required('GAMEON_SCANNER_WEBHOOK_SECRET'),
   clamavHost: process.env.CLAMAV_HOST || 'clamav',
@@ -47,11 +50,13 @@ if (!Number.isInteger(config.clamavPort) || config.clamavPort < 1 || config.clam
 }
 
 function supabaseHeaders(extra = {}) {
-  return {
-    apikey: config.serviceRoleKey,
-    Authorization: `Bearer ${config.serviceRoleKey}`,
-    ...extra,
-  };
+  const headers = { apikey: config.serviceRoleKey, ...extra };
+  // New opaque Supabase secret keys are sent only as `apikey`; they are not JWTs.
+  // Legacy service_role JWTs still need the matching Bearer header.
+  if (!config.serviceRoleKey.startsWith('sb_secret_')) {
+    headers.Authorization = `Bearer ${config.serviceRoleKey}`;
+  }
+  return headers;
 }
 
 async function rest(path, options = {}) {
