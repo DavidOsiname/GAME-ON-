@@ -8,7 +8,7 @@ const PLATFORMS = ["android", "windows", "web"] as const;
 export async function POST(request: NextRequest, context: { params: Promise<{ gameId: string }> }) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (!url || !anonKey || !serviceKey) return NextResponse.json({ error: "Secure downloads are not configured on this Game ON Store deployment." }, { status: 503, headers: { "Cache-Control": "no-store" } });
 
   const authorization = request.headers.get("authorization") || "";
