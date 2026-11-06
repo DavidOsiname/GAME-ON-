@@ -63,7 +63,7 @@ jobs:
       - name: Generate Android native project
         run: npx expo prebuild --platform android --no-install --non-interactive
 
-      - name: Limit phone-test APK to 64-bit ARM
+      - name: Configure phone-test APK for ARM64 only
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -80,7 +80,16 @@ jobs:
                   1,
               )
               gradle_file.write_text(source)
-          print("Phone-test APK ABI filter: arm64-v8a")
+
+          properties_file = Path("android/gradle.properties")
+          lines = properties_file.read_text().splitlines()
+          lines = [
+              line for line in lines
+              if not line.strip().startswith("reactNativeArchitectures=")
+          ]
+          lines.append("reactNativeArchitectures=arm64-v8a")
+          properties_file.write_text("\n".join(lines) + "\n")
+          print("Configured React Native architecture: arm64-v8a")
           PY
 
       - name: Bundle JavaScript into installable debug APK
@@ -101,13 +110,40 @@ jobs:
           chmod +x gradlew
           built=0
           for attempt in 1 2 3; do
-            if ./gradlew assembleDebug --no-daemon; then built=1; break; fi
+            if ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a --no-daemon; then built=1; break; fi
             echo "Gradle attempt $attempt failed; retrying after a short pause."
             rm -rf "$HOME/.gradle/wrapper/dists/gradle-9.4.1-bin"
             sleep 15
           done
           test "$built" -eq 1
           test -s app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Verify APK contains ARM64 libraries only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          apk = Path("android/app/build/outputs/apk/debug/app-debug.apk")
+          with ZipFile(apk) as archive:
+              libraries = [
+                  name for name in archive.namelist()
+                  if name.startswith("lib/") and name.endswith(".so")
+              ]
+          abis = sorted({
+              name.split("/")[1]
+              for name in libraries
+              if len(name.split("/")) >= 3
+          })
+          print(f"Native library ABIs in APK: {abis}")
+          print(f"Native libraries found: {len(libraries)}")
+          if not libraries:
+              raise SystemExit("APK contains no native libraries; refusing upload")
+          if abis != ["arm64-v8a"]:
+              raise SystemExit(
+                  f"Expected only arm64-v8a, found {abis}; refusing upload"
+              )
+          PY
 
       - name: Upload GAME ON CREATOR Android debug APK
         uses: actions/upload-artifact@v4
