@@ -80,11 +80,16 @@ export default function CreatorApp() {
       const demoUser = { id: `demo-user-${Date.now()}`, email, demo: true };
       setUser(demoUser); localStorage.setItem("goc-demo-user", JSON.stringify(demoUser)); setBusy(false); return;
     }
-    const result = authMode === "signup" ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (result.error) setAuthMessage(result.error.message);
-    else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm your account, then sign in.");
-    else setUser(result.data.user ? { id: result.data.user.id, email: result.data.user.email } : null);
+    try {
+      const result = authMode === "signup" ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
+      if (result.error) setAuthMessage(result.error.message);
+      else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm your account, then sign in.");
+      else setUser(result.data.user ? { id: result.data.user.id, email: result.data.user.email } : null);
+    } catch (caught) {
+      setAuthMessage(caught instanceof Error ? caught.message : "Could not contact the account service. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function createStudio(event: FormEvent<HTMLFormElement>) {
