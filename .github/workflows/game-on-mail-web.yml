@@ -48,17 +48,31 @@ jobs:
           node-version: "26"
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-      - name: Typecheck
-        run: npm run typecheck
       - name: Install PostgreSQL client
         run: sudo apt-get update && sudo apt-get install -y postgresql-client
-      - name: Validate database migration
+      - name: Apply Better Auth schema
+        env:
+          DATABASE_URL: postgresql://gameon_mail_ci:gameon-ci-only-password@127.0.0.1:5432/gameon_mail_ci
+          BETTER_AUTH_SECRET: ci-only-test-secret-32-characters-minimum
+          BETTER_AUTH_URL: http://localhost:3000
+          ALLOW_PUBLIC_SIGNUP: "true"
+          MAIL_DELIVERY_ENABLED: "false"
+        run: npm run auth:migrate
+      - name: Apply GAME ON application schema
         env:
           PGPASSWORD: gameon-ci-only-password
         run: psql -h 127.0.0.1 -U gameon_mail_ci -d gameon_mail_ci -v ON_ERROR_STOP=1 -f ../database/migrations/0001_initial_schema.sql
-      - name: Validate database smoke test
+      - name: Run database smoke test
         env:
           PGPASSWORD: gameon-ci-only-password
         run: psql -h 127.0.0.1 -U gameon_mail_ci -d gameon_mail_ci -v ON_ERROR_STOP=1 -f ../database/tests/0001_smoke.sql
+      - name: Typecheck
+        run: npm run typecheck
       - name: Build
+        env:
+          DATABASE_URL: postgresql://gameon_mail_ci:gameon-ci-only-password@127.0.0.1:5432/gameon_mail_ci
+          BETTER_AUTH_SECRET: ci-only-test-secret-32-characters-minimum
+          BETTER_AUTH_URL: http://localhost:3000
+          ALLOW_PUBLIC_SIGNUP: "false"
+          MAIL_DELIVERY_ENABLED: "false"
         run: npm run build
