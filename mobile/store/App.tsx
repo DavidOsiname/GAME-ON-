@@ -106,7 +106,7 @@ function GameCard({
           <Text style={styles.artPlatform}>{game.platforms[0]?.toUpperCase() ?? "GAME"}</Text>
         </View>
         <View style={styles.gameCoverMark}>
-          <Text style={styles.gameCoverInitial}>{game.genre.slice(0, 1).toUpperCase()}</Text>
+          <Text style={styles.gameCoverInitial}>{game.icon || game.genre.slice(0, 1).toUpperCase()}</Text>
         </View>
         <View style={styles.gameCoverCaption}>
           <Text style={styles.artTitle}>{game.genre}</Text>
@@ -716,13 +716,16 @@ export default function App() {
         <FlatList
           data={tab === "purchases" || tab === "notifications" ? [] : visibleGames}
           keyExtractor={(item) => item.id}
-          numColumns={1}
+          numColumns={2}
+          columnWrapperStyle={styles.gameGridRow}
           contentContainerStyle={styles.listContent}
           keyboardShouldPersistTaps="handled"
           ListHeaderComponent={
             <View>
               {tab === "discover" ? (
                 <View style={styles.hero}>
+                  <View pointerEvents="none" style={styles.heroGlow} />
+                  <View pointerEvents="none" style={styles.heroOrbit} />
                   <View style={styles.heroAccentLine} />
                   <Text style={styles.eyebrow}>GAME ON / DISCOVER</Text>
                   <Text style={styles.heroTitle}>Find your next</Text>
@@ -730,6 +733,11 @@ export default function App() {
                   <Text style={styles.heroCopy}>
                     Browse a growing library of games from independent studios. Save the titles you want to play.
                   </Text>
+                  <View style={styles.heroPills}>
+                    <Text style={styles.heroPill}>DISCOVER</Text>
+                    <Text style={styles.heroPill}>SAVE FOR LATER</Text>
+                    <Text style={styles.heroPill}>INDIE PICKS</Text>
+                  </View>
                   {games.length > 0 ? (
                     <Pressable
                       accessibilityRole="button"
@@ -1234,29 +1242,29 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: "#070b14" },
   appShell: { flex: 1, backgroundColor: "#070b14" },
   header: {
-    minHeight: 82, paddingHorizontal: 20, flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#23445c",
+    minHeight: 76, paddingHorizontal: 18, flexDirection: "row", alignItems: "center",
+    justifyContent: "space-between", borderBottomWidth: 1, borderBottomColor: "#172f46",
     backgroundColor: "#080f1c"
   },
   brandBlock: { flexDirection: "row", alignItems: "center", gap: 11 },
   brandMark: {
-    width: 42, height: 42, borderRadius: 10, backgroundColor: "#102d40",
+    width: 42, height: 42, borderRadius: 13, backgroundColor: "#102b3d",
     borderWidth: 1, borderColor: "#18d9f4", alignItems: "center", justifyContent: "center"
   },
   brandMarkText: { color: "#18d9f4", fontSize: 26, fontWeight: "900" },
   brandName: { color: "#f0f7ff", fontWeight: "900", fontSize: 18, letterSpacing: 2 },
   brandSub: { color: "#18d9f4", fontWeight: "800", fontSize: 9, letterSpacing: 4, marginTop: 2 },
-  profileButton: { borderWidth: 1, borderColor: "#1a9db5", backgroundColor: "#0b1e2b", borderRadius: 8, paddingVertical: 10, paddingHorizontal: 12 },
+  profileButton: { borderWidth: 1, borderColor: "#1a9db5", backgroundColor: "#102638", borderRadius: 20, paddingVertical: 10, paddingHorizontal: 16 },
   profileButtonText: { color: "#bceff6", fontWeight: "800", fontSize: 9, letterSpacing: 1 },
-  listContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 24 },
+  listContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 28 },
   hero: {
-    borderRadius: 22, padding: 22, marginBottom: 24, minHeight: 260,
-    backgroundColor: "#111a29", borderWidth: 1, borderColor: "#2a3b50",
+    borderRadius: 26, padding: 22, marginBottom: 25, minHeight: 290,
+    backgroundColor: "#0d1b2b", borderWidth: 1, borderColor: "#1b536b",
     justifyContent: "center", overflow: "hidden"
   },
-  heroGlow: { position: "absolute", width: 230, height: 230, borderRadius: 115, right: -92, top: -115, backgroundColor: "#174b70", opacity: 0.58 },
-  heroOrbit: { position: "absolute", width: 170, height: 170, borderRadius: 85, right: -35, top: -45, borderWidth: 1, borderColor: "rgba(24,217,244,0.24)" },
-  heroAccentLine: { width: 36, height: 3, borderRadius: 2, backgroundColor: "#18d9f4", marginBottom: 17 },
+  heroGlow: { position: "absolute", width: 230, height: 230, borderRadius: 115, right: -92, top: -115, backgroundColor: "#08617c", opacity: 0.34 },
+  heroOrbit: { position: "absolute", width: 170, height: 170, borderRadius: 85, right: -35, top: -45, borderWidth: 1, borderColor: "rgba(24,217,244,0.30)" },
+  heroAccentLine: { width: 44, height: 4, borderRadius: 2, backgroundColor: "#18d9f4", marginBottom: 17 },
   heroFeature: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 10, marginTop: 20, padding: 15, borderRadius: 13, borderWidth: 1, borderColor: "#304961", backgroundColor: "#0b1421" },
   heroFeatureCopy: { flex: 1 },
   heroFeatureEyebrow: { color: "#83eafa", fontSize: 8, fontWeight: "900", letterSpacing: 1.4 },
@@ -1265,23 +1273,23 @@ const styles = StyleSheet.create({
   heroFeatureAction: { borderRadius: 8, backgroundColor: "#18d9f4", paddingHorizontal: 14, paddingVertical: 11 },
   heroFeatureActionText: { color: "#06111e", fontSize: 8, fontWeight: "900", letterSpacing: 0.7 },
   eyebrow: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 2, marginBottom: 13 },
-  heroTitle: { color: "#f2f7ff", fontSize: 32, lineHeight: 37, fontWeight: "800", letterSpacing: -0.7 },
+  heroTitle: { color: "#f2f7ff", fontSize: 34, lineHeight: 39, fontWeight: "900", letterSpacing: -0.9 },
   heroTitleAccent: { color: "#18d9f4" },
-  heroCopy: { color: "#a8bbcc", fontSize: 12, lineHeight: 19, maxWidth: 290, marginTop: 12 },
-  heroPills: { flexDirection: "row", gap: 8, marginTop: 16 },
-  heroPill: { color: "#d4faff", fontSize: 8, fontWeight: "800", letterSpacing: 1.5, paddingHorizontal: 9, paddingVertical: 6, borderRadius: 5, overflow: "hidden", backgroundColor: "#123e52" },
-  sectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 14 },
+  heroCopy: { color: "#b3c3d4", fontSize: 12, lineHeight: 20, maxWidth: 300, marginTop: 12 },
+  heroPills: { flexDirection: "row", flexWrap: "wrap", gap: 7, marginTop: 15 },
+  heroPill: { color: "#d4faff", fontSize: 8, fontWeight: "800", letterSpacing: 1.1, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, overflow: "hidden", backgroundColor: "#123e52" },
+  sectionHeading: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 16 },
   eyebrowSmall: { color: "#18d9f4", fontSize: 8, fontWeight: "900", letterSpacing: 1.8, marginBottom: 5 },
   sectionTitle: { color: "#f0f6ff", fontSize: 22, fontWeight: "800", letterSpacing: 0 },
   searchBox: {
-    minHeight: 48, flexDirection: "row", alignItems: "center", paddingHorizontal: 13,
-    borderRadius: 14, borderWidth: 1, borderColor: "#29435d", backgroundColor: "#0c1421"
+    minHeight: 52, flexDirection: "row", alignItems: "center", paddingHorizontal: 15,
+    borderRadius: 16, borderWidth: 1, borderColor: "#29435d", backgroundColor: "#0c1421"
   },
   searchIcon: { color: "#18d9f4", fontSize: 24, marginRight: 9 },
   searchInput: { flex: 1, color: "#f0f6ff", fontSize: 12, paddingVertical: 10 },
   clearSearch: { color: "#18d9f4", fontSize: 23, paddingHorizontal: 4 },
   genreRow: { gap: 8, paddingVertical: 15 },
-  genreChip: { borderWidth: 1, borderColor: "#27374c", backgroundColor: "#0b1320", borderRadius: 7, paddingHorizontal: 12, paddingVertical: 8 },
+  genreChip: { borderWidth: 1, borderColor: "#273f55", backgroundColor: "#0b1320", borderRadius: 18, paddingHorizontal: 14, paddingVertical: 9 },
   genreChipActive: { borderColor: "#18d9f4", backgroundColor: "#103042" },
   genreChipText: { color: "#97a9bd", fontSize: 10, fontWeight: "700" },
   genreChipTextActive: { color: "#bdf7ff" },
@@ -1342,8 +1350,9 @@ const styles = StyleSheet.create({
   ownedNotice: { borderWidth: 1, borderColor: "#366b59", borderRadius: 9, backgroundColor: "#10251f", padding: 14, marginTop: 18 },
   ownedNoticeTitle: { color: "#9be3bb", fontSize: 10, fontWeight: "900", letterSpacing: 1 },
   ownedNoticeCopy: { color: "#a3b9ae", fontSize: 10, lineHeight: 16, marginTop: 7 },
-  gameCard: { backgroundColor: "#0d1728", borderWidth: 1, borderColor: "#29435d", borderRadius: 19, overflow: "hidden", marginBottom: 18, elevation: 3 },
-  gameArtwork: { height: 174, padding: 18, justifyContent: "space-between", alignItems: "flex-start", overflow: "hidden" },
+  gameGridRow: { gap: 12 },
+  gameCard: { flex: 1, backgroundColor: "#0c1728", borderWidth: 1, borderColor: "#263f57", borderRadius: 19, overflow: "hidden", marginBottom: 14, elevation: 3 },
+  gameArtwork: { height: 138, padding: 14, justifyContent: "space-between", alignItems: "flex-start", overflow: "hidden" },
   coverImage: { ...StyleSheet.absoluteFill, width: "100%", height: "100%" },
   coverScrim: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(4,10,18,0.34)" },
   artTopLine: { width: "100%", flexDirection: "row", justifyContent: "space-between", zIndex: 1 },
@@ -1351,29 +1360,29 @@ const styles = StyleSheet.create({
   artworkOrb: { position: "absolute", width: 105, height: 105, borderRadius: 53, left: -34, bottom: -50, borderWidth: 1, borderColor: "rgba(255,255,255,0.18)", backgroundColor: "rgba(255,255,255,0.06)" },
   artLabel: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "900", letterSpacing: 1.3 },
   artPlatform: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "900", letterSpacing: 1 },
-  gameCoverMark: { width: 62, height: 62, borderWidth: 1, borderColor: "rgba(255,255,255,0.36)", backgroundColor: "rgba(7,15,27,0.24)", borderRadius: 16, alignItems: "center", justifyContent: "center" },
-  gameCoverInitial: { color: "#ffffff", fontSize: 29, fontWeight: "800", letterSpacing: -1 },
+  gameCoverMark: { width: 52, height: 52, borderWidth: 1, borderColor: "rgba(255,255,255,0.42)", backgroundColor: "rgba(7,15,27,0.28)", borderRadius: 15, alignItems: "center", justifyContent: "center" },
+  gameCoverInitial: { color: "#ffffff", fontSize: 27, fontWeight: "900", letterSpacing: -1 },
   gameCoverCaption: { alignItems: "flex-start", gap: 4 },
-  artTitle: { color: "#ffffff", fontSize: 20, fontWeight: "800", letterSpacing: 0 },
+  artTitle: { color: "#ffffff", fontSize: 17, fontWeight: "900", letterSpacing: 0 },
   artSubtitle: { color: "rgba(255,255,255,0.72)", fontSize: 8, fontWeight: "700", letterSpacing: 1.2 },
-  gameInfo: { paddingHorizontal: 17, paddingTop: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  gameInfo: { paddingHorizontal: 12, paddingTop: 13, flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   gameInfoMain: { flex: 1, paddingRight: 10 },
-  gameTitle: { color: "#f0f7ff", fontSize: 15, fontWeight: "800" },
-  gameStudio: { color: "#8194aa", fontSize: 10, marginTop: 4 },
-  heartButton: { width: 37, height: 37, borderRadius: 9, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#293a50", backgroundColor: "#101c2b" },
+  gameTitle: { color: "#f0f7ff", fontSize: 13, fontWeight: "900" },
+  gameStudio: { color: "#91a4ba", fontSize: 9, marginTop: 4 },
+  heartButton: { width: 34, height: 34, borderRadius: 17, alignItems: "center", justifyContent: "center", borderWidth: 1, borderColor: "#293a50", backgroundColor: "#101c2b" },
   heartButtonSaved: { borderColor: "#8e4567", backgroundColor: "#351c31" },
   heart: { color: "#9eafc2", fontSize: 22 },
   heartSaved: { color: "#ff709d" },
-  gameTags: { flexDirection: "row", flexWrap: "wrap", gap: 7, paddingHorizontal: 14, marginTop: 12 },
-  tag: { color: "#aab8c9", fontSize: 9, fontWeight: "700", letterSpacing: 0.2, paddingHorizontal: 9, paddingVertical: 6, borderWidth: 1, borderColor: "#293a4f", borderRadius: 6 },
-  detailsLink: { alignSelf: "flex-start", marginHorizontal: 14, marginTop: 14, marginBottom: 14, paddingVertical: 5 },
+  gameTags: { flexDirection: "row", flexWrap: "wrap", gap: 6, paddingHorizontal: 11, marginTop: 11 },
+  tag: { color: "#b1c0d0", fontSize: 8, fontWeight: "800", letterSpacing: 0.1, paddingHorizontal: 7, paddingVertical: 6, borderWidth: 1, borderColor: "#293a4f", borderRadius: 8 },
+  detailsLink: { alignSelf: "flex-start", marginHorizontal: 11, marginTop: 10, marginBottom: 12, paddingVertical: 5 },
   detailsLinkText: { color: "#18d9f4", fontSize: 9, fontWeight: "900", letterSpacing: 1.1 },
-  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#23445c", backgroundColor: "#080f1b", paddingHorizontal: 4, paddingBottom: Platform.OS === "ios" ? 5 : 10, paddingTop: 10 },
-  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 7, marginHorizontal: 3, borderRadius: 11 },
-  tabButtonActive: { backgroundColor: "#103044", borderWidth: 1, borderColor: "#18d9f4" },
+  tabBar: { flexDirection: "row", borderTopWidth: 1, borderTopColor: "#172f46", backgroundColor: "#080f1b", paddingHorizontal: 6, paddingBottom: Platform.OS === "ios" ? 5 : 10, paddingTop: 9 },
+  tabButton: { flex: 1, alignItems: "center", justifyContent: "center", gap: 4, paddingVertical: 8, marginHorizontal: 2, borderRadius: 14 },
+  tabButtonActive: { backgroundColor: "#103044", borderWidth: 1, borderColor: "#1a9db5" },
   tabIcon: { color: "#71849c", fontSize: 20 },
   tabIconActive: { color: "#18d9f4" },
-  tabLabel: { color: "#71849c", fontSize: 8, fontWeight: "800", letterSpacing: 1 },
+  tabLabel: { color: "#8294aa", fontSize: 8, fontWeight: "800", letterSpacing: 0.6 },
   tabLabelActive: { color: "#b9f7ff" },
   emptyState: { borderWidth: 1, borderColor: "#26384e", borderStyle: "dashed", borderRadius: 13, padding: 24, alignItems: "center", marginVertical: 12 },
   emptyIcon: { color: "#18d9f4", fontSize: 34, marginBottom: 8 },
