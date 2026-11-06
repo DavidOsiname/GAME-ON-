@@ -3,20 +3,26 @@
 
 BEGIN;
 
+INSERT INTO "user" (
+  id, name, email, "emailVerified", "createdAt", "updatedAt"
+) VALUES (
+  'auth-test-owner-0001',
+  'GAME ON Test Owner',
+  'owner@example.test',
+  true,
+  now(),
+  now()
+);
+
 INSERT INTO platform_users (
-  id, login_email, display_name, account_status, email_verified_at
+  id, auth_user_id, login_email, display_name, account_status, email_verified_at
 ) VALUES (
   '10000000-0000-4000-8000-000000000001',
+  'auth-test-owner-0001',
   'owner@example.test',
   'GAME ON Test Owner',
   'active',
   now()
-);
-
-INSERT INTO user_password_credentials (user_id, password_hash)
-VALUES (
-  '10000000-0000-4000-8000-000000000001',
-  '$argon2id$v=19$m=65536,t=3,p=1$c21va2Utc2FsdA$ZmFrZS1zbW9rZS10ZXN0LWhhc2g'
 );
 
 INSERT INTO platform_user_roles (user_id, role_name)
