@@ -92,15 +92,11 @@ jobs:
           print("Configured React Native architecture: arm64-v8a")
           PY
 
-      - name: Bundle JavaScript into installable debug APK
+      - name: Build standalone ARM64 phone-test APK
         run: |
-          if grep -q "debuggableVariants" android/app/build.gradle; then
-            sed -i 's/debuggableVariants = .*/debuggableVariants = []/' android/app/build.gradle
-          else
-            sed -i '/react {/a\    debuggableVariants = []' android/app/build.gradle
-          fi
           cd android
-          # Bypass the redirecting services host and allow up to five minutes for the distribution CDN.
+          # Use the release variant so React Native embeds the JavaScript bundle in the APK.
+          # The generated Expo project signs this internal test APK with the debug key.
           sed -i 's#services.gradle.org/distributions#downloads.gradle.org/distributions#' gradle/wrapper/gradle-wrapper.properties
           if grep -q '^networkTimeout=' gradle/wrapper/gradle-wrapper.properties; then
             sed -i 's/^networkTimeout=.*/networkTimeout=300000/' gradle/wrapper/gradle-wrapper.properties
@@ -110,13 +106,14 @@ jobs:
           chmod +x gradlew
           built=0
           for attempt in 1 2 3; do
-            if ./gradlew assembleDebug -PreactNativeArchitectures=arm64-v8a --no-daemon; then built=1; break; fi
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon; then built=1; break; fi
             echo "Gradle attempt $attempt failed; retrying after a short pause."
             rm -rf "$HOME/.gradle/wrapper/dists/gradle-9.4.1-bin"
             sleep 15
           done
           test "$built" -eq 1
-          test -s app/build/outputs/apk/debug/app-debug.apk
+          test -s app/build/outputs/apk/release/app-release.apk
+
 
       - name: Verify APK contains ARM64 libraries only
         run: |
@@ -124,11 +121,18 @@ jobs:
           from pathlib import Path
           from zipfile import ZipFile
 
-          apk = Path("android/app/build/outputs/apk/debug/app-debug.apk")
+          apk = Path("android/app/build/outputs/apk/release/app-release.apk")
           with ZipFile(apk) as archive:
+              names = archive.namelist()
               libraries = [
-                  name for name in archive.namelist()
+                  name for name in names
                   if name.startswith("lib/") and name.endswith(".so")
+              ]
+              bundles = [
+                  name for name in names
+                  if name.startswith("assets/")
+                  and "bundle" in Path(name).name
+                  and not name.endswith(".map")
               ]
           abis = sorted({
               name.split("/")[1]
@@ -137,6 +141,9 @@ jobs:
           })
           print(f"Native library ABIs in APK: {abis}")
           print(f"Native libraries found: {len(libraries)}")
+          print(f"Embedded JavaScript bundles found: {bundles}")
+          if not bundles:
+              raise SystemExit("APK is missing its embedded JavaScript bundle; refusing upload")
           if not libraries:
               raise SystemExit("APK contains no native libraries; refusing upload")
           if abis != ["arm64-v8a"]:
@@ -145,10 +152,10 @@ jobs:
               )
           PY
 
-      - name: Upload GAME ON CREATOR Android debug APK
+      - name: Upload GAME ON CREATOR standalone Android test APK
         uses: actions/upload-artifact@v4
         with:
-          name: game-on-creator-android-debug-apk
-          path: mobile/creator/android/app/build/outputs/apk/debug/app-debug.apk
+          name: game-on-creator-android-standalone-apk
+          path: mobile/creator/android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 14
