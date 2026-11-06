@@ -13,7 +13,7 @@ The PostgreSQL database is for application identity and control-plane data. The 
 | User profile, account status and verified login identity | PostgreSQL |
 | Password hash and account lock metadata | PostgreSQL |
 | Platform roles and mailbox memberships | PostgreSQL |
-| Verified mail domains, mailbox addresses and aliases | PostgreSQL |
+| Verified mail domains, primary mailbox addresses and aliases | PostgreSQL |
 | Invitations and user preferences | PostgreSQL |
 | Contacts | PostgreSQL |
 | Delivery-status references and security audit metadata | PostgreSQL |
@@ -30,7 +30,7 @@ This avoids building a second email store in the product database and limits exp
 - `mail_domains`: GAME ON-controlled domains and verification/activation state.
 - `mailboxes`: personal, shared and service mailboxes plus quota and mail-engine reference.
 - `mailbox_members`: users authorized to access a mailbox and their role.
-- `mailbox_aliases`: alternate addresses routed to a mailbox.
+- `mailbox_addresses`: primary addresses and aliases in one unique registry, preventing address collisions.
 - `account_invitations`: invite token digests, expiry and acceptance state.
 - `user_preferences`: display and notification preferences.
 - `user_contacts`: per-user address book.
@@ -59,6 +59,7 @@ This avoids building a second email store in the product database and limits exp
 ## Review items before production
 
 - Validate the mailbox local-part policy against the domain and mail-server implementation.
+- Ensure mailbox creation always inserts the mailbox and exactly one primary address in a single transaction.
 - Decide password policy, reset token flow and multi-factor authentication.
 - Define platform owner bootstrap and recovery.
 - Define mailbox provisioning reconciliation and handling of mail-server outages.
