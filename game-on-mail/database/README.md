@@ -16,7 +16,7 @@ Requires Docker Engine and the Docker Compose plugin.
 
 1. Copy `.env.example` to `.env`.
 2. Replace `GAMEON_DB_PASSWORD` with a long random password used only for local development.
-3. In `web/.env.local`, set `DATABASE_URL` to the same database username, password, host and database name used below.
+3. In `web/.env.local`, set `DATABASE_URL` to the same database username, password, host and database name used below. Also replace `BETTER_AUTH_SECRET` with a random value of at least 32 characters.
 4. Start PostgreSQL from this folder:
 
 ```bash
@@ -24,11 +24,11 @@ docker compose --env-file .env -f compose.yaml up -d
 docker compose --env-file .env -f compose.yaml ps
 ```
 
-5. From `game-on-mail/web`, install dependencies and apply the Better Auth schema:
+5. From `game-on-mail/web`, install dependencies and apply the Better Auth schema. Export `DATABASE_URL` in that shell if your CLI does not load `.env.local` automatically:
 
 ```bash
 npm install
-npm run auth:migrate
+DATABASE_URL="postgresql://gameon_mail_dev:YOUR_LOCAL_PASSWORD@127.0.0.1:5432/gameon_mail" npm run auth:migrate
 ```
 
 6. From `game-on-mail/database`, apply the GAME ON application schema after Better Auth has created its core user table:
