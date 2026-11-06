@@ -9,17 +9,22 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "auth:migrate": "auth migrate --config ./lib/auth.ts --yes"
   },
   "dependencies": {
     "next": "16.4.5",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "better-auth": "1.7.18",
+    "pg": "^8.16.3"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "auth": "1.7.18",
+    "@types/pg": "^8.15.5"
   }
 }
