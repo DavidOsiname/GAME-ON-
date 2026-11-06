@@ -7,6 +7,7 @@ BEGIN;
 
 CREATE TABLE platform_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  auth_user_id text NOT NULL UNIQUE,
   login_email text NOT NULL,
   display_name text NOT NULL,
   account_status text NOT NULL DEFAULT 'invited'
@@ -27,20 +28,6 @@ CREATE TABLE platform_users (
 
 CREATE UNIQUE INDEX platform_users_login_email_uq
   ON platform_users (login_email);
-
-CREATE TABLE user_password_credentials (
-  user_id uuid PRIMARY KEY REFERENCES platform_users(id) ON DELETE CASCADE,
-  password_hash text NOT NULL,
-  hash_scheme text NOT NULL DEFAULT 'argon2id'
-    CHECK (hash_scheme = 'argon2id'),
-  password_changed_at timestamptz NOT NULL DEFAULT now(),
-  failed_attempts smallint NOT NULL DEFAULT 0
-    CHECK (failed_attempts BETWEEN 0 AND 100),
-  locked_until timestamptz,
-  created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT user_password_hash_is_encoded
-    CHECK (password_hash LIKE '$argon2id$%')
-);
 
 CREATE TABLE platform_user_roles (
   user_id uuid NOT NULL REFERENCES platform_users(id) ON DELETE CASCADE,
