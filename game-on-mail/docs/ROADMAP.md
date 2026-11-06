@@ -15,7 +15,9 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 
 ## Phase 2 — Technical architecture
 
-- [ ] Confirm web-first application architecture
+- [x] Confirm web-first application architecture
+- [x] Create the initial Next.js App Router web-app foundation
+- [x] Add a demo inbox, compose-draft interaction and application health endpoint
 - [ ] Confirm backend framework and API boundaries
 - [ ] Confirm database schema and migrations
 - [ ] Complete mail-server proof of concept
