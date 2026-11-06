@@ -51,10 +51,6 @@ CREATE TABLE platform_user_roles (
   PRIMARY KEY (user_id, role_name)
 );
 
-CREATE UNIQUE INDEX platform_single_owner_uq
-  ON platform_user_roles ((role_name))
-  WHERE role_name = 'owner';
-
 CREATE TABLE mail_domains (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   domain_name text NOT NULL,
@@ -80,8 +76,6 @@ CREATE UNIQUE INDEX mail_domains_domain_name_uq
 
 CREATE TABLE mailboxes (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  domain_id uuid NOT NULL REFERENCES mail_domains(id) ON DELETE RESTRICT,
-  local_part text NOT NULL,
   display_name text NOT NULL,
   mailbox_kind text NOT NULL DEFAULT 'personal'
     CHECK (mailbox_kind IN ('personal', 'shared', 'service')),
@@ -93,18 +87,9 @@ CREATE TABLE mailboxes (
   created_by uuid REFERENCES platform_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
   updated_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT mailboxes_local_part_normalized
-    CHECK (
-      local_part = lower(btrim(local_part))
-      AND char_length(local_part) BETWEEN 1 AND 64
-      AND local_part ~ '^[a-z0-9]([a-z0-9._+-]{0,62}[a-z0-9])?$'
-    ),
   CONSTRAINT mailboxes_display_name_not_blank
     CHECK (char_length(btrim(display_name)) BETWEEN 1 AND 100)
 );
-
-CREATE UNIQUE INDEX mailboxes_domain_local_part_uq
-  ON mailboxes (domain_id, local_part);
 
 CREATE TABLE mailbox_members (
   mailbox_id uuid NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,
@@ -123,14 +108,17 @@ CREATE UNIQUE INDEX mailbox_single_owner_uq
 CREATE INDEX mailbox_members_user_idx
   ON mailbox_members (user_id, mailbox_id);
 
-CREATE TABLE mailbox_aliases (
+-- A single address registry prevents primary-address and alias collisions.
+CREATE TABLE mailbox_addresses (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   mailbox_id uuid NOT NULL REFERENCES mailboxes(id) ON DELETE CASCADE,
   domain_id uuid NOT NULL REFERENCES mail_domains(id) ON DELETE RESTRICT,
   local_part text NOT NULL,
+  address_kind text NOT NULL DEFAULT 'alias'
+    CHECK (address_kind IN ('primary', 'alias')),
   created_by uuid REFERENCES platform_users(id) ON DELETE SET NULL,
   created_at timestamptz NOT NULL DEFAULT now(),
-  CONSTRAINT mailbox_aliases_local_part_normalized
+  CONSTRAINT mailbox_addresses_local_part_normalized
     CHECK (
       local_part = lower(btrim(local_part))
       AND char_length(local_part) BETWEEN 1 AND 64
@@ -138,11 +126,16 @@ CREATE TABLE mailbox_aliases (
     )
 );
 
-CREATE UNIQUE INDEX mailbox_aliases_domain_local_part_uq
-  ON mailbox_aliases (domain_id, local_part);
+CREATE UNIQUE INDEX mailbox_addresses_domain_local_part_uq
+  ON mailbox_addresses (domain_id, local_part);
 
-CREATE INDEX mailbox_aliases_mailbox_idx
-  ON mailbox_aliases (mailbox_id);
+CREATE UNIQUE INDEX mailbox_addresses_one_primary_per_mailbox_uq
+  ON mailbox_addresses (mailbox_id)
+  WHERE address_kind = 'primary';
+
+CREATE INDEX mailbox_addresses_mailbox_idx
+  ON mailbox_addresses (mailbox_id);
+
 
 CREATE TABLE account_invitations (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
