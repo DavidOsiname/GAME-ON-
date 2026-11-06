@@ -7,7 +7,7 @@ BEGIN;
 
 CREATE TABLE platform_users (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  auth_user_id text NOT NULL UNIQUE,
+  auth_user_id text NOT NULL UNIQUE REFERENCES "user"(id) ON DELETE CASCADE,
   login_email text NOT NULL,
   display_name text NOT NULL,
   account_status text NOT NULL DEFAULT 'invited'
