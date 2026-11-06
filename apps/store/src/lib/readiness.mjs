@@ -15,7 +15,7 @@ export async function checkReadiness(env = process.env, fetchImpl = fetch, timeo
 
   const rawUrl = env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceRoleKey = env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = (env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY);
 
   checks.anonKey = typeof anonKey === "string" && anonKey.length > 20;
   checks.serviceRoleKey = typeof serviceRoleKey === "string" && serviceRoleKey.length > 20;
