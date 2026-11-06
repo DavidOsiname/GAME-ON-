@@ -17,15 +17,18 @@ export async function POST(request: NextRequest) {
     .eq("id", buildId).maybeSingle();
   if (buildError) return apiJsonError("Unable to verify the build upload.", 500);
   if (!build) return apiJsonError("Build upload not found.", 404);
-  if (build.upload_status === "uploaded") return NextResponse.json({ buildId, status: "uploaded", message: "This build was already finalized." }, { headers: { "Cache-Control": "no-store" } });
-  if (build.upload_status !== "awaiting_upload") return apiJsonError("This upload can no longer be finalized.", 409);
 
+  // Verify ownership before returning any state, including an idempotent success.
+  // Build IDs are unguessable identifiers, not a substitute for authorization.
   const { data: game, error: gameError } = await context.admin.from("games").select("id,studio_id").eq("id", build.game_id).maybeSingle();
   if (gameError) return apiJsonError("Unable to verify game ownership.", 500);
   if (!game) return apiJsonError("Game listing no longer exists.", 404);
   const { data: studio, error: studioError } = await context.admin.from("developer_studios").select("id,owner_user_id").eq("id", game.studio_id).maybeSingle();
   if (studioError) return apiJsonError("Unable to verify studio ownership.", 500);
   if (!studio || studio.owner_user_id !== context.userId) return apiJsonError("You do not own this build.", 403);
+
+  if (build.upload_status === "uploaded") return NextResponse.json({ buildId, status: "uploaded", message: "This build was already finalized." }, { headers: { "Cache-Control": "no-store" } });
+  if (build.upload_status !== "awaiting_upload") return apiJsonError("This upload can no longer be finalized.", 409);
 
   const { data: fileInfo, error: infoError } = await context.admin.storage.from(BUCKET).info(build.object_path);
   if (infoError || !fileInfo) return apiJsonError("The file has not arrived in quarantine storage yet. Retry after the upload finishes.", 409);
