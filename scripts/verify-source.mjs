@@ -82,13 +82,13 @@ if (missing.length) {
 }
 const creatorEnv = fs.readFileSync(path.join(root, "apps/creator/.env.example"), "utf8");
 const storeEnv = fs.readFileSync(path.join(root, "apps/store/.env.example"), "utf8");
-if (!creatorEnv.includes("SUPABASE_SERVICE_ROLE_KEY=") || !creatorEnv.includes("GAMEON_ADMIN_USER_IDS=")) throw new Error("Creator server environment template is incomplete.");
+if (!creatorEnv.includes("SUPABASE_SECRET_KEY=") || !creatorEnv.includes("GAMEON_ADMIN_USER_IDS=")) throw new Error("Creator server environment template is incomplete.");
 if (storeEnv.includes("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY") || storeEnv.includes("GAMEON_ADMIN_USER_IDS")) throw new Error("The Store must not expose service-role secrets publicly or carry Creator admin allowlists.");
 const route = fs.readFileSync(path.join(root, "apps/creator/src/app/api/admin/games/route.ts"), "utf8");
 const storeCode = fs.readFileSync(path.join(root, "apps/store/src/components/store-app.tsx"), "utf8");
 if (!route.includes("auth.getUser(token)") || !route.includes("GAMEON_ADMIN_USER_IDS") || !route.includes("SUPABASE_SERVICE_ROLE_KEY")) throw new Error("Admin API is missing server-side identity and allowlist checks.");
 const storeDownload = fs.readFileSync(path.join(root, "apps/store/src/app/api/downloads/[gameId]/route.ts"), "utf8");
-if (!storeEnv.includes("SUPABASE_SERVICE_ROLE_KEY=") || !storeDownload.includes("process.env.SUPABASE_SERVICE_ROLE_KEY") || storeDownload.includes("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")) throw new Error("The Store signed-download route must use a server-only service-role secret.");
+if (!storeEnv.includes("SUPABASE_SECRET_KEY=") || !storeDownload.includes("process.env.SUPABASE_SECRET_KEY") || storeDownload.includes("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")) throw new Error("The Store signed-download route must use a server-only service-role secret.");
 if (route.includes("NEXT_PUBLIC_SUPABASE_SERVICE_ROLE_KEY")) throw new Error("Service role key must never be public.");
 if (!storeCode.includes('from("reviews")') || !storeCode.includes('from("reviews").insert')) throw new Error("Store review flow is missing.");
 if (!storeCode.includes('from("game_reports").insert') || !route.includes('from("game_reports")')) throw new Error("Player reporting flow is missing from Store or admin API.");
@@ -177,7 +177,7 @@ for (const app of ["store", "creator"]) {
   const readiness = fs.readFileSync(path.join(root, `apps/${app}/src/lib/readiness.mjs`), "utf8");
   if (!health.includes('status: "ok"') || !health.includes('Cache-Control')) throw new Error(`${app} liveness route is incomplete.`);
   for (const needle of ["checkReadiness", 'status: result.ready ? "ready" : "not_ready"', 'status: result.ready ? 200 : 503', 'Cache-Control']) if (!ready.includes(needle)) throw new Error(`${app} readiness route missing ${needle}.`);
-  for (const needle of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SERVICE_ROLE_KEY", 'method: "HEAD"', "AbortSignal.timeout", "checks.database = response.ok"]) if (!readiness.includes(needle)) throw new Error(`${app} readiness probe missing ${needle}.`);
+  for (const needle of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", 'method: "HEAD"', "AbortSignal.timeout", "checks.database = response.ok"]) if (!readiness.includes(needle)) throw new Error(`${app} readiness probe missing ${needle}.`);
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
 }
 
