@@ -20,6 +20,11 @@ export default function StoreApp() {
   const [priceFilter, setPriceFilter] = useState("Any price");
   const [offlineOnly, setOfflineOnly] = useState(false);
   const [sortMode, setSortMode] = useState<"newest" | "title" | "free-first" | "price-low">("newest");
+  const [fitOpen, setFitOpen] = useState(false);
+  const [fitPlatform, setFitPlatform] = useState("Any device");
+  const [fitBudget, setFitBudget] = useState("Any budget");
+  const [fitConnection, setFitConnection] = useState("Any connection");
+  const [fitGenre, setFitGenre] = useState("Any genre");
   const [selected, setSelected] = useState<Game | null>(null);
   const [library, setLibrary] = useState<string[]>([]);
   const [wishlist, setWishlist] = useState<string[]>([]);
@@ -188,6 +193,21 @@ export default function StoreApp() {
     }
     return matches;
   }, [games, genre, query, platformFilter, priceFilter, offlineOnly, sortMode]);
+  const fitMatches = useMemo(() => games.filter((game) => {
+    const matchesPlatform = fitPlatform === "Any device" || game.platforms.some((platform) => {
+      const value = platform.toLowerCase();
+      if (fitPlatform === "PC") return value === "pc" || value.includes("windows");
+      return value === fitPlatform.toLowerCase();
+    });
+    const isPaid = game.monetization.toLowerCase().startsWith("paid");
+    const matchesBudget = fitBudget === "Any budget"
+      || (fitBudget === "Free only" && !isPaid)
+      || (fitBudget === "Up to ₦2,000" && (!isPaid || (game.currency === "NGN" && game.priceMinor !== null && game.priceMinor <= 200000)))
+      || (fitBudget === "Up to ₦5,000" && (!isPaid || (game.currency === "NGN" && game.priceMinor !== null && game.priceMinor <= 500000)));
+    const matchesConnection = fitConnection !== "Offline required" || game.offline;
+    const matchesGenre = fitGenre === "Any genre" || game.genre === fitGenre;
+    return matchesPlatform && matchesBudget && matchesConnection && matchesGenre;
+  }), [games, fitPlatform, fitBudget, fitConnection, fitGenre]);
   const visible = tab === "library" ? games.filter((game) => library.includes(game.id)) : tab === "wishlist" ? games.filter((game) => wishlist.includes(game.id)) : filtered;
 
   function flash(message: string) { setNotice(message); window.setTimeout(() => setNotice(isSupabaseConfigured ? "Live Game ON catalogue" : "Demo catalogue · fictional sample games"), 3600); }
@@ -376,7 +396,27 @@ export default function StoreApp() {
       <div className="welcome-row"><div><p className="eyebrow">{tab === "notifications" ? "STAY IN THE LOOP" : tab === "profile" ? "YOUR GAME ON IDENTITY" : tab === "purchases" ? "YOUR GAME ON ORDERS" : "YOUR NEXT ADVENTURE STARTS HERE"}</p><h1>{tab === "discover" ? <>Find your next<br/><em>favourite game.</em></> : tab === "library" ? <>Your games.<br/><em>Your world.</em></> : tab === "wishlist" ? <>Saved for<br/><em>later.</em></> : tab === "notifications" ? <>Your updates.<br/><em>All in one place.</em></> : tab === "purchases" ? <>Your purchases.<br/><em>All together.</em></> : <>Your player<br/><em>profile.</em></>}</h1><p className="intro-copy">{tab === "notifications" ? "Game updates and important messages from Game ON." : tab === "profile" ? "Manage your player identity and account preferences." : tab === "purchases" ? "View your orders, payment status and refund requests." : "A game marketplace built around discovery, clear information and a fair chance for creators."}</p></div><div className="player-badge"><span className="badge-icon">⌁</span><div><b>PLAYER FIRST</b><small>Know what you're downloading.</small></div></div></div>
 
       {tab === "discover" && <>
-        <div className="feature-card"><div className="feature-copy"><span className="feature-tag">FEATURED DEMO · SAMPLE LISTING</span><h2>Play beyond<br/>the ordinary.</h2><p>Discover fresh worlds from emerging studios. See the facts before you play.</p><button className="primary-button" onClick={() => setSelected(games.find((g) => g.featured) || games[0] || null)}>Explore featured game <span>↗</span></button></div><div className="feature-art"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="feature-planet">✦</div><span className="art-caption">NEW WORLDS<br/>WAITING</span></div></div>
+        <div className="feature-card"><div className="feature-copy"><span className="feature-tag">FEATURED DEMO · SAMPLE LISTING</span><h2>Play beyond<br/>the ordinary.</h2><p>Discover fresh worlds from emerging studios. See the facts before you play.</p><button className="primary-button" onClick={() => setSelected(games.find((g) => g.featured) || games[0] || null)}>Explore featured game <span>↗</span></button><button type="button" className="game-fit-launch" onClick={() => setFitOpen((open) => !open)}>{fitOpen ? "Close GAME FIT" : "Find games for me"} <span>✦</span></button></div><div className="feature-art"><div className="orbit orbit-one"/><div className="orbit orbit-two"/><div className="feature-planet">✦</div><span className="art-caption">NEW WORLDS<br/>WAITING</span></div></div>
+
+        {fitOpen && <section className="game-fit-panel" aria-label="GAME FIT recommendations">
+          <div className="game-fit-heading">
+            <div><p className="eyebrow">YOUR PERSONAL GAME FINDER</p><h2>Let's find your fit.</h2><p>Tell us what works for you. GAME FIT will match your choices against published game details.</p></div>
+            <span className="game-fit-mark">FIT<span>+</span></span>
+          </div>
+          <div className="game-fit-fields">
+            <label><span>What do you play on?</span><select value={fitPlatform} onChange={(event) => setFitPlatform(event.target.value)}><option>Any device</option><option>Android</option><option>PC</option><option>Web</option></select></label>
+            <label><span>What's your budget?</span><select value={fitBudget} onChange={(event) => setFitBudget(event.target.value)}><option>Any budget</option><option>Free only</option><option>Up to ₦2,000</option><option>Up to ₦5,000</option></select></label>
+            <label><span>How's your internet?</span><select value={fitConnection} onChange={(event) => setFitConnection(event.target.value)}><option>Any connection</option><option>Offline required</option></select></label>
+            <label><span>Which genre do you enjoy?</span><select value={fitGenre} onChange={(event) => setFitGenre(event.target.value)}><option>Any genre</option>{genres.filter((item) => item !== "All games").map((item) => <option key={item}>{item}</option>)}</select></label>
+          </div>
+          <div className="game-fit-results-heading"><div><p className="eyebrow">YOUR MATCHES</p><h3>{fitMatches.length} {fitMatches.length === 1 ? "game" : "games"} match your choices</h3></div><button type="button" className="game-fit-reset" onClick={() => { setFitPlatform("Any device"); setFitBudget("Any budget"); setFitConnection("Any connection"); setFitGenre("Any genre"); }}>Reset choices</button></div>
+          {fitMatches.length > 0 ? <div className="game-fit-results">{fitMatches.slice(0, 6).map((game) => <article className="game-fit-result" key={game.id}>
+            <span className={`game-fit-result-icon cover-${game.accent}`}>{game.icon}</span>
+            <div className="game-fit-result-copy"><b>{game.title}</b><span>{game.genre} · {game.studio}</span><small>{game.platforms.join(", ")} · {game.offline ? "Offline play" : "Internet required"} · {game.monetization}</small></div>
+            <button type="button" className="game-fit-view" onClick={() => setSelected(game)}>View game</button>
+          </article>)}</div> : <div className="game-fit-empty"><b>No exact matches yet.</b><p>Try choosing any device, a wider budget or any genre to see more games.</p></div>}
+          <p className="game-fit-disclaimer">Matches use the information supplied in each game listing. GAME FIT does not test your device's hardware or guarantee game performance.</p>
+        </section>}
         <div className="filter-row"><label className="search-box"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search games, genres or studios…" aria-label="Search games"/><kbd>⌘ K</kbd></label><div className="genre-pills">{genres.map((item) => <button key={item} className={genre === item ? "chosen" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div></div><div className="discovery-filter-row" aria-label="More game filters">
           <label className="discovery-filter-select"><span>Platform</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform"><option>All platforms</option><option>Android</option><option>PC</option><option>Web</option></select></label>
           <label className="discovery-filter-select"><span>Price</span><select value={priceFilter} onChange={(event) => setPriceFilter(event.target.value)} aria-label="Filter by price"><option>Any price</option><option>Free</option><option>Paid</option></select></label>
