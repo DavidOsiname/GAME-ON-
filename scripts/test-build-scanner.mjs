@@ -74,10 +74,14 @@ async function runScenario(reply, expectedResult, inputFixture = fixture) {
       response.end(JSON.stringify(value));
     };
     if (url.pathname === '/rest/v1/game_builds' && request.method === 'GET') {
+      assert.equal(request.headers.apikey, 'sb_secret_test-local-only');
+      assert.equal(request.headers.authorization, undefined, 'New secret keys must not be sent as Bearer JWTs.');
       if (url.searchParams.get('scan_status') === 'eq.quarantined' && build.scan_status === 'quarantined') return send(200, [build]);
       return send(200, []);
     }
     if (url.pathname === '/rest/v1/game_builds' && request.method === 'PATCH') {
+      assert.equal(request.headers.apikey, 'sb_secret_test-local-only');
+      assert.equal(request.headers.authorization, undefined, 'New secret keys must not be sent as Bearer JWTs.');
       let body = '';
       for await (const part of request) body += part;
       const data = JSON.parse(body || '{}');
@@ -112,7 +116,7 @@ async function runScenario(reply, expectedResult, inputFixture = fixture) {
     env: {
       ...process.env,
       SUPABASE_URL: `http://127.0.0.1:${apiPort}`,
-      SUPABASE_SERVICE_ROLE_KEY: 'local-test-service-role-only',
+      SUPABASE_SECRET_KEY: 'sb_secret_test-local-only',
       GAMEON_CREATOR_BASE_URL: `http://127.0.0.1:${apiPort}`,
       GAMEON_SCANNER_WEBHOOK_SECRET: webhookSecret,
       CLAMAV_HOST: '127.0.0.1',
