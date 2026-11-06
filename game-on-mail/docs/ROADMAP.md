@@ -20,6 +20,9 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 - [x] Add a demo inbox, compose-draft interaction and application health endpoint
 - [ ] Confirm backend framework and API boundaries
 - [ ] Confirm database schema and migrations
+- [x] Draft the initial PostgreSQL schema and migration
+- [x] Add a localhost-only PostgreSQL development service
+- [x] Add a database smoke test for mailbox address uniqueness
 - [ ] Complete mail-server proof of concept
 - [ ] Define mailbox provisioning and authentication integration
 - [ ] Define attachment storage, quotas and backups
