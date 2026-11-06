@@ -12,6 +12,7 @@ on:
   pull_request:
     paths:
       - "game-on-mail/web/**"
+      - "game-on-mail/database/**"
       - ".github/workflows/game-on-mail-web.yml"
 
 permissions:
