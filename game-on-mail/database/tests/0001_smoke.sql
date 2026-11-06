@@ -76,6 +76,16 @@ BEGIN
     RAISE EXCEPTION 'Expected 2 mailbox addresses, found %', address_count;
   END IF;
 
+  INSERT INTO mailboxes (
+    id, display_name, mailbox_kind, mailbox_status, quota_bytes
+  ) VALUES (
+    '30000000-0000-4000-8000-000000000002',
+    'Second Test Mailbox',
+    'personal',
+    'active',
+    1073741824
+  );
+
   -- The same domain/local-part cannot be assigned to another mailbox,
   -- even when one record would be a primary address and the other an alias.
   BEGIN
