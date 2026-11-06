@@ -276,6 +276,7 @@ export default function MailWorkspace() {
             <kbd>⌘ K</kbd>
           </label>
           <div className="topbar-actions">
+            <a className="auth-top-link" href="/sign-in">Account</a>
             <button className="icon-button" aria-label="Help" title="Help">
               ?
             </button>
