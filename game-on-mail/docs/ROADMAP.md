@@ -49,7 +49,7 @@ Use this checklist as the project's source of truth. Only mark an item complete 
 - [x] Configure password sign-in, verification gate, password-reset hooks and rate limiting
 - [x] Build sign-in, local-development sign-up, account and recovery screens
 - [x] Link Better Auth identities to GAME ON profile records with a database foreign key
-- [ ] Pass the end-to-end account smoke test in CI
+- [x] Pass the end-to-end account smoke test in CI: account creation, profile sync and unverified sign-in rejection
 - [ ] Implement invite creation and acceptance
 - [ ] Implement administrator provisioning and account suspension
 - [ ] Connect account records to provisioned mailboxes
