@@ -35,6 +35,16 @@ docker compose --env-file .env -f compose.yaml exec postgres \
 
 The first migration is mounted into the official PostgreSQL initialization directory and runs automatically when the database volume is initialized for the first time.
 
+To run the schema smoke test after the migration:
+
+```bash
+docker compose --env-file .env -f compose.yaml exec -T postgres \
+  psql -U gameon_mail_dev -d gameon_mail -v ON_ERROR_STOP=1 \
+  < tests/0001_smoke.sql
+```
+
+The smoke test inserts synthetic data, checks that primary and alias addresses share one uniqueness constraint, and rolls all test rows back.
+
 ## Reset local development data
 
 To stop the service but keep the database:
