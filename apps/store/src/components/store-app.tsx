@@ -293,11 +293,16 @@ export default function StoreApp() {
     event.preventDefault(); setBusy(true); setAuthMessage("");
     const form = new FormData(event.currentTarget); const email = String(form.get("email") || "").trim(); const password = String(form.get("password") || "");
     if (!supabase) { setUser({ id: `demo-${Date.now()}`, email }); setAuthOpen(false); setBusy(false); flash("Demo sign-in ready on this device. No password has been stored."); return; }
-    const result = authMode === "signup" ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
-    if (result.error) setAuthMessage(result.error.message);
-    else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm your account, then sign in.");
-    else { setUser({ id: result.data.user?.id || "", email }); setAuthOpen(false); flash("Welcome to Game ON."); }
+    try {
+      const result = authMode === "signup" ? await supabase.auth.signUp({ email, password }) : await supabase.auth.signInWithPassword({ email, password });
+      if (result.error) setAuthMessage(result.error.message);
+      else if (authMode === "signup" && !result.data.session) setAuthMessage("Check your email to confirm your account, then sign in.");
+      else { setUser({ id: result.data.user?.id || "", email }); setAuthOpen(false); flash("Welcome to Game ON."); }
+    } catch (caught) {
+      setAuthMessage(caught instanceof Error ? caught.message : "Could not contact the account service. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
   async function markNotificationRead(notificationId: string) {
     if (!supabase || !user || user.id.startsWith("demo-")) return;
