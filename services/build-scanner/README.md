@@ -16,7 +16,7 @@ This is a separate Node.js worker intended to run beside ClamAV on a private ser
 1. Apply Supabase migrations `0001` through `0006` in numeric order.
 2. In Creator's production environment, set `GAMEON_SCANNER_WEBHOOK_SECRET` to a strong random secret.
 3. Copy `.env.example` to `.env` in this directory.
-4. Set `SUPABASE_URL`, the server-only `SUPABASE_SERVICE_ROLE_KEY`, `GAMEON_CREATOR_BASE_URL` and exactly the same scanner webhook secret used by Creator.
+4. Set `SUPABASE_URL`, the server-only `SUPABASE_SECRET_KEY` (legacy `SUPABASE_SERVICE_ROLE_KEY` is accepted as a temporary fallback), `GAMEON_CREATOR_BASE_URL` and exactly the same scanner webhook secret used by Creator.
 5. Confirm the ClamAV daemon configuration has at least:
 
    ```conf
