@@ -4,6 +4,7 @@ import { db } from "./db";
 
 const isProduction = process.env.NODE_ENV === "production";
 const mailDeliveryEnabled = process.env.MAIL_DELIVERY_ENABLED === "true";
+const allowLocalAuthLinkLogging = process.env.AUTH_LINK_LOGGING === "true";
 const secret = process.env.BETTER_AUTH_SECRET;
 
 if (mailDeliveryEnabled) {
@@ -35,6 +36,13 @@ async function handleAuthLink(
     // Never log tokens or verification URLs in production.
     console.warn(
       `GAME ON MAIL: ${label} message was not sent because mail delivery is not configured. Recipient: ${email}`,
+    );
+    return;
+  }
+
+  if (!allowLocalAuthLinkLogging) {
+    console.info(
+      `GAME ON MAIL: ${label} link not logged. Set AUTH_LINK_LOGGING=true only on a private local development machine to inspect it.`,
     );
     return;
   }
