@@ -36,10 +36,15 @@ export default function PasswordRecovery({ mode }: { mode: "request" | "update" 
     event.preventDefault();
     if (!supabase) { setError("Password recovery is unavailable in demo mode. Connect the live Supabase project first."); return; }
     setBusy(true); setError(""); setMessage("");
-    const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
-    setBusy(false);
-    if (resetError) setError(resetError.message);
-    else setMessage("If an account exists for that email, a password-reset link has been sent. Check your inbox and spam folder.");
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/reset-password` });
+      if (resetError) setError(resetError.message);
+      else setMessage("If an account exists for that email, a password-reset link has been sent. Check your inbox and spam folder.");
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not contact the account service. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function updatePassword(event: FormEvent<HTMLFormElement>) {
@@ -49,10 +54,20 @@ export default function PasswordRecovery({ mode }: { mode: "request" | "update" 
     if (password.length < 10) { setError("Use at least 10 characters for your new password."); return; }
     if (password !== confirmPassword) { setError("The passwords do not match."); return; }
     setBusy(true); setError(""); setMessage("");
-    const { error: updateError } = await supabase.auth.updateUser({ password });
-    setBusy(false);
-    if (updateError) setError(updateError.message);
-    else { setMessage("Your password has been changed. You can now sign in with your new password."); setPassword(""); setConfirmPassword(""); await supabase.auth.signOut(); }
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) setError(updateError.message);
+      else {
+        setMessage("Your password has been changed. You can now sign in with your new password.");
+        setPassword("");
+        setConfirmPassword("");
+        void supabase.auth.signOut().catch(() => undefined);
+      }
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not update your password. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
   }
 
   return <main className="recovery-shell"><section className="recovery-card">
