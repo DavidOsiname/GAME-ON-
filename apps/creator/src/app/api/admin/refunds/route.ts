@@ -6,7 +6,7 @@ export const dynamic = "force-dynamic";
 async function context(request: NextRequest) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const service = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const service = (process.env.SUPABASE_SECRET_KEY || process.(env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY));
   const admins = (process.env.GAMEON_ADMIN_USER_IDS || "").split(",").map((v) => v.trim()).filter(Boolean);
   if (!url || !anon || !service || !admins.length) return { error: "Admin refund management is not configured.", status: 503 as const };
   const header = request.headers.get("authorization") || "";
