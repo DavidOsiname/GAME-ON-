@@ -8,7 +8,7 @@ export type DeveloperContext =
 export async function getDeveloperContext(request: NextRequest): Promise<DeveloperContext> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.(env.SUPABASE_SECRET_KEY || env.SUPABASE_SERVICE_ROLE_KEY));
+  const serviceKey = (process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY);
   if (!url || !anonKey || !serviceKey) return { ok: false, error: "Game ON upload services are not configured.", status: 503 };
   const authorization = request.headers.get("authorization") || "";
   const token = authorization.startsWith("Bearer ") ? authorization.slice(7).trim() : "";
