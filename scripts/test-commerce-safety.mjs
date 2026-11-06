@@ -46,10 +46,21 @@ for (const [name, file, needles] of checks) {
     count++;
   }
 }
+
+// The finalizer must authenticate ownership before returning even an idempotent
+// success response, otherwise another developer can probe a build's upload state.
+const finalizer = read('apps/creator/src/app/api/builds/finalize/route.ts');
+const ownershipCheck = finalizer.indexOf('if (!studio || studio.owner_user_id !== context.userId)');
+const alreadyFinalizedResponse = finalizer.indexOf('if (build.upload_status === "uploaded")');
+if (ownershipCheck < 0 || alreadyFinalizedResponse < 0 || ownershipCheck > alreadyFinalizedResponse) {
+  throw new Error('Build upload finalizer must verify studio ownership before its already-finalized response.');
+}
+count++;
+
 const storeEnv = read('apps/store/.env.example');
 const creatorEnv = read('apps/creator/.env.example');
 if (!storeEnv.includes('PAYSTACK_SECRET_KEY=') || !storeEnv.includes('GAMEON_PAYMENTS_ENABLED=false') || storeEnv.includes('NEXT_PUBLIC_PAYSTACK_SECRET_KEY')) throw new Error('Store Paystack secret must be server-only.');
 if (!creatorEnv.includes('PAYSTACK_SECRET_KEY=') || !creatorEnv.includes('GAMEON_PAYMENTS_ENABLED=false') || creatorEnv.includes('NEXT_PUBLIC_PAYSTACK_SECRET_KEY')) throw new Error('Creator Paystack secret must be server-only.');
 const pkg = JSON.parse(read('apps/store/package.json'));
 if (!pkg.scripts.typecheck || !pkg.scripts.build) throw new Error('Store package must define typecheck and production build scripts.');
-console.log(`Commerce safety verification passed: ${count} source controls across ${checks.length} files, plus server-only provider secret checks.`);
+console.log(`Commerce safety verification passed: ${count} source controls across ${checks.length} files, including build-finalization ownership ordering, plus server-only provider secret checks.`);
