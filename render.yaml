@@ -21,11 +21,20 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         value: sb_publishable_U5kiDPYsfyUje8HvkDABKw_4cBW8SCO
       - key: NEXT_PUBLIC_STORE_URL
-        value: https://game-on-store-staging.onrender.com
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: NEXT_PUBLIC_SITE_URL
-        value: https://game-on-store-staging.onrender.com
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: GAMEON_STORE_URL
-        value: https://game-on-store-staging.onrender.com
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: GAMEON_PAYMENTS_ENABLED
         value: "false"
       - key: GAMEON_PAYMENTS_MODE
@@ -53,7 +62,10 @@ services:
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         value: sb_publishable_U5kiDPYsfyUje8HvkDABKw_4cBW8SCO
       - key: NEXT_PUBLIC_STORE_URL
-        value: https://game-on-store-staging.onrender.com
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
       - key: GAMEON_MAX_BUILD_BYTES
         value: "52428800"
       - key: GAMEON_PAYMENTS_ENABLED
