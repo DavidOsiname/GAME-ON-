@@ -108,6 +108,12 @@ try {
 
   console.log("GAME ON MAIL auth smoke test passed: sign-up, profile sync and unverified sign-in rejection.");
 } finally {
+  if (email) {
+    await pool.query(
+      "DELETE FROM verification WHERE identifier = $1",
+      [email],
+    ).catch(() => undefined);
+  }
   if (createdUserId) {
     await pool.query('DELETE FROM "user" WHERE id = $1', [createdUserId]).catch(() => undefined);
   }
