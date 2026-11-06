@@ -7,6 +7,7 @@ on:
       - game-on-mail-phase-1
     paths:
       - "game-on-mail/web/**"
+      - "game-on-mail/database/**"
       - ".github/workflows/game-on-mail-web.yml"
   pull_request:
     paths:
@@ -54,5 +55,9 @@ jobs:
         env:
           PGPASSWORD: gameon-ci-only-password
         run: psql -h 127.0.0.1 -U gameon_mail_ci -d gameon_mail_ci -v ON_ERROR_STOP=1 -f ../database/migrations/0001_initial_schema.sql
+      - name: Validate database smoke test
+        env:
+          PGPASSWORD: gameon-ci-only-password
+        run: psql -h 127.0.0.1 -U gameon_mail_ci -d gameon_mail_ci -v ON_ERROR_STOP=1 -f ../database/tests/0001_smoke.sql
       - name: Build
         run: npm run build
