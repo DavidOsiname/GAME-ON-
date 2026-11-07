@@ -488,7 +488,7 @@ function GameFitFacts({ game }: { game: Game }) {
           <div className="game-fit-fact-row"><span>Internet requirement</span><div><b>{internet}</b>{detail.internet_requirement !== "unknown" && <small>{factSource(detail.internet_requirement_verified_at)}</small>}</div></div>
           <div className="game-fit-fact-row"><span>Download size</span><div><b>{detail.download_size_bytes ? formatDownloadSize(detail.download_size_bytes) : "Not supplied"}</b><small>{detail.download_size_bytes ? factSource(detail.download_size_verified_at) : "Unknown"}</small></div></div>
           <div className="game-fit-fact-row"><span>Minimum requirements</span><div>{requirements.length ? requirements.map(([key, value]) => <b className="game-fit-requirement" key={key}>{labels[key] || key.replaceAll("_", " ")}: {String(value)}</b>) : <b>Not supplied</b>}<small>{requirements.length ? factSource(detail.minimum_requirements_verified_at) : "Unknown"}</small></div></div>
-          <div className="game-fit-fact-row"><span>Official game page</span><div>{safeUrl ? <><a href={safeUrl} target="_blank" rel="noopener noreferrer">Open access page ↗</a><small>{factSource(detail.official_access_url_verified_at)}</small></> : <b>Not supplied</b>}</div></div>
+          <div className="game-fit-fact-row"><span>Official game page</span><div>{safeUrl && detail.official_access_url_verified_at ? <><a href={safeUrl} target="_blank" rel="noopener noreferrer">Open verified access page ↗</a><small>Game ON verified</small></> : safeUrl ? <><b>Link submitted · awaiting verification</b><small>{factSource(detail.official_access_url_verified_at)}</small></> : <b>Not supplied</b>}</div></div>
         </article>;
       })}
     </div>
