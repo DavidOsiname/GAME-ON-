@@ -455,7 +455,9 @@ function gameHasOfflineSupportForPlatform(game: Game, fitPlatform: string): bool
         return fitPlatform === "PC" ? platform === "windows" || platform === "pc" : platform === fitPlatform.toLowerCase();
       });
   if (candidates.length) return candidates.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
-  // Demo cards and legacy single-platform declarations have no detail row yet.
+  // Once a listing has platform-specific details, a missing row for the selected platform is unknown.
+  if ((game.platformDetails || []).length > 0) return false;
+  // Demo cards and legacy declarations have no platform detail rows yet.
   return game.offline && (fitPlatform === "Any device" || game.platforms.some((platform) => {
     const value = platform.toLowerCase();
     return fitPlatform === "PC" ? value === "pc" || value.includes("windows") : value === fitPlatform.toLowerCase();
