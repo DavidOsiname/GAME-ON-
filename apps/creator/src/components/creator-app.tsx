@@ -366,7 +366,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         const next: Studio = {
           id: studio?.id || `demo-studio-${Date.now()}`,
           studio_name: studioName,
-          slug,
+          slug: baseSlug,
           description: input.description.trim() || null,
           website_url: website || null,
           logo_url: input.removeLogo ? null : studio?.logo_url || null,
