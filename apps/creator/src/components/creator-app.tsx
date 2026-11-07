@@ -118,6 +118,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [studioLoading, setStudioLoading] = useState(true);
   const [studioProfileLoading, setStudioProfileLoading] = useState(true);
   const [setupError, setSetupError] = useState("");
+  const [editingStudioSetup, setEditingStudioSetup] = useState(false);
 
   useEffect(() => {
     if (!supabase) {
@@ -283,7 +284,8 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         setStudioProfile(profile);
         localStorage.setItem("goc-demo-studio", JSON.stringify(next));
         localStorage.setItem("goc-demo-studio-profile", JSON.stringify(profile));
-        setNotice("Your studio setup is complete. Demo data stays on this device.");
+        setNotice("Your company setup has been saved. Demo data stays on this device.");
+        setEditingStudioSetup(false);
         return;
       }
 
@@ -356,7 +358,8 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       setStudio(savedStudio);
       setStudioProfile(contact as StudioContactProfile);
       setStudioProfileLoading(false);
-      setNotice("Your studio setup is complete. Studio verification is still pending until Game ON reviews it.");
+      setNotice("Your company setup has been saved. Studio verification is still pending until Game ON reviews it.");
+      setEditingStudioSetup(false);
     } catch (caught) {
       if (supabase && user && !user.demo) {
         const { data: partialStudio } = await supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", user.id).maybeSingle();
@@ -560,10 +563,11 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
   if (studioLoading || studioProfileLoading) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div></header><section className="onboarding-card"><div className="onboarding-symbol">✦</div><p className="eyebrow">CREATOR WORKSPACE</p><h1>Preparing your studio.</h1><p className="auth-help">We’re loading your company profile and setup progress.</p></section></main>;
 
-  if (!studio || !studioProfile) return <StudioOnboardingWizard
+  if (!studio || !studioProfile || editingStudioSetup) return <StudioOnboardingWizard
     initialStudio={studio}
     initialProfile={studioProfile}
     userEmail={user.email}
+    isEditing={Boolean(studio && studioProfile)}
     busy={busy}
     error={setupError}
     onSave={finishStudioSetup}
@@ -604,7 +608,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
         {section === "notifications" && <CreatorInbox userId={user.id}/>}
-        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
+        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div><button className="creator-primary" type="button" onClick={() => { setSetupError(""); setEditingStudioSetup(true); }}>Edit company setup →</button></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
       </div>
     </section></main>;
 }
