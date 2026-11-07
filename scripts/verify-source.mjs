@@ -104,13 +104,17 @@ const buildManager = fs.readFileSync(path.join(root, "apps/creator/src/component
 const buildMigration = fs.readFileSync(path.join(root, "supabase/migrations/0005_quarantined_game_build_uploads.sql"), "utf8");
 for (const [name, source, needles] of [
   ["signed download route", downloadRoute, ["auth.getUser(token)", "user_library", 'game.status !== "published"', 'eq("scan_status", "clean")', 'eq("release_status", "approved")', "createSignedUrl"]],
-  ["upload URL route", buildRoute, ["getDeveloperContext", "verification_status", "createSignedUploadUrl", "game-build-quarantine", "fileSize > maxBytes", "BUCKET_MAX_BYTES"]],
+  ["upload URL route", buildRoute, ["getDeveloperContext", "GAMEON_SCANNER_ENABLED !== \"true\"", "verification_status", "createSignedUploadUrl", "game-build-quarantine", "fileSize > maxBytes", "BUCKET_MAX_BYTES"]],
   ["upload finalizer", finalizeRoute, ["storage.from(BUCKET).info", "actualSize !== Number(build.file_size_bytes)", "upload_status: \"uploaded\""]],
   ["scanner callback", scannerRoute, ["timingSafeEqual", "GAMEON_SCANNER_WEBHOOK_SECRET", "sha256_hex", "scan_worker_id", "workerId"]],
   ["admin build review", adminBuildRoute, ["GAMEON_ADMIN_USER_IDS", "build.scan_status !== \"clean\"", "release_status"]],
   ["build manager", buildManager, ["uploadToSignedUrl", "/api/builds/upload-url", "/api/builds/finalize", "private quarantine"]],
   ["build migration", buildMigration, ["public = false", "game-build-quarantine", "awaiting_upload", "sha256_hex drop not null"]],
 ]) for (const needle of needles) if (!source.includes(needle)) throw new Error(`${name} missing required control: ${needle}`);
+const creatorPage = fs.readFileSync(path.join(root, "apps/creator/src/app/page.tsx"), "utf8");
+if (!creatorPage.includes("GAMEON_SCANNER_ENABLED") || !creatorPage.includes("scannerEnabled")) throw new Error("Creator page must pass the server-side scanner readiness flag.");
+if (!buildManager.includes("scannerEnabled") || !buildManager.includes("!scannerEnabled")) throw new Error("Creator upload UI must stay disabled until scanner readiness is enabled.");
+if (!creatorEnv.includes("GAMEON_SCANNER_ENABLED=false")) throw new Error("Creator environment template must default scanner uploads to disabled.");
 const marketplaceMigration = fs.readFileSync(path.join(root, "supabase/migrations/0007_marketplace_notifications_analytics.sql"), "utf8");
 for (const needle of ["public.notifications", "notifications_read_own", "public.download_events", "notify_studio_when_game_published", "notify_players_when_build_approved", "No client policies"]) if (!marketplaceMigration.includes(needle)) throw new Error(`Marketplace migration missing expected control: ${needle}`);
 if (!downloadRoute.includes('from("download_events").insert') || !downloadRoute.includes("sha256: build.sha256_hex")) throw new Error("Download analytics or build-integrity metadata is missing.");
