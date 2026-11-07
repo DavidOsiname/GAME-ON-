@@ -136,7 +136,13 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       return;
     }
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ? { id: data.session.user.id, email: data.session.user.email } : null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ? { id: session.user.id, email: session.user.email } : null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setStudioLoading(true);
+        setStudioProfileLoading(true);
+      }
+      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
@@ -155,6 +161,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     }
     let active = true;
     setStudioLoading(true);
+    setStudioProfileLoading(true);
     supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", user.id).maybeSingle().then(({ data, error }) => {
       if (!active) return;
       if (error) setNotice(error.message);
@@ -252,7 +259,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       }
       if (input.contactName.trim().length < 2 || input.contactName.trim().length > 120) throw new Error("Enter your full name.");
       if (input.contactRole.trim().length < 2 || input.contactRole.trim().length > 60) throw new Error("Enter your role in the company.");
-      if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(input.officialEmail.trim())) throw new Error("Enter a valid official company email.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.officialEmail.trim())) throw new Error("Enter a valid official company email.");
 
       if (user.demo || !supabase) {
         const next: Studio = {
@@ -261,7 +268,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
           slug,
           description: input.description.trim() || null,
           website_url: website || null,
-          logo_url: studio?.logo_url || null,
+          logo_url: input.removeLogo ? null : studio?.logo_url || null,
           verification_status: studio?.verification_status || "pending",
           demo: true,
         };
@@ -299,10 +306,6 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         if (error || !data) throw error || new Error("Your studio could not be created.");
         savedStudio = data as Studio;
       }
-      // Keep the partial studio so the wizard can safely resume if a later setup step fails.
-      setStudio(savedStudio);
-      setStudioProfileLoading(true);
-
       if (input.logoFile) {
         const allowed: Record<string, { extension: string; type: string }> = {
           "image/jpeg": { extension: "jpg", type: "image/jpeg" },
@@ -322,7 +325,16 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         const { data: updatedStudio, error: logoError } = await supabase.from("developer_studios").update({ logo_url: logoUrl }).eq("id", savedStudio.id).eq("owner_user_id", user.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
         if (logoError || !updatedStudio) throw logoError || new Error("The company logo uploaded, but the studio profile could not be updated.");
         savedStudio = updatedStudio as Studio;
-        setStudio(savedStudio);
+      } else if (input.removeLogo && savedStudio.logo_url) {
+        const { data: updatedStudio, error: logoError } = await supabase.from("developer_studios").update({ logo_url: null }).eq("id", savedStudio.id).eq("owner_user_id", user.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+        if (logoError || !updatedStudio) throw logoError || new Error("The company logo could not be removed.");
+        savedStudio = updatedStudio as Studio;
+        await supabase.storage.from("studio-logos").remove([
+          `${user.id}/studio-logo.jpg`,
+          `${user.id}/studio-logo.jpeg`,
+          `${user.id}/studio-logo.png`,
+          `${user.id}/studio-logo.webp`,
+        ]);
       }
 
       const { error: displayNameError } = await supabase.from("profiles").update({
@@ -346,6 +358,10 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       setStudioProfileLoading(false);
       setNotice("Your studio setup is complete. Studio verification is still pending until Game ON reviews it.");
     } catch (caught) {
+      if (supabase && user && !user.demo) {
+        const { data: partialStudio } = await supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", user.id).maybeSingle();
+        if (partialStudio) setStudio(partialStudio as Studio);
+      }
       setStudioProfileLoading(false);
       setSetupError(caught instanceof Error ? caught.message : "Studio setup could not be completed. Please try again.");
     } finally {
@@ -588,7 +604,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
         {section === "notifications" && <CreatorInbox userId={user.id}/>}
-        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div><div className="settings-row"><button className="plain-link" onClick={() => { setSetupError(""); setStudioProfile(null); setStudioProfileLoading(false); }}>Edit company setup →</button></div></section></>}
+        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
       </div>
     </section></main>;
 }
