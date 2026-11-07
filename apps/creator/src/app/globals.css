@@ -95,3 +95,5 @@
   .listing-status-cell { min-width: 130px; }
 }
 @media (max-width: 520px) { .review-status-guide { grid-template-columns: 1fr; } }
+
+.game-row-actions{display:flex;flex-direction:column;align-items:flex-start;gap:7px}.draft-delete-button{border:0;background:transparent;color:#ff9eaa;padding:2px 0;font-size:8px;font-weight:700}.draft-delete-button:hover{color:#ffd0d5;text-decoration:underline}.draft-delete-button:disabled{opacity:.55;cursor:wait}
