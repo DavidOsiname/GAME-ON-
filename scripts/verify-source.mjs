@@ -405,4 +405,24 @@ const previousCoverRemovalAt = nativeCreator.indexOf(".remove([previousCoverPath
 if (replacementUploadAt < 0 || replacementUpdateAt <= replacementUploadAt || previousCoverRemovalAt <= replacementUpdateAt) {
   throw new Error("Cover replacement must upload first, update the game record second, and remove the previous object last.");
 }
+const mobileNavigationSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const mobileNavigationStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+for (const needle of [
+  'const [mobileNavOpen, setMobileNavOpen] = useState(false);',
+  'aria-controls="creator-sidebar"',
+  'aria-expanded={mobileNavOpen}',
+  'className="creator-sidebar-backdrop"',
+  'aria-current={section === item.id ? "page" : undefined}',
+  'event.key === "Escape"',
+]) {
+  if (!mobileNavigationSource.includes(needle)) {
+    throw new Error("Creator mobile navigation is missing an accessibility or dismissal control: " + needle);
+  }
+}
+if (!mobileNavigationStyles.includes(".creator-sidebar.mobile-open")
+  || !mobileNavigationStyles.includes(".creator-sidebar-backdrop")
+  || !mobileNavigationStyles.includes("@media (max-width: 700px)")) {
+  throw new Error("Creator mobile navigation drawer styles are incomplete.");
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
