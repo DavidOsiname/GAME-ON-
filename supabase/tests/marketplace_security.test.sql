@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(31);
+select plan(49);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -49,6 +49,52 @@ select ok((
     and policyname in ('game_covers_owner_insert', 'game_covers_owner_update', 'game_covers_owner_delete')
     and (coalesce(qual, '') || ' ' || coalesce(with_check, '')) like '%cover(-[a-z0-9-]{1,48})?%'
 ), 'cover upload, replacement and delete policies accept versioned filenames');
+
+
+select has_table('public', 'game_platform_details', 'per-platform GAME FIT details exist');
+select ok((select relrowsecurity from pg_class where oid = 'public.game_platform_details'::regclass), 'per-platform GAME FIT details enforce row-level security');
+select has_column('public', 'games', 'supported_languages', 'game listings can declare supported languages');
+select has_column('public', 'game_platform_details', 'official_access_url', 'platform details can store an official access URL');
+select has_column('public', 'game_platform_details', 'download_size_bytes', 'platform details can store download size');
+select has_column('public', 'game_platform_details', 'internet_requirement', 'platform details distinguish unknown, offline, online and both');
+select has_column('public', 'game_platform_details', 'minimum_requirements', 'platform details can store minimum device requirements');
+
+select ok(has_table_privilege('anon', 'public.game_platform_details', 'SELECT'), 'anonymous players can read published platform details through RLS');
+select ok(not has_table_privilege('anon', 'public.game_platform_details', 'INSERT'), 'anonymous players cannot submit platform details');
+select ok(not has_table_privilege('anon', 'public.game_platform_details', 'UPDATE'), 'anonymous players cannot alter platform details');
+select ok(not has_table_privilege('anon', 'public.game_platform_details', 'DELETE'), 'anonymous players cannot delete platform details');
+select ok(has_table_privilege('authenticated', 'public.game_platform_details', 'SELECT'), 'signed-in users can read permitted platform details');
+select ok(has_table_privilege('authenticated', 'public.game_platform_details', 'INSERT'), 'signed-in developers can submit platform details subject to ownership RLS');
+select ok(has_table_privilege('authenticated', 'public.game_platform_details', 'UPDATE'), 'signed-in developers can update permitted platform details subject to ownership RLS');
+select ok(has_table_privilege('authenticated', 'public.game_platform_details', 'DELETE'), 'signed-in developers can remove permitted platform details subject to ownership RLS');
+
+select ok((
+  select count(*) = 4
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'game_platform_details'
+    and policyname in (
+      'game_platform_details_public_or_owner_read',
+      'game_platform_details_owner_insert',
+      'game_platform_details_owner_update',
+      'game_platform_details_owner_delete'
+    )
+), 'platform details have separate read, insert, update and delete ownership policies');
+
+select ok(exists(
+  select 1 from pg_trigger
+  where tgrelid = 'public.game_platform_details'::regclass
+    and tgname = 'protect_game_platform_detail_verification'
+    and not tgisinternal
+), 'developer edits cannot bypass Game ON verification protection');
+
+select ok(
+  pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%new.official_access_url_verified_at := null%'
+  and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%GAME ON verification markers are managed%',
+  'verification markers are cleared on developer insert and protected on update'
+);
 
 select * from finish();
 rollback;
