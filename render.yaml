@@ -61,6 +61,8 @@ services:
         value: https://viwczhmthlyagqwcrgrt.supabase.co
       - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
         value: sb_publishable_U5kiDPYsfyUje8HvkDABKw_4cBW8SCO
+      - key: GAMEON_SCANNER_ENABLED
+        value: "false"
       - key: NEXT_PUBLIC_STORE_URL
         fromService:
           name: game-on-store-staging
