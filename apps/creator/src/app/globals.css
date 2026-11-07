@@ -17,3 +17,49 @@
 
 /* MVP 0.8 — creator notifications and honest aggregate analytics */
 .insight-list,.analytics-card{display:grid;gap:0}.insight-message{padding:12px 14px;border-radius:8px;background:rgba(36,215,239,.07);border:1px solid rgba(36,215,239,.18);color:#bcebf1;font-size:11px;line-height:1.6}.insight-notification{display:grid;grid-template-columns:38px minmax(0,1fr) auto;gap:13px;align-items:start;padding:17px 0;border-top:1px solid var(--line)}.insight-notification:first-of-type{border-top:0}.insight-notification.unread{background:linear-gradient(90deg,rgba(36,215,239,.06),transparent);padding-left:10px;padding-right:10px}.insight-icon{width:34px;height:34px;display:grid;place-items:center;border-radius:9px;background:rgba(36,215,239,.1);color:var(--cyan);font-weight:900}.insight-notification b{font-size:12px}.insight-notification p{font-size:11px;color:#a2b3c7;line-height:1.6;margin:5px 0}.insight-notification small{font-size:9px;color:#71859d}.analytics-card{padding:22px}.analytics-row{padding:17px 0;border-top:1px solid var(--line)}.analytics-row-head{display:flex;justify-content:space-between;align-items:center;gap:15px}.analytics-row-head>div{display:grid;gap:5px;min-width:0}.analytics-row-head b{font-size:12px}.analytics-row-head small,.analytics-last{font-size:9px;color:#8297ad}.analytics-row-head strong{font-size:20px;color:var(--cyan);font-family:'Barlow Condensed',sans-serif}.analytics-bar{height:7px;border-radius:99px;background:#1a2a3d;overflow:hidden;margin:12px 0 7px}.analytics-bar span{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#20d6e8,#45df9d)}.analytics-disclaimer{margin:18px 0 0;padding:13px 14px;border-radius:8px;background:rgba(245,186,98,.07);border:1px solid rgba(245,186,98,.18);color:#d9c18f;font-size:10px;line-height:1.7}@media(max-width:700px){.insight-notification{grid-template-columns:32px minmax(0,1fr)}.insight-notification .row-menu{grid-column:2;justify-self:start}.analytics-card{padding:14px}.analytics-row-head strong{font-size:18px}}
+
+
+/* Per-platform GAME FIT fact review in the authorised moderation queue. */
+.admin-fit-review {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid rgba(110, 140, 180, .22);
+  border-radius: 14px;
+  background: rgba(11, 23, 40, .52);
+}
+.admin-fit-review-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.admin-fit-review-head span,
+.admin-fit-review-row small {
+  color: var(--muted, #94a3b8);
+  font-size: .78rem;
+}
+.admin-fit-review-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  border-top: 1px solid rgba(110, 140, 180, .14);
+}
+.admin-fit-review-row > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
+}
+.admin-fit-review-row > div > span,
+.admin-fit-review-row a {
+  overflow-wrap: anywhere;
+  font-size: .86rem;
+}
+.admin-fit-review-row a { color: #76d7ff; }
+.admin-fit-review-row button { flex: 0 0 auto; }
+@media (max-width: 600px) {
+  .admin-fit-review-head,
+  .admin-fit-review-row { align-items: flex-start; flex-direction: column; }
+}
