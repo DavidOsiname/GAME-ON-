@@ -6,6 +6,7 @@ import BuildManager from "@/components/build-manager";
 import { CreatorAnalytics, CreatorInbox } from "@/components/creator-insights";
 import CreatorSales from "@/components/creator-sales";
 import { getListingReadiness, type ListingReadiness } from "@/lib/listing-readiness.mjs";
+import StudioOnboardingWizard, { type StudioSetupData, type StudioSetupProfile } from "@/components/studio-onboarding-wizard";
 
 type Section = "overview" | "games" | "drafts" | "submit" | "edit" | "builds" | "analytics" | "sales" | "notifications" | "settings";
 type PlatformDetail = {
@@ -20,7 +21,8 @@ type PlatformDetail = {
   minimum_requirements_verified_at?: string | null;
 };
 type GameRow = { id: string; title: string; slug: string; genre: string; status: string; reviewed_at?: string | null; rejection_reason?: string | null; created_at?: string; updated_at?: string; short_description?: string; monetization_type?: string; supported_platforms?: string[]; supported_languages?: string[]; age_rating?: string | null; game_platform_details?: PlatformDetail[]; offline_support?: boolean; contains_ads?: boolean; has_in_app_purchases?: boolean; price_minor?: number | null; currency?: string | null };
-type Studio = { id: string; studio_name: string; slug: string; description?: string; verification_status?: string; demo?: boolean };
+type Studio = { id: string; studio_name: string; slug: string; description?: string | null; website_url?: string | null; logo_url?: string | null; verification_status?: string; demo?: boolean };
+type StudioContactProfile = StudioSetupProfile;
 type CreatorUser = { id: string; email?: string; demo?: boolean };
 
 const demoRows: GameRow[] = [
@@ -100,6 +102,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [section, setSection] = useState<Section>("overview");
   const [user, setUser] = useState<CreatorUser | null>(null);
   const [studio, setStudio] = useState<Studio | null>(null);
+  const [studioProfile, setStudioProfile] = useState<StudioContactProfile | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
   const [editingGame, setEditingGame] = useState<GameRow | null>(null);
   const [submitPlatforms, setSubmitPlatforms] = useState<string[]>(["android"]);
@@ -112,36 +115,92 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [draftSearch, setDraftSearch] = useState("");
   const [draftSort, setDraftSort] = useState<"recent" | "oldest" | "title" | "most-complete" | "least-complete">("recent");
   const [formReadiness, setFormReadiness] = useState<ListingReadiness>(() => getNewListingReadiness());
-  const [studioLoading, setStudioLoading] = useState(false);
+  const [studioLoading, setStudioLoading] = useState(true);
+  const [studioProfileLoading, setStudioProfileLoading] = useState(true);
+  const [setupError, setSetupError] = useState("");
 
   useEffect(() => {
     if (!supabase) {
       try {
         const savedUser = localStorage.getItem("goc-demo-user");
         const savedStudio = localStorage.getItem("goc-demo-studio");
+        const savedStudioProfile = localStorage.getItem("goc-demo-studio-profile");
         const savedGames = localStorage.getItem("goc-demo-games");
         if (savedUser) setUser(JSON.parse(savedUser));
         if (savedStudio) setStudio(JSON.parse(savedStudio));
+        if (savedStudioProfile) setStudioProfile(JSON.parse(savedStudioProfile));
+        setStudioLoading(false);
+        setStudioProfileLoading(false);
         if (savedGames) setGames(JSON.parse(savedGames)); else setGames(demoRows);
       } catch { setGames(demoRows); }
       return;
     }
     supabase.auth.getSession().then(({ data }) => setUser(data.session?.user ? { id: data.session.user.id, email: data.session.user.email } : null));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => setUser(session?.user ? { id: session.user.id, email: session.user.email } : null));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session?.user) {
+        setStudioLoading(true);
+        setStudioProfileLoading(true);
+      }
+      setUser(session?.user ? { id: session.user.id, email: session.user.email } : null);
+    });
     return () => subscription.unsubscribe();
   }, []);
 
   useEffect(() => {
-    if (!user) { setStudio(null); return; }
-    if (user.demo || !supabase) return;
-    let active = true; setStudioLoading(true);
-    supabase.from("developer_studios").select("id,studio_name,slug,description,verification_status").eq("owner_user_id", user.id).maybeSingle().then(({ data, error }) => {
+    if (!user) {
+      setStudio(null);
+      setStudioProfile(null);
+      setStudioLoading(false);
+      setStudioProfileLoading(false);
+      return;
+    }
+    if (user.demo || !supabase) {
+      setStudioLoading(false);
+      setStudioProfileLoading(false);
+      return;
+    }
+    let active = true;
+    setStudioLoading(true);
+    setStudioProfileLoading(true);
+    supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", user.id).maybeSingle().then(({ data, error }) => {
       if (!active) return;
       if (error) setNotice(error.message);
-      setStudio(data as Studio | null); setStudioLoading(false);
+      setStudio(data as Studio | null);
+      setStudioLoading(false);
     });
     return () => { active = false; };
   }, [user]);
+
+  useEffect(() => {
+    if (!studio) {
+      setStudioProfile(null);
+      setStudioProfileLoading(false);
+      return;
+    }
+    if (studio.demo || !supabase || !user) {
+      try {
+        const saved = localStorage.getItem("goc-demo-studio-profile");
+        setStudioProfile(saved ? JSON.parse(saved) as StudioContactProfile : null);
+      } catch {
+        setStudioProfile(null);
+      }
+      setStudioProfileLoading(false);
+      return;
+    }
+    let active = true;
+    setStudioProfileLoading(true);
+    supabase.from("developer_studio_contacts").select("studio_id,owner_user_id,contact_name,contact_role,official_email").eq("studio_id", studio.id).maybeSingle().then(({ data, error }) => {
+      if (!active) return;
+      if (error) {
+        setSetupError("Studio contact details could not be loaded: " + error.message);
+        setStudioProfile(null);
+      } else {
+        setStudioProfile(data as StudioContactProfile | null);
+      }
+      setStudioProfileLoading(false);
+    });
+    return () => { active = false; };
+  }, [studio, user]);
 
   useEffect(() => {
     if (!studio) return;
@@ -184,16 +243,130 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     }
   }
 
-  async function createStudio(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!user) return; setBusy(true); setNotice("");
-    const form = new FormData(event.currentTarget); const name = String(form.get("studioName") || "").trim(); const description = String(form.get("description") || "").trim(); const website = String(form.get("website") || "").trim();
-    const slug = makeSlug(name);
-    if (user.demo || !supabase) {
-      const next: Studio = { id: `demo-studio-${Date.now()}`, studio_name: name, slug, description, verification_status: "pending", demo: true };
-      setStudio(next); localStorage.setItem("goc-demo-studio", JSON.stringify(next)); setBusy(false); setNotice("Demo studio created on this device."); return;
+  async function finishStudioSetup(input: StudioSetupData) {
+    if (!user) return;
+    setBusy(true);
+    setSetupError("");
+    setNotice("");
+    try {
+      const studioName = input.studioName.trim();
+      const slug = makeSlug(studioName);
+      if (studioName.length < 2 || studioName.length > 80 || !slug) throw new Error("Enter a valid company name between 2 and 80 characters.");
+      const website = input.websiteUrl.trim();
+      if (website) {
+        const parsed = new URL(website);
+        if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) throw new Error("Use a public HTTPS company website.");
+      }
+      if (input.contactName.trim().length < 2 || input.contactName.trim().length > 120) throw new Error("Enter your full name.");
+      if (input.contactRole.trim().length < 2 || input.contactRole.trim().length > 60) throw new Error("Enter your role in the company.");
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.officialEmail.trim())) throw new Error("Enter a valid official company email.");
+
+      if (user.demo || !supabase) {
+        const next: Studio = {
+          id: studio?.id || `demo-studio-${Date.now()}`,
+          studio_name: studioName,
+          slug,
+          description: input.description.trim() || null,
+          website_url: website || null,
+          logo_url: input.removeLogo ? null : studio?.logo_url || null,
+          verification_status: studio?.verification_status || "pending",
+          demo: true,
+        };
+        const profile: StudioContactProfile = {
+          studio_id: next.id,
+          owner_user_id: user.id,
+          contact_name: input.contactName.trim(),
+          contact_role: input.contactRole.trim(),
+          official_email: input.officialEmail.trim().toLowerCase(),
+        };
+        setStudio(next);
+        setStudioProfile(profile);
+        localStorage.setItem("goc-demo-studio", JSON.stringify(next));
+        localStorage.setItem("goc-demo-studio-profile", JSON.stringify(profile));
+        setNotice("Your studio setup is complete. Demo data stays on this device.");
+        return;
+      }
+
+      const studioValues = {
+        studio_name: studioName,
+        slug,
+        description: input.description.trim() || null,
+        website_url: website || null,
+      };
+      let savedStudio: Studio;
+      if (studio && !studio.demo) {
+        const { data, error } = await supabase.from("developer_studios").update(studioValues).eq("id", studio.id).eq("owner_user_id", user.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+        if (error || !data) throw error || new Error("Your studio profile could not be updated.");
+        savedStudio = data as Studio;
+      } else {
+        const { data, error } = await supabase.from("developer_studios").insert({
+          owner_user_id: user.id,
+          ...studioValues,
+        }).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+        if (error || !data) throw error || new Error("Your studio could not be created.");
+        savedStudio = data as Studio;
+      }
+      if (input.logoFile) {
+        const allowed: Record<string, { extension: string; type: string }> = {
+          "image/jpeg": { extension: "jpg", type: "image/jpeg" },
+          "image/png": { extension: "png", type: "image/png" },
+          "image/webp": { extension: "webp", type: "image/webp" },
+        };
+        const image = allowed[input.logoFile.type];
+        if (!image || input.logoFile.size < 1 || input.logoFile.size > 3 * 1024 * 1024) throw new Error("Choose a JPG, PNG or WebP company logo smaller than 3 MB.");
+        const path = `${user.id}/studio-logo.${image.extension}`;
+        const { error: uploadError } = await supabase.storage.from("studio-logos").upload(path, input.logoFile, {
+          contentType: image.type,
+          cacheControl: "3600",
+          upsert: true,
+        });
+        if (uploadError) throw new Error("Company logo upload failed: " + uploadError.message);
+        const logoUrl = supabase.storage.from("studio-logos").getPublicUrl(path).data.publicUrl;
+        const { data: updatedStudio, error: logoError } = await supabase.from("developer_studios").update({ logo_url: logoUrl }).eq("id", savedStudio.id).eq("owner_user_id", user.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+        if (logoError || !updatedStudio) throw logoError || new Error("The company logo uploaded, but the studio profile could not be updated.");
+        savedStudio = updatedStudio as Studio;
+      } else if (input.removeLogo && savedStudio.logo_url) {
+        const { data: updatedStudio, error: logoError } = await supabase.from("developer_studios").update({ logo_url: null }).eq("id", savedStudio.id).eq("owner_user_id", user.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+        if (logoError || !updatedStudio) throw logoError || new Error("The company logo could not be removed.");
+        savedStudio = updatedStudio as Studio;
+        await supabase.storage.from("studio-logos").remove([
+          `${user.id}/studio-logo.jpg`,
+          `${user.id}/studio-logo.jpeg`,
+          `${user.id}/studio-logo.png`,
+          `${user.id}/studio-logo.webp`,
+        ]);
+      }
+
+      const { error: displayNameError } = await supabase.from("profiles").update({
+        display_name: input.contactName.trim(),
+        updated_at: new Date().toISOString(),
+      }).eq("id", user.id);
+      if (displayNameError) throw new Error("Your name could not be saved: " + displayNameError.message);
+
+      const { data: contact, error: contactError } = await supabase.from("developer_studio_contacts").upsert({
+        studio_id: savedStudio.id,
+        owner_user_id: user.id,
+        contact_name: input.contactName.trim(),
+        contact_role: input.contactRole.trim(),
+        official_email: input.officialEmail.trim().toLowerCase(),
+        updated_at: new Date().toISOString(),
+      }, { onConflict: "studio_id" }).select("studio_id,owner_user_id,contact_name,contact_role,official_email").single();
+      if (contactError || !contact) throw new Error("Your private company contact details could not be saved: " + (contactError?.message || "Please retry."));
+
+      setStudio(savedStudio);
+      setStudioProfile(contact as StudioContactProfile);
+      setStudioProfileLoading(false);
+      setNotice("Your studio setup is complete. Studio verification is still pending until Game ON reviews it.");
+    } catch (caught) {
+      if (supabase && user && !user.demo) {
+        const { data: partialStudio } = await supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", user.id).maybeSingle();
+        if (partialStudio) setStudio(partialStudio as Studio);
+      }
+      setStudioProfileLoading(false);
+      setSetupError(caught instanceof Error ? caught.message : "Studio setup could not be completed. Please try again.");
+    } finally {
+      setBusy(false);
     }
-    const { data, error } = await supabase.from("developer_studios").insert({ owner_user_id: user.id, studio_name: name, slug, description, website_url: website || null }).select("id,studio_name,slug,description,verification_status").single();
-    setBusy(false); if (error) setNotice(error.message); else { setStudio(data as Studio); setNotice("Studio created. Verification status: pending."); }
   }
 
   async function saveNewGameDraft(formElement: HTMLFormElement) {
@@ -385,11 +558,19 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
   if (!user) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">DEVELOPER ACCESS</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Access your publishing workspace and manage your game listings.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><a className="forgot-password-link" href="/forgot-password">Forgot your password?</a><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
 
-  if (!studio && !studioLoading) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><button className="quiet-button" onClick={signOut}>Sign out</button></header><section className="onboarding-card"><div className="onboarding-symbol">✦</div><p className="eyebrow">ONE QUICK STEP</p><h1>Set up your studio.</h1><p className="auth-help">Your studio is the home for the games you publish on Game ON. You can update these details later.</p><form onSubmit={createStudio}><label>Studio name<input name="studioName" placeholder="e.g. Blue Lantern Games" required maxLength={80}/></label><label>Short description<textarea name="description" placeholder="Tell players and the Game ON team about your studio." rows={3}/></label><label>Website (optional)<input name="website" type="url" placeholder="https://yourstudio.com"/></label><button className="creator-primary" disabled={busy}>{busy ? "Creating studio…" : "Create my studio"}</button></form>{notice && <p className="notice-message">{notice}</p>}<small>New studios begin with pending verification. Publishing access may be limited until verification is complete.</small></section></main>;
+  if (studioLoading || studioProfileLoading) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div></header><section className="onboarding-card"><div className="onboarding-symbol">✦</div><p className="eyebrow">CREATOR WORKSPACE</p><h1>Preparing your studio.</h1><p className="auth-help">We’re loading your company profile and setup progress.</p></section></main>;
 
-  if (!studio) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><button className="quiet-button" onClick={signOut}>Sign out</button></header><section className="onboarding-card"><p className="eyebrow">WORKSPACE</p><h1>Loading your studio…</h1><p className="auth-help">We’re checking your Game ON Creator studio details.</p></section></main>;
+  if (!studio || !studioProfile) return <StudioOnboardingWizard
+    initialStudio={studio}
+    initialProfile={studioProfile}
+    userEmail={user.email}
+    busy={busy}
+    error={setupError}
+    onSave={finishStudioSetup}
+    onSignOut={signOut}
+  />;
 
-  return <main className="creator-app"><aside className="creator-sidebar"><div className="sidebar-brand"><img src="/game-on-logo.jpg" alt="Game ON"/><div><b>GAME ON</b><span>CREATOR</span></div></div><div className="studio-switch"><span className="studio-avatar">{studio.studio_name.slice(0, 1).toUpperCase()}</span><div><b>{studio.studio_name}</b><small>{studio.verification_status === "verified" ? "Verified studio" : "Verification pending"}</small></div><span className="switch-chevron">⌄</span></div><p className="side-label">WORKSPACE</p><nav className="side-nav">{nav.map((item) => <button key={item.id} className={section === item.id ? "selected" : ""} onClick={() => setSection(item.id)}><span className="nav-icon">{item.icon}</span>{item.label}{item.id === "drafts" && draft > 0 && <span className="nav-count">{draft}</span>}{item.id === "submit" && <span className="nav-new">NEW</span>}</button>)}</nav><div className="sidebar-bottom"><div className="help-card"><b>Need a hand?</b><p>Get help with your game submission or studio account.</p><button onClick={() => setNotice("Support centre will be available in a future release.")}>Visit support ↗</button></div><div className="sidebar-user"><span className="user-avatar">{(user.email || "D").slice(0, 1).toUpperCase()}</span><div><b>{user.email?.split("@")[0] || "Developer"}</b><small>{user.email || "Demo account"}</small></div><button onClick={signOut} aria-label="Sign out">↗</button></div></div></aside>
+  return <main className="creator-app"><aside className="creator-sidebar"><div className="sidebar-brand"><img src={studio.logo_url || "/game-on-logo.jpg"} alt={studio.studio_name + " logo"}/><div><b>GAME ON</b><span>CREATOR</span></div></div><div className="studio-switch"><span className="studio-avatar">{studio.studio_name.slice(0, 1).toUpperCase()}</span><div><b>{studio.studio_name}</b><small>{studio.verification_status === "verified" ? "Verified studio" : "Verification pending"}</small></div><span className="switch-chevron">⌄</span></div><p className="side-label">WORKSPACE</p><nav className="side-nav">{nav.map((item) => <button key={item.id} className={section === item.id ? "selected" : ""} onClick={() => setSection(item.id)}><span className="nav-icon">{item.icon}</span>{item.label}{item.id === "drafts" && draft > 0 && <span className="nav-count">{draft}</span>}{item.id === "submit" && <span className="nav-new">NEW</span>}</button>)}</nav><div className="sidebar-bottom"><div className="help-card"><b>Need a hand?</b><p>Get help with your game submission or studio account.</p><button onClick={() => setNotice("Support centre will be available in a future release.")}>Visit support ↗</button></div><div className="sidebar-user"><span className="user-avatar">{(user.email || "D").slice(0, 1).toUpperCase()}</span><div><b>{studioProfile.contact_name || user.email?.split("@")[0] || "Developer"}</b><small>{user.email || "Demo account"}</small></div><button onClick={signOut} aria-label="Sign out">↗</button></div></div></aside>
     <section className="creator-main"><header className="creator-topbar"><div><span className="breadcrumb">CREATOR PORTAL</span><span className="crumb-divider">/</span><b>{nav.find((n) => n.id === section)?.label.toUpperCase()}</b></div><div className="topbar-right"><span className="secure-label"><i/> {isSupabaseConfigured ? "CONNECTED ENVIRONMENT" : "DEMO ENVIRONMENT"}</span><a className="admin-shortcut" href="/admin">Admin review ↗</a><button className="top-avatar" onClick={signOut}>{(user.email || "D").slice(0, 1).toUpperCase()}</button></div></header>
       <div className="creator-page">
         {notice && <button className="notice-banner" onClick={() => setNotice("")}>{notice}<span>×</span></button>}
@@ -423,7 +604,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
         {section === "notifications" && <CreatorInbox userId={user.id}/>}
-        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
+        {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
       </div>
     </section></main>;
 }

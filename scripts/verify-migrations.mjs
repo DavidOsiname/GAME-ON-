@@ -5,10 +5,10 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const migrationsDir = path.join(root, 'supabase', 'migrations');
 const files = fs.readdirSync(migrationsDir).filter((name) => /^\d{4}_[a-z0-9_]+\.sql$/.test(name)).sort();
-const expected = Array.from({ length: 14 }, (_, i) => String(i + 1).padStart(4, '0'));
+const expected = Array.from({ length: 15 }, (_, i) => String(i + 1).padStart(4, '0'));
 const actual = files.map((name) => name.slice(0, 4));
 if (JSON.stringify(actual) !== JSON.stringify(expected)) {
-  throw new Error(`Migration sequence must be contiguous 0001–0014. Found: ${actual.join(', ')}`);
+  throw new Error(`Migration sequence must be contiguous 0001–0015. Found: ${actual.join(', ')}`);
 }
 const entitlementMigration = fs.readFileSync(path.join(migrationsDir, '0010_protect_paid_entitlements_and_private_ledgers.sql'), 'utf8');
 for (const marker of ['library_insert_free_or_demo_only', 'library_delete_free_or_demo_only', 'revoke all on public.game_builds', 'revoke all on public.download_events']) {
@@ -41,10 +41,28 @@ for (const marker of [
 ]) {
   if (!draftMigration.toLowerCase().includes(marker.toLowerCase())) throw new Error("Creator draft migration is missing: " + marker);
 }
+const onboardingMigration = fs.readFileSync(path.join(migrationsDir, '0015_creator_studio_onboarding.sql'), 'utf8');
+for (const marker of [
+  'developer_studio_contacts',
+  'enable row level security',
+  'developer_studio_contacts_owner_read',
+  'developer_studio_contacts_owner_insert',
+  'developer_studio_contacts_owner_update',
+  'studio-logos',
+  'studio_logos_owner_read',
+  'studio_logos_owner_insert',
+  'studio_logos_owner_update',
+  'studio_logos_owner_delete',
+  '3145728',
+  'image/webp',
+  'logo_url',
+]) {
+  if (!onboardingMigration.toLowerCase().includes(marker.toLowerCase())) throw new Error("Creator studio onboarding migration is missing: " + marker);
+}
 const testFile = path.join(root, 'supabase', 'tests', 'marketplace_security.test.sql');
 if (!fs.existsSync(testFile)) throw new Error('Supabase pgTAP marketplace security tests are missing.');
 const testSql = fs.readFileSync(testFile, 'utf8');
-for (const marker of ['plan(56)', 'create_game_draft', 'submit_game_draft', 'game_platform_details', 'official_access_url', 'download_size_bytes', 'internet_requirement', 'protect_game_platform_detail_verification', 'complete_marketplace_order', 'marketplace_orders', 'refund_requests', 'game-build-quarantine', 'game-covers', 'game_covers_owner_insert', 'notifications_read_own']) {
+for (const marker of ['plan(69)', 'developer_studio_contacts', 'studio-logos', 'studio_logos_owner_insert', 'create_game_draft', 'submit_game_draft', 'game_platform_details', 'official_access_url', 'download_size_bytes', 'internet_requirement', 'protect_game_platform_detail_verification', 'complete_marketplace_order', 'marketplace_orders', 'refund_requests', 'game-build-quarantine', 'game-covers', 'game_covers_owner_insert', 'notifications_read_own']) {
   if (!testSql.includes(marker)) throw new Error(`Database security test file is missing expected assertion: ${marker}`);
 }
 const config = fs.readFileSync(path.join(root, 'supabase', 'config.toml'), 'utf8');

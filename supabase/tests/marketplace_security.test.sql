@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(56);
+select plan(69);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -126,6 +126,35 @@ select ok(
   ),
   'drafts may omit the short description until the owner submits the listing'
 );
+
+
+select has_table('public', 'developer_studio_contacts', 'private Creator studio contact profiles exist');
+select ok((select relrowsecurity from pg_class where oid = 'public.developer_studio_contacts'::regclass), 'private studio contact profiles enforce row-level security');
+select has_column('public', 'developer_studios', 'logo_url', 'studio brand logos have a public URL field');
+select has_column('public', 'developer_studio_contacts', 'contact_role', 'private studio contacts store the owner role');
+
+select ok(not has_table_privilege('anon', 'public.developer_studio_contacts', 'SELECT'), 'Store visitors cannot read private studio contact details');
+select ok(not has_table_privilege('anon', 'public.developer_studio_contacts', 'INSERT'), 'anonymous users cannot create private studio contact details');
+select ok(has_table_privilege('authenticated', 'public.developer_studio_contacts', 'SELECT'), 'authenticated owners can read private studio contact rows through RLS');
+select ok(has_table_privilege('authenticated', 'public.developer_studio_contacts', 'INSERT'), 'authenticated owners can save private studio contact rows through RLS');
+select ok(has_table_privilege('authenticated', 'public.developer_studio_contacts', 'UPDATE'), 'authenticated owners can update private studio contact rows through RLS');
+
+select ok(exists(select 1 from storage.buckets where id = 'studio-logos' and public = true and file_size_limit = 3145728), 'studio logos use a public bucket with a 3 MiB upload limit');
+select ok((select allowed_mime_types @> array['image/jpeg', 'image/png', 'image/webp']::text[] from storage.buckets where id = 'studio-logos'), 'studio logo bucket accepts only JPG, PNG and WebP images');
+select ok((
+  select count(*) = 4
+  from pg_policies
+  where schemaname = 'storage'
+    and tablename = 'objects'
+    and policyname in ('studio_logos_owner_read', 'studio_logos_owner_insert', 'studio_logos_owner_update', 'studio_logos_owner_delete')
+), 'studio logo read, upload, replacement and delete policies are all present');
+select ok((
+  select count(*) = 3
+  from pg_policies
+  where schemaname = 'public'
+    and tablename = 'developer_studio_contacts'
+    and policyname in ('developer_studio_contacts_owner_read', 'developer_studio_contacts_owner_insert', 'developer_studio_contacts_owner_update')
+), 'private studio contact rows have owner-scoped read, insert and update policies');
 
 select * from finish();
 rollback;
