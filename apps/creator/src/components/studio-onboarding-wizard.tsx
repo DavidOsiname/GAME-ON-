@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { PENDING_STUDIO_SETUP_TTL_HOURS } from "@/lib/pending-studio-setup";
 
 export type StudioSetupStudio = {
   id: string;
@@ -43,7 +44,7 @@ type Props = {
   isEditing?: boolean;
   busy?: boolean;
   error?: string;
-  onSave: (data: StudioSetupData) => void | Promise<void>;
+  onSave: (data: StudioSetupData) => void | Promise<unknown>;
   onSignOut: () => void;
 };
 
@@ -324,7 +325,7 @@ export default function StudioOnboardingWizard({
           </form>
         </div>
       </section>
-      <p className="setup-privacy-note">{preAuth ? "Your unfinished company setup is saved in this browser for up to 72 hours. Use a trusted device, especially when entering contact details." : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
+      <p className="setup-privacy-note">{preAuth ? "Your unfinished company setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details." : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
 }
