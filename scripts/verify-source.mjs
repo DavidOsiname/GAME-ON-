@@ -197,6 +197,8 @@ const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/compo
 for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {
   if (!creatorFitSource.includes(marker)) throw new Error(`Creator GAME FIT submission is missing: ${marker}`);
 }
+const catalogFitSource = fs.readFileSync(path.join(root, "apps/store/src/lib/catalog.ts"), "utf8");
+if (!catalogFitSource.includes("supportedPlatforms.some")) throw new Error("Store GAME FIT facts must be limited to declared supported platforms.");
 const storeFitSource = fs.readFileSync(path.join(root, "apps/store/src/components/store-app.tsx"), "utf8");
 for (const marker of ["game_platform_details(", "gameHasOfflineSupportForPlatform", "GAME FIT DETAILS", "Developer-provided", "Game ON verified", "Not supplied"]) {
   if (!storeFitSource.includes(marker)) throw new Error(`Store GAME FIT display is missing: ${marker}`);
