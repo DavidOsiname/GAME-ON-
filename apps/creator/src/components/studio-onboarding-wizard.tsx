@@ -38,7 +38,8 @@ type Props = {
   initialData?: StudioSetupData | null;
   initialStep?: number;
   preAuth?: boolean;
-  onDraftChange?: (data: StudioSetupData, step: number) => void | Promise<void>;
+  onDraftChange?: (data: StudioSetupData, step: number) => void | boolean | Promise<void | boolean>;
+  draftSaveStatus?: "idle" | "saving" | "saved" | "error";
   onContinueToAccount?: (data: StudioSetupData) => void | Promise<void>;
   userEmail?: string;
   isEditing?: boolean;
@@ -95,6 +96,7 @@ export default function StudioOnboardingWizard({
   initialStep = 0,
   preAuth = false,
   onDraftChange,
+  draftSaveStatus = "idle",
   onContinueToAccount,
   userEmail,
   isEditing = false,
@@ -248,6 +250,9 @@ export default function StudioOnboardingWizard({
           <div className="setup-wizard-step-meta">STEP {String(step + 1).padStart(2, "0")} OF {String(totalSteps).padStart(2, "0")}</div>
           <h1>{current.title}</h1>
           <p className="setup-wizard-copy">{current.copy}</p>
+          {preAuth && <p className="setup-draft-status" aria-live="polite">
+            {draftSaveStatus === "saving" ? "Saving your progress…" : draftSaveStatus === "saved" ? "Your progress is saved in this browser." : draftSaveStatus === "error" ? "Autosave needs attention. Keep this tab open and retry." : "Your progress will save as you go."}
+          </p>}
 
           <form onSubmit={submit}>
             {step === 0 && <div className="setup-field-block">
