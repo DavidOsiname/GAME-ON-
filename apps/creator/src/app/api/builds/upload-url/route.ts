@@ -15,6 +15,7 @@ const EXTENSIONS: Record<string, string[]> = {
 export async function POST(request: NextRequest) {
   const context = await getDeveloperContext(request);
   if (!context.ok) return apiJsonError(context.error, context.status);
+  if (process.env.GAMEON_SCANNER_ENABLED !== "true") return apiJsonError("Secure game-build scanning is not enabled. Uploads will open after the private scanner is deployed and tested.", 503);
 
   let body: unknown;
   try { body = await request.json(); } catch { return apiJsonError("Request body must be valid JSON.", 400); }
