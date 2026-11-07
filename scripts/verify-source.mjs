@@ -220,6 +220,15 @@ for (const marker of [
 ]) {
   if (!creatorStatusSource.includes(marker)) throw new Error("Creator Save as Draft / Resume Later is missing: " + marker);
 }
+for (const marker of [
+  "async function deleteGameDraft(",
+  '.from("games")',
+  '.eq("status", "draft")',
+  "onDeleteDraft={deleteGameDraft}",
+  "game.updated_at && <small>Last saved",
+]) {
+  if (!creatorStatusSource.includes(marker)) throw new Error("Creator draft management is missing: " + marker);
+}
 const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
 for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {
   if (!creatorFitSource.includes(marker)) throw new Error(`Creator GAME FIT submission is missing: ${marker}`);
