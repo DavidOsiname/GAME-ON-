@@ -38,8 +38,9 @@ export function mapGame(row: Record<string, unknown>): Game {
   const studio = Array.isArray(studioValue) ? studioValue[0]?.studio_name : studioValue?.studio_name;
   const monetization = String(row.monetization_type ?? "free");
   const monetizationLabel: Record<string, string> = { free: "Free", paid: "Paid", free_with_ads: "Free with ads", free_with_iap: "Free with optional purchases", demo: "Free demo" };
+  const supportedPlatforms = Array.isArray(row.supported_platforms) ? row.supported_platforms.map(String) : ["Android"];
   const rawDetails = Array.isArray(row.game_platform_details) ? row.game_platform_details : [];
-  const platformDetails: GamePlatformDetail[] = rawDetails.filter(isRecord).map((detail) => ({
+  const platformDetails: GamePlatformDetail[] = rawDetails.filter(isRecord).filter((detail) => supportedPlatforms.some((value) => value.toLowerCase() === String(detail.platform ?? "").toLowerCase())).map((detail) => ({
     platform: String(detail.platform ?? ""),
     official_access_url: typeof detail.official_access_url === "string" ? detail.official_access_url : null,
     official_access_url_verified_at: typeof detail.official_access_url_verified_at === "string" ? detail.official_access_url_verified_at : null,
@@ -60,7 +61,7 @@ export function mapGame(row: Record<string, unknown>): Game {
   return {
     id: String(row.id), title: String(row.title), slug: String(row.slug), genre: String(row.genre),
     description: String(row.short_description ?? row.description ?? "Game description coming soon."),
-    studio: studio ?? "Game ON developer", platforms: Array.isArray(row.supported_platforms) ? row.supported_platforms.map(String) : ["Android"],
+    studio: studio ?? "Game ON developer", platforms: supportedPlatforms,
     monetization: monetizationLabel[monetization] ?? monetization, offline, internetRequirement, platformDetails,
     supportedLanguages: Array.isArray(row.supported_languages) ? row.supported_languages.map(String) : [],
     ageRating: typeof row.age_rating === "string" ? row.age_rating : null,
