@@ -165,7 +165,7 @@ export default function StudioOnboardingWizard({
   function validateCurrentStep() {
     if (step === 0) {
       if (studioName.trim().length < 2 || studioName.trim().length > 80) return "Company name must be between 2 and 80 characters.";
-      if (!/[a-z0-9]/i.test(studioName)) return "Add at least one letter or number to your company name.";
+      if (!/[\p{L}\p{N}]/u.test(studioName)) return "Add at least one letter or number to your company name.";
     }
     if (step === 1 && logoFile) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(logoFile.type)) return "Choose a JPG, PNG or WebP image.";
@@ -325,7 +325,7 @@ export default function StudioOnboardingWizard({
           </form>
         </div>
       </section>
-      <p className="setup-privacy-note">{preAuth ? "Your unfinished company setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details." : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
+      <p className="setup-privacy-note">{preAuth ? `Your unfinished company setup is saved in this browser for up to ${PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details.` : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
 }
