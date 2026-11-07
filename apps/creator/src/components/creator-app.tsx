@@ -140,6 +140,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [pendingSetupStep, setPendingSetupStep] = useState(0);
   const [pendingSetupStage, setPendingSetupStage] = useState<PendingStudioSetupStage>("company");
   const [pendingSetupLoaded, setPendingSetupLoaded] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [showAccountCreation, setShowAccountCreation] = useState(false);
   const setupRecoveryInProgress = useRef(false);
 
@@ -150,9 +151,13 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       setPendingSetupData(draft.data as StudioSetupData);
       setPendingSetupStep(draft.step);
       setPendingSetupStage(draft.stage);
+      setDraftSaveStatus("saved");
       setShowAccountCreation(draft.stage === "account");
     }).catch((caught) => {
-      if (active) setSetupError(caught instanceof Error ? caught.message : "Your saved company setup could not be restored.");
+      if (active) {
+        setDraftSaveStatus("error");
+        setSetupError(caught instanceof Error ? caught.message : "Your saved company setup could not be restored.");
+      }
     }).finally(() => {
       if (active) setPendingSetupLoaded(true);
     });
@@ -264,31 +269,39 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     }
   }, [section, editingGame]);
 
-  const persistCompanySetupDraft = useCallback(async (data: StudioSetupData, step: number) => {
+  const persistCompanySetupDraft = useCallback(async (data: StudioSetupData, step: number): Promise<boolean> => {
+    setDraftSaveStatus("saving");
     try {
       await savePendingStudioSetupDraft(data, step, "company");
       setPendingSetupData(data);
       setPendingSetupStep(step);
       setPendingSetupStage("company");
+      setDraftSaveStatus("saved");
       setSetupError("");
+      return true;
     } catch (caught) {
+      setDraftSaveStatus("error");
       setSetupError(caught instanceof Error
         ? caught.message + " Keep this tab open while you finish setup."
         : "Your changes could not be saved in this browser. Keep this tab open while you finish setup.");
+      return false;
     }
   }, []);
 
   const continueToAccountCreation = useCallback(async (data: StudioSetupData) => {
     setBusy(true);
+    setDraftSaveStatus("saving");
     setSetupError("");
     try {
       await savePendingStudioSetupDraft(data, 5, "account");
       setPendingSetupData(data);
       setPendingSetupStep(5);
       setPendingSetupStage("account");
+      setDraftSaveStatus("saved");
       setShowAccountCreation(true);
       setAuthMessage("");
     } catch (caught) {
+      setDraftSaveStatus("error");
       setSetupError(caught instanceof Error
         ? caught.message
         : "Your company setup could not be saved. Please try again before creating your account.");
@@ -750,6 +763,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     preAuth
     initialData={pendingSetupData}
     initialStep={pendingSetupStep}
+    draftSaveStatus={draftSaveStatus}
     busy={busy}
     error={setupError}
     onDraftChange={persistCompanySetupDraft}
