@@ -15,7 +15,7 @@ create table if not exists public.developer_studio_contacts (
   official_email text not null check (
     char_length(official_email) between 5 and 254
     and official_email = lower(official_email)
-    and official_email ~ '^[^[:space:]@]+@[^[:space:]@]+\\.[^[:space:]@]+$'
+    and official_email ~ '^[^[:space:]@]+@[^[:space:]@]+\.[^[:space:]@]+$'
   ),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -97,7 +97,7 @@ on storage.objects
 for select to authenticated
 using (
   bucket_id = 'studio-logos'
-  and name ~ '^[0-9a-f-]{36}/studio-logo\\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/studio-logo\.(jpg|jpeg|png|webp)$'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
@@ -106,7 +106,7 @@ on storage.objects
 for insert to authenticated
 with check (
   bucket_id = 'studio-logos'
-  and name ~ '^[0-9a-f-]{36}/studio-logo\\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/studio-logo\.(jpg|jpeg|png|webp)$'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
@@ -115,12 +115,12 @@ on storage.objects
 for update to authenticated
 using (
   bucket_id = 'studio-logos'
-  and name ~ '^[0-9a-f-]{36}/studio-logo\\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/studio-logo\.(jpg|jpeg|png|webp)$'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 )
 with check (
   bucket_id = 'studio-logos'
-  and name ~ '^[0-9a-f-]{36}/studio-logo\\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/studio-logo\.(jpg|jpeg|png|webp)$'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
 
@@ -129,6 +129,6 @@ on storage.objects
 for delete to authenticated
 using (
   bucket_id = 'studio-logos'
-  and name ~ '^[0-9a-f-]{36}/studio-logo\\.(jpg|jpeg|png|webp)$'
+  and name ~ '^[0-9a-f-]{36}/studio-logo\.(jpg|jpeg|png|webp)$'
   and (storage.foldername(name))[1] = (select auth.uid()::text)
 );
