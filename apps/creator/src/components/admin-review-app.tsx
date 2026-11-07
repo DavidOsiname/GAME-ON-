@@ -11,6 +11,26 @@ type ModerationReport = { id: string; game_id: string; category: string; details
 
 type ModerationReview = { id: string; user_id: string; game_id: string; rating: number; review_text?: string | null; created_at: string; game: { title: string; slug: string } | null; player: { username?: string | null; display_name?: string | null } | null };
 
+function isPublicHttpsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && Boolean(parsed.hostname) && !parsed.username && !parsed.password;
+  } catch { return false; }
+}
+
+type ModerationFactField = "official_access_url" | "download_size_bytes" | "internet_requirement" | "minimum_requirements";
+type ModerationPlatformDetail = {
+  platform: string;
+  official_access_url?: string | null;
+  official_access_url_verified_at?: string | null;
+  download_size_bytes?: number | null;
+  download_size_verified_at?: string | null;
+  internet_requirement?: "unknown" | "offline" | "online" | "both";
+  internet_requirement_verified_at?: string | null;
+  minimum_requirements?: Record<string, unknown>;
+  minimum_requirements_verified_at?: string | null;
+};
+
 type ModerationGame = {
   id: string;
   title: string;
@@ -19,6 +39,9 @@ type ModerationGame = {
   short_description: string;
   description?: string | null;
   supported_platforms: string[];
+  supported_languages?: string[];
+  age_rating?: string | null;
+  game_platform_details?: ModerationPlatformDetail[];
   monetization_type: string;
   offline_support: boolean;
   contains_ads: boolean;
@@ -88,6 +111,27 @@ export default function AdminReviewApp() {
     setBusyId(null);
   }
 
+  async function actGameFit(gameId: string, platform: string, field: ModerationFactField, action: "verify" | "unverify") {
+    if (!supabase) return;
+    const { data } = await supabase.auth.getSession();
+    const token = data.session?.access_token;
+    if (!token) { setError("Your session expired. Sign in again."); return; }
+    const busyKey = `${gameId}:${platform}:${field}`;
+    setBusyId(busyKey); setError("");
+    const response = await fetch("/api/admin/moderation", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ entityType: "game_fit", entityId: gameId, platform, field, action }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok && response.status !== 207) setError(payload.error || "GAME FIT verification could not be saved.");
+    else {
+      setMessage(payload.warning || `${field.replaceAll("_", " ")} for ${platform.toUpperCase()} ${action === "verify" ? "verified" : "verification removed"}.`);
+      await loadQueue();
+    }
+    setBusyId(null);
+  }
+
   async function actBuild(buildId: string, action: "approve" | "reject" | "retry_scan", reason: string) {
     if (!supabase) return;
     if (action === "reject" && reason.trim().length < 10) { setError("Please provide a clear build rejection reason (at least 10 characters)."); return; }
@@ -152,6 +196,32 @@ export default function AdminReviewApp() {
         <p className="admin-game-description">{game.short_description}</p>
         {game.description && <details><summary>Full game description</summary><p>{game.description}</p></details>}
         <div className="admin-disclosures"><span>{game.monetization_type.replaceAll("_", " ")}</span><span>{game.offline_support ? "Offline play" : "Online required"}</span><span>{game.contains_ads ? "Contains ads" : "No ads declared"}</span><span>{game.has_in_app_purchases ? "Has in-app purchases" : "No IAP declared"}</span><span>Studio: {game.studio?.verification_status || "unknown"}</span></div>
+        {(game.game_platform_details || []).map((detail) => {
+          const facts: Array<{ field: ModerationFactField; label: string; value: string; verifiedAt: string | null; available: boolean }> = [
+            { field: "official_access_url", label: "Official game page", value: detail.official_access_url || "Not supplied", verifiedAt: detail.official_access_url_verified_at || null, available: Boolean(detail.official_access_url) },
+            { field: "download_size_bytes", label: "Download size", value: detail.download_size_bytes ? `${(detail.download_size_bytes / (1024 * 1024)).toFixed(1)} MB` : "Not supplied", verifiedAt: detail.download_size_verified_at || null, available: Boolean(detail.download_size_bytes && detail.download_size_bytes > 0) },
+            { field: "internet_requirement", label: "Internet requirement", value: detail.internet_requirement === "offline" ? "Offline" : detail.internet_requirement === "online" ? "Internet required" : detail.internet_requirement === "both" ? "Online and offline" : "Unknown", verifiedAt: detail.internet_requirement_verified_at || null, available: ["offline", "online", "both"].includes(detail.internet_requirement || "unknown") },
+            { field: "minimum_requirements", label: "Minimum device requirements", value: Object.entries(detail.minimum_requirements || {}).filter(([, value]) => ["string", "number"].includes(typeof value) && String(value).trim()).map(([key, value]) => `${key.replaceAll("_", " ")}: ${String(value)}`).join(" · ") || "Not supplied", verifiedAt: detail.minimum_requirements_verified_at || null, available: Object.keys(detail.minimum_requirements || {}).length > 0 },
+          ];
+          return <section className="admin-fit-review" key={detail.platform}>
+            <div className="admin-fit-review-head"><b>GAME FIT · {detail.platform.toUpperCase()}</b><span>Developer-submitted facts</span></div>
+            {facts.map((fact) => {
+              const busyKey = `${game.id}:${detail.platform}:${fact.field}`;
+              return <div className="admin-fit-review-row" key={fact.field}>
+                <div>
+                  <b>{fact.label}</b>
+                  {fact.field === "official_access_url" && detail.official_access_url && isPublicHttpsUrl(detail.official_access_url)
+                    ? <a href={detail.official_access_url} target="_blank" rel="noopener noreferrer" className="admin-link">{detail.official_access_url} ↗</a>
+                    : <span>{fact.value}</span>}
+                  <small>{fact.verifiedAt ? `Game ON verified · ${new Date(fact.verifiedAt).toLocaleDateString()}` : "Not yet Game ON verified"}</small>
+                </div>
+                <button className={fact.verifiedAt ? "admin-secondary" : "admin-approve"} disabled={!fact.available || busyId === busyKey} onClick={() => void actGameFit(game.id, detail.platform, fact.field, fact.verifiedAt ? "unverify" : "verify")}>
+                  {busyId === busyKey ? "Saving…" : fact.verifiedAt ? "Revoke verification" : "Verify fact"}
+                </button>
+              </div>;
+            })}
+          </section>;
+        })}
         {game.rejection_reason && <div className="admin-previous-reason"><b>Previous rejection</b><p>{game.rejection_reason}</p></div>}
         <label className="admin-reason-label">Rejection reason (required to reject)<textarea rows={2} value={reasons[game.id] || ""} onChange={(event) => setReasons((old) => ({ ...old, [game.id]: event.target.value }))} placeholder="Explain what needs to be corrected…" maxLength={1000}/></label>
         <div className="admin-actions"><button className="admin-secondary" onClick={() => void act("game", game.id, "start_review")} disabled={busyId === game.id || game.status === "in_review"}>{busyId === game.id ? "Saving…" : "Mark in review"}</button><button className="admin-reject" onClick={() => void act("game", game.id, "reject")} disabled={busyId === game.id}>Reject listing</button><button className="admin-approve" onClick={() => void act("game", game.id, "approve")} disabled={busyId === game.id}>Approve & publish →</button></div>

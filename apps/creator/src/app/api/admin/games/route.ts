@@ -43,7 +43,7 @@ export async function GET(request: NextRequest) {
 
   const { data: games, error } = await context.admin
     .from("games")
-    .select("id,title,slug,genre,short_description,description,supported_platforms,monetization_type,offline_support,contains_ads,has_in_app_purchases,status,rejection_reason,created_at,updated_at,studio_id,reviewed_at,moderation_note")
+    .select("id,title,slug,genre,short_description,description,supported_platforms,supported_languages,age_rating,monetization_type,offline_support,contains_ads,has_in_app_purchases,status,rejection_reason,created_at,updated_at,studio_id,reviewed_at,moderation_note,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)")
     .in("status", ["submitted", "in_review"])
     .order("created_at", { ascending: true })
     .limit(100);
@@ -120,12 +120,75 @@ export async function PATCH(request: NextRequest) {
   let body: unknown;
   try { body = await request.json(); } catch { return jsonError("Request body must be valid JSON.", 400); }
   if (!body || typeof body !== "object") return jsonError("Invalid request body.", 400);
-  const { entityType = "game", entityId, gameId, action, reason } = body as { entityType?: unknown; entityId?: unknown; gameId?: unknown; action?: unknown; reason?: unknown };
+  const { entityType = "game", entityId, gameId, action, reason, platform, field } = body as { entityType?: unknown; entityId?: unknown; gameId?: unknown; action?: unknown; reason?: unknown; platform?: unknown; field?: unknown };
   const recordId = typeof entityId === "string" ? entityId : gameId;
   if (typeof recordId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(recordId)) {
     return jsonError("A valid record ID is required.", 400);
   }
   const cleanReason = typeof reason === "string" ? reason.trim() : "";
+
+  if (entityType === "game_fit") {
+    if (action !== "verify" && action !== "unverify") return jsonError("Choose verify or unverify for a GAME FIT fact.", 400);
+    if (typeof platform !== "string" || !["android", "windows", "web"].includes(platform)) return jsonError("Choose a valid game platform.", 400);
+    const fieldConfig: Record<string, { column: string; marker: string }> = {
+      official_access_url: { column: "official_access_url", marker: "official_access_url_verified_at" },
+      download_size_bytes: { column: "download_size_bytes", marker: "download_size_verified_at" },
+      internet_requirement: { column: "internet_requirement", marker: "internet_requirement_verified_at" },
+      minimum_requirements: { column: "minimum_requirements", marker: "minimum_requirements_verified_at" },
+    };
+    if (typeof field !== "string" || !Object.prototype.hasOwnProperty.call(fieldConfig, field)) {
+      return jsonError("Choose a supported GAME FIT fact to verify.", 400);
+    }
+    const config = fieldConfig[field];
+    const { data: game, error: gameLookupError } = await context.admin.from("games")
+      .select("id,title,status").eq("id", recordId).maybeSingle();
+    if (gameLookupError) return jsonError("Unable to verify this game listing.", 500);
+    if (!game) return jsonError("Game listing not found.", 404);
+
+    const { data: detail, error: detailLookupError } = await context.admin.from("game_platform_details")
+      .select("platform,official_access_url,download_size_bytes,internet_requirement,minimum_requirements")
+      .eq("game_id", recordId).eq("platform", platform).maybeSingle();
+    if (detailLookupError) return jsonError("Unable to load this platform's GAME FIT details.", 500);
+    if (!detail) return jsonError("No GAME FIT details exist for this game and platform.", 404);
+
+    if (action === "verify") {
+      const value = (detail as Record<string, unknown>)[config.column];
+      if (field === "official_access_url") {
+        if (typeof value !== "string") return jsonError("There is no official game page to verify.", 409);
+        try {
+          const parsed = new URL(value);
+          if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) return jsonError("Only a public HTTPS game page without embedded credentials can be verified.", 409);
+        } catch {
+          return jsonError("The submitted game page is not a valid HTTPS URL.", 409);
+        }
+      } else if (field === "download_size_bytes") {
+        if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 1) return jsonError("There is no valid download size to verify.", 409);
+      } else if (field === "internet_requirement") {
+        if (!["offline", "online", "both"].includes(String(value))) return jsonError("An unknown internet requirement cannot be verified.", 409);
+      } else if (field === "minimum_requirements") {
+        if (!value || typeof value !== "object" || Array.isArray(value) || Object.keys(value as Record<string, unknown>).length === 0) return jsonError("There are no minimum device requirements to verify.", 409);
+      }
+    }
+
+    const now = new Date().toISOString();
+    const patch = { [config.marker]: action === "verify" ? now : null, updated_at: now };
+    const { data: updatedDetail, error: detailUpdateError } = await context.admin.from("game_platform_details")
+      .update(patch).eq("game_id", recordId).eq("platform", platform)
+      .select("game_id,platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at")
+      .maybeSingle();
+    if (detailUpdateError) return jsonError("GAME FIT verification could not be saved.", 500);
+    if (!updatedDetail) return jsonError("This platform's GAME FIT information changed. Refresh the moderation queue.", 409);
+
+    const { error: fitAuditError } = await context.admin.from("audit_events").insert({
+      actor_user_id: context.user.id,
+      event_type: `game_fit_${action}`,
+      entity_type: "game_platform_detail",
+      entity_id: recordId,
+      event_data: { platform, field, action },
+    });
+    if (fitAuditError) return NextResponse.json({ detail: updatedDetail, warning: "Verification was updated, but its audit event could not be recorded. Contact the platform operator." }, { status: 207, headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ detail: updatedDetail }, { headers: { "Cache-Control": "no-store" } });
+  }
 
   if (entityType === "report") {
     if (action !== "start_review" && action !== "resolve" && action !== "dismiss") return jsonError("Choose start_review, resolve or dismiss for a report.", 400);

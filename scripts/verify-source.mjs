@@ -43,6 +43,7 @@ const required = [
   "supabase/migrations/0007_marketplace_notifications_analytics.sql",
   "supabase/migrations/0008_player_creator_experience.sql",
   "supabase/migrations/0009_marketplace_commerce.sql",
+  "supabase/migrations/0012_game_fit_platform_details.sql",
   "apps/store/src/lib/payment-server.ts",
   "apps/store/src/lib/payment-config.mjs",
   "apps/store/src/lib/refund-event.mjs",
@@ -95,6 +96,13 @@ if (!storeCode.includes('from("game_reports").insert') || !route.includes('from(
 for (const app of ["store", "creator"]) { const recovery = fs.readFileSync(path.join(root, `apps/${app}/src/components/password-recovery.tsx`), "utf8"); if (!recovery.includes("resetPasswordForEmail") || !recovery.includes("updateUser({ password })")) throw new Error(`${app} password recovery flow is incomplete.`); }
 const adminUi = fs.readFileSync(path.join(root, "apps/creator/src/components/admin-review-app.tsx"), "utf8");
 if (!adminUi.includes("Player safety reports") || !adminUi.includes('act("report"')) throw new Error("Admin report triage UI is missing.");
+const gameFitAdminRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/admin/games/route.ts"), "utf8");
+for (const marker of ['entityType === "game_fit"', "official_access_url_verified_at", "download_size_verified_at", "internet_requirement_verified_at", "minimum_requirements_verified_at", "audit_events"]) {
+  if (!gameFitAdminRoute.includes(marker)) throw new Error(`Admin GAME FIT verification route is missing: ${marker}`);
+}
+for (const marker of ["ModerationPlatformDetail", "actGameFit", "Verify fact", "Revoke verification", "game_platform_details"]) {
+  if (!adminUi.includes(marker)) throw new Error(`Admin GAME FIT review UI is missing: ${marker}`);
+}
 const downloadRoute = fs.readFileSync(path.join(root, "apps/store/src/app/api/downloads/[gameId]/route.ts"), "utf8");
 const buildRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/builds/upload-url/route.ts"), "utf8");
 const finalizeRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/builds/finalize/route.ts"), "utf8");
@@ -183,6 +191,17 @@ for (const app of ["store", "creator"]) {
   for (const needle of ["checkReadiness", 'status: result.ready ? "ready" : "not_ready"', 'status: result.ready ? 200 : 503', 'Cache-Control']) if (!ready.includes(needle)) throw new Error(`${app} readiness route missing ${needle}.`);
   for (const needle of ["NEXT_PUBLIC_SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_ANON_KEY", "SUPABASE_SECRET_KEY", 'method: "HEAD"', "AbortSignal.timeout", "checks.database = response.ok"]) if (!readiness.includes(needle)) throw new Error(`${app} readiness probe missing ${needle}.`);
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
+}
+
+const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {
+  if (!creatorFitSource.includes(marker)) throw new Error(`Creator GAME FIT submission is missing: ${marker}`);
+}
+const catalogFitSource = fs.readFileSync(path.join(root, "apps/store/src/lib/catalog.ts"), "utf8");
+if (!catalogFitSource.includes("supportedPlatforms.some")) throw new Error("Store GAME FIT facts must be limited to declared supported platforms.");
+const storeFitSource = fs.readFileSync(path.join(root, "apps/store/src/components/store-app.tsx"), "utf8");
+for (const marker of ["game_platform_details(", "gameHasOfflineSupportForPlatform", "GAME FIT DETAILS", "Developer-provided", "Game ON verified", "Not supplied"]) {
+  if (!storeFitSource.includes(marker)) throw new Error(`Store GAME FIT display is missing: ${marker}`);
 }
 
 const androidReleaseWorkflow = fs.readFileSync(path.join(root, ".github/workflows/android-release.yml"), "utf8");
