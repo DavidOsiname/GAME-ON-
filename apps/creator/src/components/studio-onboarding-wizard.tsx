@@ -34,6 +34,9 @@ export type StudioSetupData = {
 type Props = {
   initialStudio?: StudioSetupStudio | null;
   initialProfile?: StudioSetupProfile | null;
+  initialData?: StudioSetupData | null;
+  preAuth?: boolean;
+  onContinueToAccount?: (data: StudioSetupData) => void;
   userEmail?: string;
   isEditing?: boolean;
   busy?: boolean;
@@ -48,7 +51,7 @@ const STEPS = [
   { eyebrow: "YOUR PROFILE", title: "Who are you in the company?", copy: "Tell us who is setting up this studio and what their role is." },
   { eyebrow: "COMPANY CONTACT", title: "What is your official company email?", copy: "This is the business contact address for your studio. It can be different from your sign-in email." },
   { eyebrow: "ABOUT THE STUDIO", title: "Tell developers and players about your studio.", copy: "Add a website and a short introduction. These details help people understand who is behind your games." },
-  { eyebrow: "FINAL REVIEW", title: "Your studio is almost ready.", copy: "Check the information below before creating your Creator workspace." },
+  { eyebrow: "FINAL REVIEW", title: "Your studio is almost ready.", copy: "Check the information below. You will create your account next, then we will save your Creator workspace." },
 ] as const;
 
 const ROLES = [
@@ -85,6 +88,9 @@ function validateWebsite(value: string) {
 export default function StudioOnboardingWizard({
   initialStudio,
   initialProfile,
+  initialData,
+  preAuth = false,
+  onContinueToAccount,
   userEmail,
   isEditing = false,
   busy = false,
@@ -93,16 +99,16 @@ export default function StudioOnboardingWizard({
   onSignOut,
 }: Props) {
   const [step, setStep] = useState(0);
-  const [studioName, setStudioName] = useState(initialStudio?.studio_name || "");
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [logoRemoved, setLogoRemoved] = useState(false);
-  const [logoPreview, setLogoPreview] = useState(initialStudio?.logo_url || "");
-  const [contactName, setContactName] = useState(initialProfile?.contact_name || "");
-  const [contactRole, setContactRole] = useState(initialProfile?.contact_role || "");
+  const [studioName, setStudioName] = useState(initialData?.studioName || initialStudio?.studio_name || "");
+  const [logoFile, setLogoFile] = useState<File | null>(initialData?.logoFile || null);
+  const [logoRemoved, setLogoRemoved] = useState(initialData?.removeLogo || false);
+  const [logoPreview, setLogoPreview] = useState(initialData?.logoFile ? URL.createObjectURL(initialData.logoFile) : initialStudio?.logo_url || "");
+  const [contactName, setContactName] = useState(initialData?.contactName || initialProfile?.contact_name || "");
+  const [contactRole, setContactRole] = useState(initialData?.contactRole || initialProfile?.contact_role || "");
   const [otherRole, setOtherRole] = useState("");
-  const [officialEmail, setOfficialEmail] = useState(initialProfile?.official_email || "");
-  const [websiteUrl, setWebsiteUrl] = useState(initialStudio?.website_url || "");
-  const [description, setDescription] = useState(initialStudio?.description || "");
+  const [officialEmail, setOfficialEmail] = useState(initialData?.officialEmail || initialProfile?.official_email || "");
+  const [websiteUrl, setWebsiteUrl] = useState(initialData?.websiteUrl || initialStudio?.website_url || "");
+  const [description, setDescription] = useState(initialData?.description || initialStudio?.description || "");
   const [localError, setLocalError] = useState("");
 
   useEffect(() => {
@@ -176,7 +182,7 @@ export default function StudioOnboardingWizard({
       return;
     }
     setLocalError("");
-    await onSave({
+    const data: StudioSetupData = {
       studioName: studioName.trim(),
       logoFile,
       removeLogo: logoRemoved,
@@ -185,7 +191,9 @@ export default function StudioOnboardingWizard({
       officialEmail: officialEmail.trim().toLowerCase(),
       websiteUrl: websiteUrl.trim(),
       description: description.trim(),
-    });
+    };
+    if (preAuth && onContinueToAccount) onContinueToAccount(data);
+    else await onSave(data);
   }
 
   const current = STEPS[step];
@@ -194,7 +202,7 @@ export default function StudioOnboardingWizard({
     <main className="studio-onboarding studio-setup-screen">
       <header className="onboarding-top">
         <div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div>
-        <button className="quiet-button" type="button" onClick={onSignOut}>Sign out</button>
+        {preAuth ? <span className="onboarding-entry-label">COMPANY FIRST · ACCOUNT SECOND</span> : <button className="quiet-button" type="button" onClick={onSignOut}>Sign out</button>}
       </header>
       <section className="setup-wizard-shell">
         <div className="setup-wizard-side">
@@ -288,7 +296,7 @@ export default function StudioOnboardingWizard({
               {step > 0 ? <button className="creator-outline" type="button" onClick={previousStep} disabled={busy}>Back</button> : <span/>}
               {step < totalSteps - 1
                 ? <button className="creator-primary" type="button" onClick={nextStep} disabled={busy}>Continue →</button>
-                : <button className="creator-primary" type="submit" disabled={busy}>{busy ? (isEditing ? "Saving company changes…" : "Creating your studio…") : (isEditing ? "Save company changes →" : "Create my studio →")}</button>}
+                : <button className="creator-primary" type="submit" disabled={busy}>{busy ? (isEditing ? "Saving company changes…" : "Please wait…") : (preAuth ? "Continue to create account →" : isEditing ? "Save company changes →" : "Create my studio →")}</button>}
             </div>
           </form>
         </div>
