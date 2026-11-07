@@ -35,6 +35,7 @@ type Props = {
   initialStudio?: StudioSetupStudio | null;
   initialProfile?: StudioSetupProfile | null;
   userEmail?: string;
+  isEditing?: boolean;
   busy?: boolean;
   error?: string;
   onSave: (data: StudioSetupData) => void | Promise<void>;
@@ -85,6 +86,7 @@ export default function StudioOnboardingWizard({
   initialStudio,
   initialProfile,
   userEmail,
+  isEditing = false,
   busy = false,
   error = "",
   onSave,
@@ -286,7 +288,7 @@ export default function StudioOnboardingWizard({
               {step > 0 ? <button className="creator-outline" type="button" onClick={previousStep} disabled={busy}>Back</button> : <span/>}
               {step < totalSteps - 1
                 ? <button className="creator-primary" type="button" onClick={nextStep} disabled={busy}>Continue →</button>
-                : <button className="creator-primary" type="submit" disabled={busy}>{busy ? "Creating your studio…" : "Create my studio →"}</button>}
+                : <button className="creator-primary" type="submit" disabled={busy}>{busy ? (isEditing ? "Saving company changes…" : "Creating your studio…") : (isEditing ? "Save company changes →" : "Create my studio →")}</button>}
             </div>
           </form>
         </div>
