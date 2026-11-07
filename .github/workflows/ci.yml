@@ -1,9 +1,9 @@
 name: GAME ON validation
 on:
   pull_request:
-    branches: [main]
+    branches: [main, "import/**"]
   push:
-    branches: [main]
+    branches: [main, "import/**", "feature/**"]
   workflow_dispatch:
 permissions:
   contents: read
