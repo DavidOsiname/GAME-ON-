@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(50);
+select plan(56);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -106,6 +106,25 @@ select ok(
   and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
     like '%new.minimum_requirements_verified_at := null%',
   'changing developer-provided GAME FIT facts invalidates the corresponding Game ON verification timestamp'
+);
+
+select ok(has_function_privilege('authenticated', 'public.create_game_draft(uuid,text,text)', 'EXECUTE'), 'signed-in studio owners can create drafts through the ownership-checked function');
+select ok(not has_function_privilege('anon', 'public.create_game_draft(uuid,text,text)', 'EXECUTE'), 'anonymous users cannot create game drafts');
+select ok(has_function_privilege('authenticated', 'public.submit_game_draft(uuid)', 'EXECUTE'), 'signed-in developers can submit their own completed drafts through the protected function');
+select ok(not has_function_privilege('anon', 'public.submit_game_draft(uuid)', 'EXECUTE'), 'anonymous users cannot submit drafts');
+select ok(
+  pg_get_functiondef('public.protect_review_states()'::regprocedure) like '%gameon.draft_creation_allowed%'
+  and pg_get_functiondef('public.protect_review_states()'::regprocedure) like '%gameon.draft_submission_allowed%',
+  'the review-state trigger allows draft transitions only through the protected workflow flags'
+);
+select ok(
+  exists (
+    select 1 from pg_constraint
+    where conrelid = 'public.games'::regclass
+      and conname = 'games_short_description_check'
+      and pg_get_constraintdef(oid) like '%status = ''draft''%'
+  ),
+  'drafts may omit the short description until the owner submits the listing'
 );
 
 select * from finish();
