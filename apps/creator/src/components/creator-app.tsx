@@ -18,7 +18,7 @@ type PlatformDetail = {
   minimum_requirements?: Record<string, unknown>;
   minimum_requirements_verified_at?: string | null;
 };
-type GameRow = { id: string; title: string; slug: string; genre: string; status: string; reviewed_at?: string | null; rejection_reason?: string | null; created_at?: string; short_description?: string; monetization_type?: string; supported_platforms?: string[]; supported_languages?: string[]; age_rating?: string | null; game_platform_details?: PlatformDetail[]; offline_support?: boolean; contains_ads?: boolean; has_in_app_purchases?: boolean; price_minor?: number | null; currency?: string | null };
+type GameRow = { id: string; title: string; slug: string; genre: string; status: string; reviewed_at?: string | null; rejection_reason?: string | null; created_at?: string; updated_at?: string; short_description?: string; monetization_type?: string; supported_platforms?: string[]; supported_languages?: string[]; age_rating?: string | null; game_platform_details?: PlatformDetail[]; offline_support?: boolean; contains_ads?: boolean; has_in_app_purchases?: boolean; price_minor?: number | null; currency?: string | null };
 type Studio = { id: string; studio_name: string; slug: string; description?: string; verification_status?: string; demo?: boolean };
 type CreatorUser = { id: string; email?: string; demo?: boolean };
 
@@ -107,6 +107,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [authMessage, setAuthMessage] = useState("");
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
+  const [deletingDraftId, setDeletingDraftId] = useState<string | null>(null);
   const [studioLoading, setStudioLoading] = useState(false);
 
   useEffect(() => {
@@ -142,7 +143,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!studio) return;
     if (studio.demo || !supabase) { if (!games.length) setGames(demoRows); return; }
     let active = true;
-    supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("studio_id", studio.id).order("created_at", { ascending: false }).then(({ data, error }) => {
+    supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,updated_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("studio_id", studio.id).order("created_at", { ascending: false }).then(({ data, error }) => {
       if (!active) return;
       if (error) setNotice(error.message); else setGames((data || []) as GameRow[]);
     });
@@ -203,7 +204,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const slug = (makeSlug(title) || "game") + "-" + Math.random().toString(36).slice(2, 6);
     const fallbackId = "draft-" + Date.now();
     if (studio.demo || !supabase) {
-      const row: GameRow = { id: fallbackId, title, slug, genre, status: "draft", short_description: description, monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap };
+      const row: GameRow = { id: fallbackId, title, slug, genre, status: "draft", short_description: description, updated_at: new Date().toISOString(), monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap };
       setGames((old) => [row, ...old]); setSection("games"); setBusy(false); setNotice("Draft saved on this device. Open My games and choose Continue editing whenever you are ready."); return;
     }
     const { data: draftId, error: createError } = await supabase.rpc("create_game_draft", { p_studio_id: studio.id, p_title: title, p_slug: slug });
@@ -215,9 +216,9 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       const result = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: draftId })), { onConflict: "game_id,platform" });
       detailsError = result.error;
     }
-    const { data: saved } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("id", draftId).eq("studio_id", studio.id).maybeSingle();
+    const { data: saved } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,updated_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("id", draftId).eq("studio_id", studio.id).maybeSingle();
     if (saved) setGames((old) => [saved as GameRow, ...old.filter((game) => game.id !== draftId)]);
-    else setGames((old) => [{ id: String(draftId), title, slug, genre, status: "draft", short_description: description, monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap }, ...old]);
+    else setGames((old) => [{ id: String(draftId), title, slug, genre, status: "draft", short_description: description, updated_at: new Date().toISOString(), monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap }, ...old]);
     setBusy(false); setSection("games");
     setNotice(updateError ? "Your draft record was created, but some listing details did not save: " + updateError.message : detailsError ? "Draft saved, but some GAME FIT details did not save: " + detailsError.message : "Draft saved privately. Continue editing it from My games whenever you are ready.");
   }
@@ -274,7 +275,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const priceMinor = monetization === "paid" && validPrice ? Math.round(priceNaira * 100) : null;
     if (studio.demo || !supabase) {
       const nextStatus = editingGame.status === "rejected" || (editingGame.status === "draft" && !saveDraftOnly) ? "submitted" : editingGame.status;
-      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, genre, status: nextStatus, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, monetization_type: monetization, price_minor: priceMinor, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap } : game));
+      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, genre, status: nextStatus, short_description: description, updated_at: new Date().toISOString(), supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, monetization_type: monetization, price_minor: priceMinor, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap } : game));
       setNotice(saveDraftOnly ? "Draft saved on this device." : nextStatus === "submitted" ? "Draft or rejected listing sent back for review in this local demo." : "Demo listing updated on this device."); setEditingGame(null); setSection("games"); setBusy(false); return;
     }
     const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: priceMinor === null ? null : "NGN", offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
@@ -295,10 +296,47 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       const submission = await supabase.rpc("submit_game_draft", { p_game_id: editingGame.id });
       if (submission.error) { setBusy(false); setNotice("Your changes were saved as a draft, but submission was blocked: " + submission.error.message); return; }
     }
-    const { data, error: refreshError } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("studio_id", studio.id).order("created_at", { ascending: false });
+    const { data, error: refreshError } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,updated_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("studio_id", studio.id).order("created_at", { ascending: false });
     if (!refreshError && data) setGames(data as GameRow[]);
     setBusy(false); setEditingGame(null); setSection("games");
     setNotice(saveDraftOnly ? "Draft saved privately. Continue editing it from My games whenever you are ready." : editingGame.status === "rejected" ? "Changes saved and listing resubmitted for review." : editingGame.status === "draft" ? "Draft submitted for Game ON review." : "Game listing updated.");
+  }
+
+  async function deleteGameDraft(game: GameRow) {
+    if (!studio || game.status !== "draft" || deletingDraftId) return;
+    const confirmed = window.confirm(`Permanently delete the draft "${game.title}"? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setDeletingDraftId(game.id);
+    setNotice("");
+    try {
+      if (studio.demo || !supabase) {
+        setGames((old) => old.filter((item) => item.id !== game.id));
+        setNotice(`Draft "${game.title}" deleted from this device.`);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("games")
+        .delete()
+        .eq("id", game.id)
+        .eq("studio_id", studio.id)
+        .eq("status", "draft")
+        .select("id")
+        .maybeSingle();
+
+      if (error || !data) {
+        setNotice(error?.message || "This listing is no longer a draft, or it could not be deleted.");
+        return;
+      }
+
+      setGames((old) => old.filter((item) => item.id !== game.id));
+      setNotice(`Draft "${game.title}" deleted.`);
+    } catch (caught) {
+      setNotice(caught instanceof Error ? caught.message : "The draft could not be deleted. Check your connection and try again.");
+    } finally {
+      setDeletingDraftId(null);
+    }
   }
 
   function beginEdit(game: GameRow) {
@@ -327,7 +365,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     <section className="creator-main"><header className="creator-topbar"><div><span className="breadcrumb">CREATOR PORTAL</span><span className="crumb-divider">/</span><b>{nav.find((n) => n.id === section)?.label.toUpperCase()}</b></div><div className="topbar-right"><span className="secure-label"><i/> {isSupabaseConfigured ? "CONNECTED ENVIRONMENT" : "DEMO ENVIRONMENT"}</span><a className="admin-shortcut" href="/admin">Admin review ↗</a><button className="top-avatar" onClick={signOut}>{(user.email || "D").slice(0, 1).toUpperCase()}</button></div></header>
       <div className="creator-page">
         {notice && <button className="notice-banner" onClick={() => setNotice("")}>{notice}<span>×</span></button>}
-        {section === "overview" && <><div className="page-intro"><div><p className="eyebrow">YOUR STUDIO AT A GLANCE</p><h1>Good to see you.</h1><p>Here is what's happening with {studio.studio_name}.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ Submit a game</button></div><div className="stat-grid"><div className="stat-card"><span className="stat-icon cyan">▣</span><small>TOTAL LISTINGS</small><b>{games.length}</b><em>Across your studio</em></div><div className="stat-card"><span className="stat-icon green">↗</span><small>PUBLISHED GAMES</small><b>{published}</b><em>Visible in the store</em></div><div className="stat-card"><span className="stat-icon amber">◷</span><small>IN REVIEW</small><b>{inReview}</b><em>Waiting for review</em></div><div className="stat-card"><span className="stat-icon violet">✎</span><small>DRAFTS</small><b>{draft}</b><em>Not yet submitted</em></div></div><div className="dashboard-grid"><section className="surface-card recent-card"><div className="surface-heading"><div><h2>Recent games</h2><p>Your latest listings and their status.</p></div><button className="plain-link" onClick={() => setSection("games")}>View all →</button></div><GameTable games={games.slice(0, 4)} onEdit={beginEdit}/></section><section className="surface-card getting-started"><p className="eyebrow">CREATOR CHECKLIST</p><h2>Build your presence.</h2><p>Complete these steps to prepare your studio for publishing.</p><div className="check-step done"><span>✓</span><div><b>Create your studio</b><small>Studio workspace created</small></div></div><div className="check-step"><span>2</span><div><b>Submit your first game</b><small>Add your store listing details</small></div></div><div className="check-step"><span>3</span><div><b>Complete studio verification</b><small>Confirm your studio identity</small></div></div><div className="check-step"><span>4</span><div><b>Prepare a secure game build</b><small>Upload through the private quarantine workflow</small></div></div><button className="creator-outline" onClick={() => setSection("builds")}>Manage game builds →</button></section></div></>}
+        {section === "overview" && <><div className="page-intro"><div><p className="eyebrow">YOUR STUDIO AT A GLANCE</p><h1>Good to see you.</h1><p>Here is what's happening with {studio.studio_name}.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ Submit a game</button></div><div className="stat-grid"><div className="stat-card"><span className="stat-icon cyan">▣</span><small>TOTAL LISTINGS</small><b>{games.length}</b><em>Across your studio</em></div><div className="stat-card"><span className="stat-icon green">↗</span><small>PUBLISHED GAMES</small><b>{published}</b><em>Visible in the store</em></div><div className="stat-card"><span className="stat-icon amber">◷</span><small>IN REVIEW</small><b>{inReview}</b><em>Waiting for review</em></div><div className="stat-card"><span className="stat-icon violet">✎</span><small>DRAFTS</small><b>{draft}</b><em>Not yet submitted</em></div></div><div className="dashboard-grid"><section className="surface-card recent-card"><div className="surface-heading"><div><h2>Recent games</h2><p>Your latest listings and their status.</p></div><button className="plain-link" onClick={() => setSection("games")}>View all →</button></div><GameTable games={games.slice(0, 4)} onEdit={beginEdit} onDeleteDraft={deleteGameDraft} deletingDraftId={deletingDraftId}/></section><section className="surface-card getting-started"><p className="eyebrow">CREATOR CHECKLIST</p><h2>Build your presence.</h2><p>Complete these steps to prepare your studio for publishing.</p><div className="check-step done"><span>✓</span><div><b>Create your studio</b><small>Studio workspace created</small></div></div><div className="check-step"><span>2</span><div><b>Submit your first game</b><small>Add your store listing details</small></div></div><div className="check-step"><span>3</span><div><b>Complete studio verification</b><small>Confirm your studio identity</small></div></div><div className="check-step"><span>4</span><div><b>Prepare a secure game build</b><small>Upload through the private quarantine workflow</small></div></div><button className="creator-outline" onClick={() => setSection("builds")}>Manage game builds →</button></section></div></>}
         {section === "games" && <><div className="page-intro"><div><p className="eyebrow">YOUR CATALOGUE</p><h1>My games</h1><p>Manage your studio's game listings and review status.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ Submit a game</button></div><section className="surface-card full-card"><div className="surface-heading"><div><h2>All listings</h2><p>{games.length} game listings in your studio</p></div></div>
           <div className="review-status-guide" aria-label="Game listing status guide">
             <div><b>Submitted</b><span>Waiting for the Game ON review queue.</span></div>
@@ -335,7 +373,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
             <div><b>Rejected</b><span>Read the reason, make changes and resubmit.</span></div>
             <div><b>Published</b><span>Approved and visible in the separate GAME ON Store.</span></div>
           </div>
-          <GameTable games={games} onEdit={beginEdit}/></section></>}
+          <GameTable games={games} onEdit={beginEdit} onDeleteDraft={deleteGameDraft} deletingDraftId={deletingDraftId}/></section></>}
         {section === "submit" && <><div className="page-intro"><div><p className="eyebrow">PUBLISH ON GAME ON</p><h1>Submit a game.</h1><p>Create the store listing. Game builds and downloads are handled separately after security review is ready.</p></div></div><form className="surface-card submit-form" onSubmit={submitGame}><div className="form-section-heading"><b>GAME INFORMATION</b><span>STEP 1 OF 2</span></div><div className="form-two"><label>Game title<input name="title" placeholder="Enter your game title" required maxLength={100}/></label><label>Genre<select name="genre" required defaultValue=""><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required placeholder="Describe your game in 180 characters or fewer."/></label><div className="form-section-heading separated"><b>PLATFORM & MONETIZATION</b><span>STORE DISCLOSURES</span></div><div className="platform-selection"><b>Where can players play this game?</b><p>Select every platform this same game supports. You will enter separate GAME FIT facts for each selected platform.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={submitPlatforms.includes(platform.value)} onChange={(event) => setSubmitPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
       <div className="form-two"><label>Monetization<select name="monetization" defaultValue="free"><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div><div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>{GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!submitPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value}/></div>)}
         <div className="checkbox-grid"><label><input type="checkbox" name="ads"/> Contains advertising</label><label><input type="checkbox" name="iap"/> Contains in-app purchases</label></div><div className="submission-note"><b>Before you submit</b><p>This creates a listing record for review. After submission, use the Builds section to upload an APK, AAB, EXE, MSI or ZIP package. Uploads remain private until a trusted malware scanner and Game ON release review both approve them. Your studio must be verified before uploads are enabled.</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button><button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save as draft"}</button><button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy}>{busy ? "Submitting…" : "Submit listing for review →"}</button></div></form></>}
@@ -363,8 +401,8 @@ function gameReviewStatus(status: string) {
   return labels[status] || { label: status.replaceAll("_", " "), detail: "Contact Game ON support if you need help with this status.", tone: "draft" };
 }
 
-function GameTable({ games, onEdit }: { games: GameRow[]; onEdit: (game: GameRow) => void }) {
-  if (!games.length) return <div className="table-empty"><span>▣</span><b>No game listings yet</b><p>Your submitted games will appear here.</p></div>;
+function GameTable({ games, onEdit, onDeleteDraft, deletingDraftId }: { games: GameRow[]; onEdit: (game: GameRow) => void; onDeleteDraft?: (game: GameRow) => void; deletingDraftId?: string | null }) {
+  if (!games.length) return <div className="table-empty"><span>▣</span><b>No game listings yet</b><p>Your saved drafts and submitted games will appear here.</p></div>;
   return <div className="table-wrap"><table className="games-table"><thead><tr><th>GAME</th><th>GENRE</th><th>STATUS & NEXT STEP</th><th>ACTION</th></tr></thead><tbody>{games.map((game) => {
     const status = gameReviewStatus(game.status);
     const canEdit = ["draft", "submitted", "rejected"].includes(game.status);
@@ -374,9 +412,9 @@ function GameTable({ games, onEdit }: { games: GameRow[]; onEdit: (game: GameRow
       <td>{game.genre || "—"}</td>
       <td><div className="listing-status-cell"><span className={`status-pill ${status.tone}`}>{status.label}</span><small>{status.detail}</small>
         {game.status === "rejected" && game.rejection_reason && <div className="game-rejection-note"><b>Reason from Game ON review</b><p>{game.rejection_reason}</p></div>}
-        {game.reviewed_at && <small>Last reviewed {new Date(game.reviewed_at).toLocaleDateString()}</small>}
+        {game.reviewed_at && <small>Last reviewed {new Date(game.reviewed_at).toLocaleDateString()}</small>}{game.status === "draft" && game.updated_at && <small>Last saved {new Date(game.updated_at).toLocaleString()}</small>}
       </div></td>
-      <td><button className="row-menu" onClick={() => onEdit(game)} disabled={!canEdit} aria-label={`${actionLabel} for ${game.title}`}>{actionLabel}</button></td>
+      <td><div className="game-row-actions"><button className="row-menu" onClick={() => onEdit(game)} disabled={!canEdit || Boolean(deletingDraftId)} aria-label={`${actionLabel} for ${game.title}`}>{actionLabel}</button>{game.status === "draft" && onDeleteDraft && <button className="draft-delete-button" onClick={() => onDeleteDraft(game)} disabled={Boolean(deletingDraftId)} aria-label={`Delete draft ${game.title}`}>{deletingDraftId === game.id ? "Deleting…" : "Delete draft"}</button>}</div></td>
     </tr>;
   })}</tbody></table></div>;
 }
