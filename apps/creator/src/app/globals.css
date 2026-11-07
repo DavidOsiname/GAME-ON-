@@ -63,3 +63,35 @@
   .admin-fit-review-head,
   .admin-fit-review-row { align-items: flex-start; flex-direction: column; }
 }
+
+
+/* Creator listing review status: show the action required, not just a badge. */
+.review-status-guide {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  padding: 14px 0 18px;
+}
+.review-status-guide > div {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid rgba(157, 184, 211, .12);
+  border-radius: 9px;
+  background: rgba(157, 184, 211, .025);
+}
+.review-status-guide b { color: #d8e7f6; font-size: 9px; letter-spacing: .05em; }
+.review-status-guide span { color: #8fa3b9; font-size: 8px; line-height: 1.55; }
+.listing-status-cell { display: grid; justify-items: start; gap: 6px; min-width: 160px; max-width: 290px; }
+.listing-status-cell > small { color: #8498ad; font-size: 8px; line-height: 1.5; }
+.game-rejection-note { width: 100%; margin-top: 3px; padding: 9px; border-left: 2px solid #ff8e9b; border-radius: 0 6px 6px 0; background: rgba(255, 106, 130, .055); }
+.game-rejection-note b { display: block; color: #ffb4bd; font-size: 8px; }
+.game-rejection-note p { margin: 5px 0 0; color: #d4c5c8; font-size: 8px; line-height: 1.55; overflow-wrap: anywhere; }
+.row-menu:disabled { opacity: .55; cursor: not-allowed; }
+@media (max-width: 780px) {
+  .review-status-guide { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .listing-status-cell { min-width: 130px; }
+}
+@media (max-width: 520px) { .review-status-guide { grid-template-columns: 1fr; } }

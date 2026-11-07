@@ -193,6 +193,20 @@ for (const app of ["store", "creator"]) {
   if (app === "creator" && (!ready.includes("GAMEON_ADMIN_USER_IDS") || !ready.includes("GAMEON_SCANNER_WEBHOOK_SECRET"))) throw new Error("Creator readiness must require its admin allowlist and scanner secret.");
 }
 
+const creatorStatusSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+for (const marker of [
+  "reviewed_at,rejection_reason",
+  "function gameReviewStatus",
+  'label: "Submitted"',
+  'label: "In review"',
+  'label: "Changes requested"',
+  'label: "Published"',
+  "game.rejection_reason &&",
+  'const canEdit = ["draft", "submitted", "rejected"]',
+  "Locked during review",
+]) {
+  if (!creatorStatusSource.includes(marker)) throw new Error(`Creator review status guidance is missing: ${marker}`);
+}
 const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
 for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {
   if (!creatorFitSource.includes(marker)) throw new Error(`Creator GAME FIT submission is missing: ${marker}`);
