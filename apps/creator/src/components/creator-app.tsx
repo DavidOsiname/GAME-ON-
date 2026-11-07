@@ -12,6 +12,7 @@ import {
   loadPendingStudioSetupDraft,
   savePendingStudioSetupDraft,
   type PendingStudioSetupStage,
+  PENDING_STUDIO_SETUP_TTL_HOURS,
 } from "@/lib/pending-studio-setup";
 
 type Section = "overview" | "games" | "drafts" | "submit" | "edit" | "builds" | "analytics" | "sales" | "notifications" | "settings";
@@ -292,10 +293,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!supabase) {
       const demoUser = { id: `demo-user-${Date.now()}`, email, demo: true };
       setUser(demoUser); localStorage.setItem("goc-demo-user", JSON.stringify(demoUser));
-      if (pendingSetupData) {
-        await finishStudioSetup(pendingSetupData, demoUser);
-        setPendingSetupData(null);
-      }
+      if (pendingSetupData) await finishStudioSetup(pendingSetupData, demoUser);
       setBusy(false); return;
     }
     try {
@@ -476,23 +474,25 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!pendingSetupLoaded || !user || user.demo || !supabase || pendingSetupStage !== "account" || !pendingSetupData) return;
     if (setupRecoveryInProgress.current) return;
     setupRecoveryInProgress.current = true;
-    let active = true;
+    const recoveryUser = user;
+    const recoveryData = pendingSetupData;
+    const recoveryClient = supabase;
 
     async function finishConfirmedAccountSetup() {
       try {
-        const { data: existingStudio, error: studioError } = await supabase
+        const { data: existingStudio, error: studioError } = await recoveryClient
           .from("developer_studios")
           .select("id")
-          .eq("owner_user_id", user.id)
+          .eq("owner_user_id", recoveryUser.id)
           .maybeSingle();
         if (studioError) throw studioError;
 
         if (existingStudio) {
-          const { data: existingContact, error: contactError } = await supabase
+          const { data: existingContact, error: contactError } = await recoveryClient
             .from("developer_studio_contacts")
             .select("studio_id")
             .eq("studio_id", existingStudio.id)
-            .eq("owner_user_id", user.id)
+            .eq("owner_user_id", recoveryUser.id)
             .maybeSingle();
           if (contactError) throw contactError;
           if (existingContact) {
@@ -505,16 +505,15 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
           }
         }
 
-        await finishStudioSetup(pendingSetupData, user);
+        await finishStudioSetup(recoveryData, recoveryUser);
       } catch (caught) {
-        if (active) setSetupError(caught instanceof Error ? caught.message : "Your account is ready, but company setup could not be resumed. Your saved draft is still available.");
+        setSetupError(caught instanceof Error ? caught.message : "Your account is ready, but company setup could not be resumed. Your saved draft is still available.");
       } finally {
         setupRecoveryInProgress.current = false;
       }
     }
 
     void finishConfirmedAccountSetup();
-    return () => { active = false; };
   }, [pendingSetupLoaded, user, pendingSetupStage, pendingSetupData]);
 
   async function saveNewGameDraft(formElement: HTMLFormElement) {
@@ -718,7 +717,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     onSignOut={signOut}
   />;
 
-  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><p className="auth-help">Your unfinished setup is saved in this browser for up to 72 hours. Use a trusted device.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><button className="auth-switch" type="button" onClick={() => { setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
+  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><p className="auth-help">Your unfinished setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><button className="auth-switch" type="button" onClick={() => { setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
 
   // The two unauthenticated branches above handle setup and account creation.
   // Keep the authenticated workspace explicitly narrowed for TypeScript below.
