@@ -39,6 +39,34 @@ const STORE_NAME = "pending-setup";
 const DRAFT_TTL_MS = 72 * 60 * 60 * 1000;
 let writeQueue: Promise<void> = Promise.resolve();
 
+function isStoredDraft(value: unknown): value is StoredDraft {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<StoredDraft>;
+  const data = candidate.data as Partial<StoredDraft["data"]> | undefined;
+  return candidate.id === "active"
+    && candidate.version === 1
+    && typeof candidate.savedAt === "number"
+    && Number.isFinite(candidate.savedAt)
+    && typeof candidate.expiresAt === "number"
+    && Number.isFinite(candidate.expiresAt)
+    && Number.isInteger(candidate.step)
+    && (candidate.step as number) >= 0
+    && (candidate.step as number) <= 5
+    && (candidate.stage === "company" || candidate.stage === "account")
+    && Boolean(data)
+    && typeof data?.studioName === "string"
+    && typeof data?.removeLogo === "boolean"
+    && typeof data?.contactName === "string"
+    && typeof data?.contactRole === "string"
+    && typeof data?.officialEmail === "string"
+    && typeof data?.websiteUrl === "string"
+    && typeof data?.description === "string"
+    && (data?.logoBlob === null || data?.logoBlob instanceof Blob)
+    && (data?.logoName === null || typeof data?.logoName === "string")
+    && (data?.logoType === null || typeof data?.logoType === "string")
+    && (data?.logoLastModified === null || typeof data?.logoLastModified === "number");
+}
+
 function openDatabase(): Promise<IDBDatabase> {
   if (typeof window === "undefined" || !("indexedDB" in window)) {
     return Promise.reject(new Error("This browser does not support local draft storage. Use an up-to-date browser and keep this tab open."));
@@ -127,7 +155,7 @@ export async function loadPendingStudioSetupDraft(): Promise<PendingStudioSetupD
   }
 
   if (!record) return null;
-  if (record.version !== 1 || record.expiresAt <= Date.now()) {
+  if (!isStoredDraft(record) || record.expiresAt <= Date.now()) {
     await clearPendingStudioSetupDraft();
     return null;
   }
