@@ -415,7 +415,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
 function getDraftProgress(game: GameRow) {
   const platforms = game.supported_platforms || [];
-  const allowedPlatforms = new Set(GAME_PLATFORMS.map((item) => item.value));
+  const allowedPlatforms = new Set<string>(GAME_PLATFORMS.map((item) => item.value));
   const platformDetails = new Set((game.game_platform_details || []).map((detail) => detail.platform));
   const checks = [
     { label: "Game title", complete: game.title.trim().length >= 2 && game.title.trim().length <= 100 },
