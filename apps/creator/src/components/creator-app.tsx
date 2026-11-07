@@ -420,7 +420,7 @@ function getDraftProgress(game: GameRow) {
   const checks = [
     { label: "Game title", complete: game.title.trim().length >= 2 && game.title.trim().length <= 100 },
     { label: "Choose a genre", complete: Boolean(game.genre?.trim()) },
-    { label: "Add a short description (10–180 characters)", complete: Boolean(game.short_description && game.short_description.trim().length >= 10 && game.short_description.trim().length <= 180) },
+    { label: "Add a short description (10–180 characters)", complete: Boolean(game.short_description && game.short_description.trim().length >= 10 && game.short_description.length <= 180) },
     { label: "Select at least one supported platform", complete: platforms.length > 0 && platforms.every((platform) => allowedPlatforms.has(platform)) },
     { label: "Add GAME FIT details for each platform", complete: platforms.length > 0 && platforms.every((platform) => platformDetails.has(platform)) },
   ];
