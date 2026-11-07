@@ -30,61 +30,58 @@ const demoRows: GameRow[] = [
 
 function makeSlug(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
 
-function readGameFitInput(form: FormData, platform: string) {
-  const rawUrl = String(form.get("officialAccessUrl") || "").trim();
+type ParsedGameFit = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetail: PlatformDetail | null };
+type ParsedGameFits = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetails: PlatformDetail[] };
+const GAME_PLATFORMS = [{ value: "android", label: "Android" }, { value: "windows", label: "Windows PC" }, { value: "web", label: "Web" }] as const;
+function readGameFitInput(form: FormData, platform: string): ParsedGameFit {
+  const field = (name: string) => form.get(`${name}_${platform}`);
+  const rawUrl = String(field("officialAccessUrl") || "").trim();
   let officialAccessUrl: string | null = null;
   if (rawUrl) {
-    try {
-      const parsed = new URL(rawUrl);
-      if (parsed.protocol !== "https:" || parsed.username || parsed.password) throw new Error("Use a public HTTPS game page without embedded credentials.");
-      officialAccessUrl = parsed.toString();
-    } catch (error) {
-      return { error: error instanceof Error ? error.message : "Enter a valid HTTPS game page.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
-    }
+    try { const parsed = new URL(rawUrl); if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) throw new Error("Use a public HTTPS game page without embedded credentials."); officialAccessUrl = parsed.toString(); }
+    catch (error) { return { error: error instanceof Error ? error.message : "Enter a valid HTTPS game page.", supportedLanguages: [], ageRating: null, platformDetail: null }; }
   }
-
-  const rawSize = String(form.get("downloadSizeMb") || "").trim();
-  const sizeMb = rawSize ? Number(rawSize) : null;
-  if (sizeMb !== null && (!Number.isFinite(sizeMb) || sizeMb <= 0 || sizeMb > 1048576)) {
-    return { error: "Download size must be greater than 0 and no more than 1,048,576 MB.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
-  }
-
-  const internetRequirement = String(form.get("internetRequirement") || "unknown");
-  if (!["unknown", "offline", "online", "both"].includes(internetRequirement)) {
-    return { error: "Choose a valid internet requirement.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
-  }
-
+  const rawSize = String(field("downloadSizeMb") || "").trim(); const sizeMb = rawSize ? Number(rawSize) : null;
+  if (sizeMb !== null && (!Number.isFinite(sizeMb) || sizeMb <= 0 || sizeMb > 1048576)) return { error: `Enter a valid download size for ${platform.toUpperCase()} (greater than 0 and no more than 1,048,576 MB).`, supportedLanguages: [], ageRating: null, platformDetail: null };
+  const internetRequirement = String(field("internetRequirement") || "unknown");
+  if (!["unknown", "offline", "online", "both"].includes(internetRequirement)) return { error: `Choose a valid internet requirement for ${platform.toUpperCase()}.`, supportedLanguages: [], ageRating: null, platformDetail: null };
   const requirements: Record<string, string> = {};
-  const requirementFields: Record<string, string> = {
-    operating_system: "minimumOs",
-    processor: "minimumProcessor",
-    ram: "minimumRam",
-    graphics: "minimumGraphics",
-    storage: "minimumStorage",
-  };
-  for (const [key, field] of Object.entries(requirementFields)) {
-    const value = String(form.get(field) || "").trim();
-    if (value.length > 200) return { error: "Each device requirement must be 200 characters or fewer.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
-    if (value) requirements[key] = value;
-  }
-
+  const requirementFields: Record<string, string> = { operating_system: "minimumOs", processor: "minimumProcessor", ram: "minimumRam", graphics: "minimumGraphics", storage: "minimumStorage" };
+  for (const [key, name] of Object.entries(requirementFields)) { const value = String(field(name) || "").trim(); if (value.length > 200) return { error: `Each ${platform.toUpperCase()} device requirement must be 200 characters or fewer.`, supportedLanguages: [], ageRating: null, platformDetail: null }; if (value) requirements[key] = value; }
   const supportedLanguages = [...new Set(String(form.get("supportedLanguages") || "").split(",").map((item) => item.trim()).filter(Boolean))].slice(0, 20);
-  if (supportedLanguages.some((item) => item.length > 40)) return { error: "Each language name must be 40 characters or fewer.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
+  if (supportedLanguages.some((item) => item.length > 40)) return { error: "Each supported language must be 40 characters or fewer.", supportedLanguages: [], ageRating: null, platformDetail: null };
   const rawAgeRating = String(form.get("ageRating") || "").trim();
-  if (rawAgeRating.length > 60) return { error: "Age rating must be 60 characters or fewer.", supportedLanguages: [] as string[], ageRating: null as string | null, platformDetail: null };
-
-  return {
-    error: null,
-    supportedLanguages,
-    ageRating: rawAgeRating || null,
-    platformDetail: {
-      platform,
-      official_access_url: officialAccessUrl,
-      download_size_bytes: sizeMb === null ? null : Math.round(sizeMb * 1024 * 1024),
-      internet_requirement: internetRequirement,
-      minimum_requirements: requirements,
-    },
-  };
+  if (rawAgeRating.length > 60) return { error: "Age rating must be 60 characters or fewer.", supportedLanguages: [], ageRating: null, platformDetail: null };
+  return { error: null, supportedLanguages, ageRating: rawAgeRating || null, platformDetail: { platform, official_access_url: officialAccessUrl, download_size_bytes: sizeMb === null ? null : Math.round(sizeMb * 1024 * 1024), internet_requirement: internetRequirement, minimum_requirements: requirements } };
+}
+function readGameFitInputs(form: FormData, platforms: string[]): ParsedGameFits {
+  const allowed = new Set<string>(GAME_PLATFORMS.map((item) => item.value));
+  const uniquePlatforms = [...new Set(platforms)].filter((platform) => allowed.has(platform));
+  if (!uniquePlatforms.length) return { error: "Select at least one supported platform.", supportedLanguages: [], ageRating: null, platformDetails: [] };
+  const parsed = uniquePlatforms.map((platform) => readGameFitInput(form, platform));
+  const invalid = parsed.find((item) => item.error || !item.platformDetail);
+  const shared = parsed[0];
+  if (invalid || !shared) return { error: invalid?.error || "Check the GAME FIT information for each selected platform.", supportedLanguages: shared?.supportedLanguages || [], ageRating: shared?.ageRating || null, platformDetails: [] };
+  return { error: null, supportedLanguages: shared.supportedLanguages, ageRating: shared.ageRating, platformDetails: parsed.map((item) => item.platformDetail as PlatformDetail) };
+}
+function PlatformGameFitFields({ platform, detail }: { platform: string; detail?: PlatformDetail | null }) {
+  const platformLabel = GAME_PLATFORMS.find((item) => item.value === platform)?.label || platform.toUpperCase();
+  const requirements = detail?.minimum_requirements || {};
+  const sizeMb = detail?.download_size_bytes ? (detail.download_size_bytes / (1024 * 1024)).toFixed(2) : "";
+  return <>
+    <div className="form-section-heading separated"><b>{platformLabel.toUpperCase()} GAME FIT</b><span>PLATFORM-SPECIFIC FACTS</span></div>
+    <div className="form-two">
+      <label>Official {platformLabel} game page (HTTPS)<input name={`officialAccessUrl_${platform}`} type="url" maxLength={2048} defaultValue={detail?.official_access_url || ""} placeholder="https://official-game-page.example"/><small>Developer-provided link. It will not be clickable in Store until verified.</small></label>
+      <label>{platformLabel} download size (MB)<input name={`downloadSizeMb_${platform}`} type="number" min="0.01" max="1048576" step="0.01" defaultValue={sizeMb} placeholder="e.g. 850"/><small>Enter download size, not installed storage.</small></label>
+      <label>Internet requirement<select name={`internetRequirement_${platform}`} defaultValue={detail?.internet_requirement || "unknown"}><option value="unknown">Not sure / not supplied</option><option value="offline">Works offline</option><option value="online">Internet required</option><option value="both">Online and offline modes</option></select></label>
+      <label>Minimum operating system<input name={`minimumOs_${platform}`} maxLength={200} defaultValue={String(requirements.operating_system || "")} placeholder={platform === "android" ? "e.g. Android 10" : platform === "windows" ? "e.g. Windows 10" : "e.g. Modern browser version"}/></label>
+      <label>Minimum processor<input name={`minimumProcessor_${platform}`} maxLength={200} defaultValue={String(requirements.processor || "")} placeholder="e.g. Quad-core 2.0 GHz"/></label>
+      <label>Minimum memory / RAM<input name={`minimumRam_${platform}`} maxLength={200} defaultValue={String(requirements.ram || "")} placeholder="e.g. 4 GB RAM"/></label>
+      <label>Minimum graphics<input name={`minimumGraphics_${platform}`} maxLength={200} defaultValue={String(requirements.graphics || "")} placeholder="e.g. OpenGL ES 3.0"/></label>
+      <label>Storage required<input name={`minimumStorage_${platform}`} maxLength={200} defaultValue={String(requirements.storage || "")} placeholder="e.g. 2 GB free space"/></label>
+    </div>
+    <p className="submission-note">Only enter information for this platform. Leave unknown information blank. Game ON will mark these facts unverified until checked.</p>
+  </>;
 }
 
 export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?: boolean } = {}) {
@@ -93,8 +90,8 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [studio, setStudio] = useState<Studio | null>(null);
   const [games, setGames] = useState<GameRow[]>([]);
   const [editingGame, setEditingGame] = useState<GameRow | null>(null);
-  const [editingPlatformDetail, setEditingPlatformDetail] = useState<PlatformDetail | null>(null);
-  const [editingPlatform, setEditingPlatform] = useState("android");
+  const [submitPlatforms, setSubmitPlatforms] = useState<string[]>(["android"]);
+  const [editingPlatforms, setEditingPlatforms] = useState<string[]>(["android"]);
   const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
   const [authMessage, setAuthMessage] = useState("");
   const [notice, setNotice] = useState("");
@@ -176,24 +173,24 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
   async function submitGame(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (!studio) return; setBusy(true); setNotice("");
-    const form = new FormData(event.currentTarget); const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platform = String(form.get("platform") || "android"); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
-    const fitInput = readGameFitInput(form, platform);
-    if (fitInput.error || !fitInput.platformDetail) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information."); return; }
-    const offline = fitInput.platformDetail.internet_requirement === "offline" || fitInput.platformDetail.internet_requirement === "both";
+    const form = new FormData(event.currentTarget); const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platforms = form.getAll("platforms").map(String); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
+    const fitInput = readGameFitInputs(form, platforms);
+    if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const priceInput = String(form.get("priceNaira") || "").trim();
     const priceNaira = priceInput ? Number(priceInput) : 0;
     if (monetization === "paid" && (!Number.isFinite(priceNaira) || priceNaira <= 0 || !Number.isSafeInteger(Math.round(priceNaira * 100)))) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
     const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
     const slug = `${makeSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
     if (studio.demo || !supabase) {
-      const row: GameRow = { id: `demo-${Date.now()}`, title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: [platform], game_platform_details: [fitInput.platformDetail as PlatformDetail] };
+      const row: GameRow = { id: `demo-${Date.now()}`, title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails };
       setGames((old) => [row, ...old]); setNotice("Demo submission saved locally. Connect the shared backend for real review and publishing."); setSection("games"); setBusy(false); return;
     }
-    const { data, error } = await supabase.from("games").insert({ studio_id: studio.id, title, slug, short_description: description, description, genre, supported_platforms: [platform], supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, status: "submitted" }).select("id,title,slug,genre,status,short_description,monetization_type,price_minor,currency,created_at,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases").single();
+    const { data, error } = await supabase.from("games").insert({ studio_id: studio.id, title, slug, short_description: description, description, genre, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, status: "submitted" }).select("id,title,slug,genre,status,short_description,monetization_type,price_minor,currency,created_at,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases").single();
     if (error || !data) { setBusy(false); setNotice(error?.message || "The game listing could not be created."); return; }
-    const { error: detailsError } = await supabase.from("game_platform_details").upsert({ ...fitInput.platformDetail, game_id: data.id }, { onConflict: "game_id,platform" });
+    const { error: detailsError } = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: data.id })), { onConflict: "game_id,platform" });
     setBusy(false);
-    setGames((old) => [{ ...(data as GameRow), game_platform_details: [fitInput.platformDetail as PlatformDetail] }, ...old]); setSection("games");
+    setGames((old) => [{ ...(data as GameRow), game_platform_details: fitInput.platformDetails }, ...old]); setSection("games");
     setNotice(detailsError ? `Listing created, but GAME FIT details could not be saved: ${detailsError.message}` : "Your game listing and GAME FIT details were submitted for review.");
   }
 
@@ -205,11 +202,11 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const title = String(form.get("title") || "").trim();
     const genre = String(form.get("genre") || "");
     const description = String(form.get("description") || "").trim();
-    const platform = String(form.get("platform") || "android");
+    const platforms = form.getAll("platforms").map(String);
     const monetization = String(form.get("monetization") || "free");
-    const fitInput = readGameFitInput(form, platform);
-    if (fitInput.error || !fitInput.platformDetail) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information."); return; }
-    const offline = fitInput.platformDetail.internet_requirement === "offline" || fitInput.platformDetail.internet_requirement === "both";
+    const fitInput = readGameFitInputs(form, platforms);
+    if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const ads = form.get("ads") === "on";
     const iap = form.get("iap") === "on";
     const priceInput = String(form.get("priceNaira") || "").trim();
@@ -217,13 +214,18 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (monetization === "paid" && (!Number.isFinite(priceNaira) || priceNaira <= 0 || !Number.isSafeInteger(Math.round(priceNaira * 100)))) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
     const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
     if (studio.demo || !supabase) {
-      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, slug: makeSlug(title), genre, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: [platform], game_platform_details: [fitInput.platformDetail as PlatformDetail] } : game));
+      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, slug: makeSlug(title), genre, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, monetization_type: monetization, price_minor: priceMinor } : game));
       setNotice("Demo listing updated on this device."); setEditingGame(null); setSection("games"); setBusy(false); return;
     }
-    const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: [platform], supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
+    const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
     if (error) { setBusy(false); setNotice(error.message); return; }
-    const { error: detailsError } = await supabase.from("game_platform_details").upsert({ ...fitInput.platformDetail, game_id: editingGame.id }, { onConflict: "game_id,platform" });
+    const { error: detailsError } = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: editingGame.id })), { onConflict: "game_id,platform" });
     if (detailsError) { setBusy(false); setNotice(`Listing updated, but GAME FIT details could not be saved: ${detailsError.message}`); return; }
+    const removedPlatforms = GAME_PLATFORMS.map((item) => item.value).filter((platform) => !platforms.includes(platform));
+    if (removedPlatforms.length) {
+      const { error: deleteDetailsError } = await supabase.from("game_platform_details").delete().eq("game_id", editingGame.id).in("platform", removedPlatforms);
+      if (deleteDetailsError) { setBusy(false); setNotice(`Listing saved, but old platform details could not be removed: ${deleteDetailsError.message}`); return; }
+    }
     if (editingGame.status === "rejected") {
       const resubmit = await supabase.rpc("resubmit_game", { p_game_id: editingGame.id });
       if (resubmit.error) { setBusy(false); setNotice(`Changes saved, but resubmission failed: ${resubmit.error.message}`); return; }
@@ -235,7 +237,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
   function beginEdit(game: GameRow) {
     if (game.status === "published") { setNotice("Published listings are locked for editing in this early release. Contact Game ON support for a listing change."); return; }
-    setEditingGame(game); setEditingPlatform(game.supported_platforms?.[0] || "android"); setEditingPlatformDetail(game.game_platform_details?.find((detail) => detail.platform === (game.supported_platforms?.[0] || "android")) || null); setSection("edit"); setNotice("");
+    setEditingGame(game); const selectedPlatforms = (game.supported_platforms || ["android"]).filter((platform) => GAME_PLATFORMS.some((item) => item.value === platform)); setEditingPlatforms(selectedPlatforms.length ? selectedPlatforms : ["android"]); setSection("edit"); setNotice("");
   }
 
   async function signOut() {
