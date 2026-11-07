@@ -1,12 +1,19 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import BuildManager from "@/components/build-manager";
 import { CreatorAnalytics, CreatorInbox } from "@/components/creator-insights";
 import CreatorSales from "@/components/creator-sales";
 import { getListingReadiness, type ListingReadiness } from "@/lib/listing-readiness.mjs";
 import StudioOnboardingWizard, { type StudioSetupData, type StudioSetupProfile } from "@/components/studio-onboarding-wizard";
+import {
+  clearPendingStudioSetupDraft,
+  loadPendingStudioSetupDraft,
+  savePendingStudioSetupDraft,
+  type PendingStudioSetupStage,
+  PENDING_STUDIO_SETUP_TTL_HOURS,
+} from "@/lib/pending-studio-setup";
 
 type Section = "overview" | "games" | "drafts" | "submit" | "edit" | "builds" | "analytics" | "sales" | "notifications" | "settings";
 type PlatformDetail = {
@@ -31,7 +38,17 @@ const demoRows: GameRow[] = [
   { id: "demo-003", title: "Orbit Keepers", slug: "orbit-keepers", genre: "Strategy", status: "draft", short_description: "Build and defend a frontier space outpost.", monetization_type: "free" },
 ];
 
-function makeSlug(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function makeSlug(value: string) {
+  const normalized = value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const asciiSlug = normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (asciiSlug) return asciiSlug;
+  let hash = 2166136261;
+  for (const character of value.normalize("NFKC").toLowerCase()) {
+    hash ^= character.codePointAt(0) || 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `studio-${(hash >>> 0).toString(36)}`;
+}
 
 type ParsedGameFit = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetail: PlatformDetail | null };
 type ParsedGameFits = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetails: PlatformDetail[] };
@@ -120,7 +137,32 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [setupError, setSetupError] = useState("");
   const [editingStudioSetup, setEditingStudioSetup] = useState(false);
   const [pendingSetupData, setPendingSetupData] = useState<StudioSetupData | null>(null);
+  const [pendingSetupStep, setPendingSetupStep] = useState(0);
+  const [pendingSetupStage, setPendingSetupStage] = useState<PendingStudioSetupStage>("company");
+  const [pendingSetupLoaded, setPendingSetupLoaded] = useState(false);
+  const [draftSaveStatus, setDraftSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
   const [showAccountCreation, setShowAccountCreation] = useState(false);
+  const setupRecoveryInProgress = useRef(false);
+
+  useEffect(() => {
+    let active = true;
+    void loadPendingStudioSetupDraft().then((draft) => {
+      if (!active || !draft) return;
+      setPendingSetupData(draft.data as StudioSetupData);
+      setPendingSetupStep(draft.step);
+      setPendingSetupStage(draft.stage);
+      setDraftSaveStatus("saved");
+      setShowAccountCreation(draft.stage === "account");
+    }).catch((caught) => {
+      if (active) {
+        setDraftSaveStatus("error");
+        setSetupError(caught instanceof Error ? caught.message : "Your saved company setup could not be restored.");
+      }
+    }).finally(() => {
+      if (active) setPendingSetupLoaded(true);
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     if (!supabase) {
@@ -227,16 +269,54 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     }
   }, [section, editingGame]);
 
+  const persistCompanySetupDraft = useCallback(async (data: StudioSetupData, step: number): Promise<boolean> => {
+    setDraftSaveStatus("saving");
+    try {
+      await savePendingStudioSetupDraft(data, step, "company");
+      setPendingSetupData(data);
+      setPendingSetupStep(step);
+      setPendingSetupStage("company");
+      setDraftSaveStatus("saved");
+      setSetupError("");
+      return true;
+    } catch (caught) {
+      setDraftSaveStatus("error");
+      setSetupError(caught instanceof Error
+        ? caught.message + " Keep this tab open while you finish setup."
+        : "Your changes could not be saved in this browser. Keep this tab open while you finish setup.");
+      return false;
+    }
+  }, []);
+
+  const continueToAccountCreation = useCallback(async (data: StudioSetupData) => {
+    setBusy(true);
+    setDraftSaveStatus("saving");
+    setSetupError("");
+    try {
+      await savePendingStudioSetupDraft(data, 5, "account");
+      setPendingSetupData(data);
+      setPendingSetupStep(5);
+      setPendingSetupStage("account");
+      setDraftSaveStatus("saved");
+      setShowAccountCreation(true);
+      setAuthMessage("");
+    } catch (caught) {
+      setDraftSaveStatus("error");
+      setSetupError(caught instanceof Error
+        ? caught.message
+        : "Your company setup could not be saved. Please try again before creating your account.");
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
   async function handleAuth(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setAuthMessage("");
     const form = new FormData(event.currentTarget); const email = String(form.get("email") || "").trim(); const password = String(form.get("password") || "");
     if (!supabase) {
       const demoUser = { id: `demo-user-${Date.now()}`, email, demo: true };
       setUser(demoUser); localStorage.setItem("goc-demo-user", JSON.stringify(demoUser));
-      if (pendingSetupData) {
-        await finishStudioSetup(pendingSetupData, demoUser);
-        setPendingSetupData(null);
-      }
+      if (pendingSetupData) await finishStudioSetup(pendingSetupData, demoUser);
       setBusy(false); return;
     }
     try {
@@ -247,12 +327,6 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         setAuthMode("signin");
       } else {
         const authenticatedUser = result.data.user ? { id: result.data.user.id, email: result.data.user.email } : null;
-        if (authenticatedUser && pendingSetupData) {
-          const { data: existingStudio, error: lookupError } = await supabase.from("developer_studios").select("id").eq("owner_user_id", authenticatedUser.id).maybeSingle();
-          if (lookupError) throw lookupError;
-          if (!existingStudio) await finishStudioSetup(pendingSetupData, authenticatedUser);
-          else setPendingSetupData(null);
-        }
         setUser(authenticatedUser);
       }
     } catch (caught) {
@@ -262,22 +336,29 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     }
   }
 
-  async function finishStudioSetup(input: StudioSetupData, targetUser?: CreatorUser) {
+  async function finishStudioSetup(input: StudioSetupData, targetUser?: CreatorUser): Promise<boolean> {
     const setupUser = targetUser || user;
-    if (!setupUser) return;
+    if (!setupUser) {
+      setSetupError("Sign in before saving your company workspace.");
+      return false;
+    }
     setBusy(true);
     setSetupError("");
     setNotice("");
     try {
       const studioName = input.studioName.trim();
-      const slug = makeSlug(studioName);
-      if (studioName.length < 2 || studioName.length > 80 || !slug) throw new Error("Enter a valid company name between 2 and 80 characters.");
+      const baseSlug = makeSlug(studioName);
+      if (studioName.length < 2 || studioName.length > 80 || !baseSlug) throw new Error("Enter a valid company name between 2 and 80 characters.");
       const website = input.websiteUrl.trim();
       if (website) {
         const parsed = new URL(website);
         if (parsed.protocol !== "https:" || !parsed.hostname || parsed.username || parsed.password) throw new Error("Use a public HTTPS company website.");
       }
       if (input.contactName.trim().length < 2 || input.contactName.trim().length > 120) throw new Error("Enter your full name.");
+      if (input.description.trim().length > 280) throw new Error("Keep the studio introduction to 280 characters or fewer.");
+      if (input.logoFile && (!["image/jpeg", "image/png", "image/webp"].includes(input.logoFile.type) || input.logoFile.size < 1 || input.logoFile.size > 3 * 1024 * 1024)) {
+        throw new Error("Choose a JPG, PNG or WebP company logo smaller than 3 MB.");
+      }
       if (input.contactRole.trim().length < 2 || input.contactRole.trim().length > 60) throw new Error("Enter your role in the company.");
       if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.officialEmail.trim())) throw new Error("Enter a valid official company email.");
 
@@ -285,7 +366,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         const next: Studio = {
           id: studio?.id || `demo-studio-${Date.now()}`,
           studio_name: studioName,
-          slug,
+          slug: baseSlug,
           description: input.description.trim() || null,
           website_url: website || null,
           logo_url: input.removeLogo ? null : studio?.logo_url || null,
@@ -306,7 +387,48 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         setNotice("Your company setup has been saved. Demo data stays on this device.");
         setEditingStudioSetup(false);
         setPendingSetupData(null);
-        return;
+        setPendingSetupStep(0);
+        setPendingSetupStage("company");
+        setShowAccountCreation(false);
+        void clearPendingStudioSetupDraft().catch(() => setNotice("Company setup was saved, but its local draft could not be cleared from this browser."));
+        return true;
+      }
+
+      const { data: existingStudioData, error: existingStudioError } = await supabase
+        .from("developer_studios")
+        .select("id,studio_name,slug,description,website_url,logo_url,verification_status")
+        .eq("owner_user_id", setupUser.id)
+        .maybeSingle();
+      if (existingStudioError) throw existingStudioError;
+
+      let slug = baseSlug;
+      const { data: slugCollision, error: slugCheckError } = await supabase
+        .from("developer_studios")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (slugCheckError) throw slugCheckError;
+      if (slugCollision && slugCollision.id !== existingStudioData?.id) {
+        const ownerSuffix = setupUser.id.replace(/-/g, "").slice(0, 8);
+        slug = `${baseSlug.slice(0, 52)}-${ownerSuffix}`;
+        const { data: ownerSlugCollision, error: ownerSlugCheckError } = await supabase
+          .from("developer_studios")
+          .select("id")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (ownerSlugCheckError) throw ownerSlugCheckError;
+        if (ownerSlugCollision && ownerSlugCollision.id !== existingStudioData?.id) {
+          slug = `${baseSlug.slice(0, 48)}-${ownerSuffix}-${Math.random().toString(36).slice(2, 6)}`;
+          const { data: finalSlugCollision, error: finalSlugCheckError } = await supabase
+            .from("developer_studios")
+            .select("id")
+            .eq("slug", slug)
+            .maybeSingle();
+          if (finalSlugCheckError) throw finalSlugCheckError;
+          if (finalSlugCollision && finalSlugCollision.id !== existingStudioData?.id) {
+            throw new Error("We could not create a unique studio URL. Try a slightly different company name.");
+          }
+        }
       }
 
       const studioValues = {
@@ -315,9 +437,12 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         description: input.description.trim() || null,
         website_url: website || null,
       };
+
       let savedStudio: Studio;
-      if (studio && !studio.demo) {
-        const { data, error } = await supabase.from("developer_studios").update(studioValues).eq("id", studio.id).eq("owner_user_id", setupUser.id).select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
+      if (existingStudioData) {
+        const { data, error } = await supabase.from("developer_studios").update(studioValues)
+          .eq("id", existingStudioData.id).eq("owner_user_id", setupUser.id)
+          .select("id,studio_name,slug,description,website_url,logo_url,verification_status").single();
         if (error || !data) throw error || new Error("Your studio profile could not be updated.");
         savedStudio = data as Studio;
       } else {
@@ -359,11 +484,11 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         ]);
       }
 
-      const { error: displayNameError } = await supabase.from("profiles").update({
+      const { data: updatedProfile, error: displayNameError } = await supabase.from("profiles").update({
         display_name: input.contactName.trim(),
         updated_at: new Date().toISOString(),
-      }).eq("id", setupUser.id);
-      if (displayNameError) throw new Error("Your name could not be saved: " + displayNameError.message);
+      }).eq("id", setupUser.id).select("id").maybeSingle();
+      if (displayNameError || !updatedProfile) throw new Error("Your name could not be saved: " + (displayNameError?.message || "Your account profile was not found."));
 
       const { data: contact, error: contactError } = await supabase.from("developer_studio_contacts").upsert({
         studio_id: savedStudio.id,
@@ -381,6 +506,11 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       setNotice("Your company setup has been saved. Studio verification is still pending until Game ON reviews it.");
       setEditingStudioSetup(false);
       setPendingSetupData(null);
+      setPendingSetupStep(0);
+      setPendingSetupStage("company");
+      setShowAccountCreation(false);
+      void clearPendingStudioSetupDraft().catch(() => setNotice("Company setup was saved, but its local draft could not be cleared from this browser."));
+      return true;
     } catch (caught) {
       if (supabase && setupUser && !setupUser.demo) {
         const { data: partialStudio } = await supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", setupUser.id).maybeSingle();
@@ -388,10 +518,57 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       }
       setStudioProfileLoading(false);
       setSetupError(caught instanceof Error ? caught.message : "Studio setup could not be completed. Please try again.");
+      return false;
     } finally {
       setBusy(false);
     }
   }
+
+  useEffect(() => {
+    if (!pendingSetupLoaded || !user || user.demo || !supabase || pendingSetupStage !== "account" || !pendingSetupData) return;
+    if (setupRecoveryInProgress.current) return;
+    setupRecoveryInProgress.current = true;
+    const recoveryUser = user;
+    const recoveryData = pendingSetupData;
+    const recoveryClient = supabase;
+
+    async function finishConfirmedAccountSetup() {
+      try {
+        const { data: existingStudio, error: studioError } = await recoveryClient
+          .from("developer_studios")
+          .select("id")
+          .eq("owner_user_id", recoveryUser.id)
+          .maybeSingle();
+        if (studioError) throw studioError;
+
+        if (existingStudio) {
+          const { data: existingContact, error: contactError } = await recoveryClient
+            .from("developer_studio_contacts")
+            .select("studio_id")
+            .eq("studio_id", existingStudio.id)
+            .eq("owner_user_id", recoveryUser.id)
+            .maybeSingle();
+          if (contactError) throw contactError;
+          if (existingContact) {
+            setPendingSetupData(null);
+            setPendingSetupStep(0);
+            setPendingSetupStage("company");
+            setShowAccountCreation(false);
+            void clearPendingStudioSetupDraft().catch(() => setNotice("Your existing studio is ready, but the old local setup draft could not be cleared."));
+            return;
+          }
+        }
+
+        await finishStudioSetup(recoveryData, recoveryUser);
+      } catch (caught) {
+        setSetupError(caught instanceof Error ? caught.message : "Your account is ready, but company setup could not be resumed. Your saved draft is still available.");
+      } finally {
+        setupRecoveryInProgress.current = false;
+      }
+    }
+
+    void finishConfirmedAccountSetup();
+  }, [pendingSetupLoaded, user, pendingSetupStage, pendingSetupData]);
 
   async function saveNewGameDraft(formElement: HTMLFormElement) {
     if (!studio) return;
@@ -580,17 +757,22 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   });
   const nav: { id: Section; label: string; icon: string }[] = [{ id: "overview", label: "Overview", icon: "▦" }, { id: "games", label: "My games", icon: "▣" }, { id: "drafts", label: "Drafts", icon: "✎" }, { id: "submit", label: "Submit a game", icon: "+" }, { id: "builds", label: "Game builds", icon: "⇧" }, { id: "analytics", label: "Analytics", icon: "⌁" }, { id: "sales", label: "Sales & earnings", icon: "₦" }, { id: "notifications", label: "Notifications", icon: "♢" }, { id: "settings", label: "Studio settings", icon: "⚙" }];
 
+  if (!pendingSetupLoaded) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div></header><section className="onboarding-card"><div className="onboarding-symbol">✦</div><p className="eyebrow">COMPANY SETUP</p><h1>Restoring your setup.</h1><p className="auth-help">Checking this browser for an unfinished company setup…</p></section></main>;
+
   if (!user && !showAccountCreation) return <StudioOnboardingWizard
     preAuth
     initialData={pendingSetupData}
+    initialStep={pendingSetupStep}
+    draftSaveStatus={draftSaveStatus}
     busy={busy}
     error={setupError}
-    onContinueToAccount={(data) => { setPendingSetupData(data); setShowAccountCreation(true); setAuthMessage(""); }}
+    onDraftChange={persistCompanySetupDraft}
+    onContinueToAccount={continueToAccountCreation}
     onSave={finishStudioSetup}
     onSignOut={signOut}
   />;
 
-  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><button className="auth-switch" type="button" onClick={() => { setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
+  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><p className="auth-help">Your unfinished setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><button className="auth-switch" type="button" onClick={async () => { if (pendingSetupData) await persistCompanySetupDraft(pendingSetupData, 5); setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
 
   // The two unauthenticated branches above handle setup and account creation.
   // Keep the authenticated workspace explicitly narrowed for TypeScript below.
@@ -601,6 +783,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     initialStudio={studio}
     initialProfile={studioProfile}
     initialData={pendingSetupData}
+    initialStep={pendingSetupStep}
     userEmail={user.email}
     isEditing={Boolean(studio)}
     busy={busy}

@@ -1,6 +1,7 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
+import { PENDING_STUDIO_SETUP_TTL_HOURS } from "@/lib/pending-studio-setup";
 
 export type StudioSetupStudio = {
   id: string;
@@ -35,13 +36,16 @@ type Props = {
   initialStudio?: StudioSetupStudio | null;
   initialProfile?: StudioSetupProfile | null;
   initialData?: StudioSetupData | null;
+  initialStep?: number;
   preAuth?: boolean;
-  onContinueToAccount?: (data: StudioSetupData) => void;
+  onDraftChange?: (data: StudioSetupData, step: number) => void | boolean | Promise<void | boolean>;
+  draftSaveStatus?: "idle" | "saving" | "saved" | "error";
+  onContinueToAccount?: (data: StudioSetupData) => void | Promise<void>;
   userEmail?: string;
   isEditing?: boolean;
   busy?: boolean;
   error?: string;
-  onSave: (data: StudioSetupData) => void | Promise<void>;
+  onSave: (data: StudioSetupData) => void | Promise<unknown>;
   onSignOut: () => void;
 };
 
@@ -89,7 +93,10 @@ export default function StudioOnboardingWizard({
   initialStudio,
   initialProfile,
   initialData,
+  initialStep = 0,
   preAuth = false,
+  onDraftChange,
+  draftSaveStatus = "idle",
   onContinueToAccount,
   userEmail,
   isEditing = false,
@@ -98,18 +105,21 @@ export default function StudioOnboardingWizard({
   onSave,
   onSignOut,
 }: Props) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, Math.floor(initialStep || 0))));
+  const initialRole = initialData?.contactRole || initialProfile?.contact_role || "";
+  const roleIsKnown = ROLES.includes(initialRole);
   const [studioName, setStudioName] = useState(initialData?.studioName || initialStudio?.studio_name || "");
   const [logoFile, setLogoFile] = useState<File | null>(initialData?.logoFile || null);
   const [logoRemoved, setLogoRemoved] = useState(initialData?.removeLogo || false);
   const [logoPreview, setLogoPreview] = useState(initialData?.logoFile ? URL.createObjectURL(initialData.logoFile) : initialStudio?.logo_url || "");
   const [contactName, setContactName] = useState(initialData?.contactName || initialProfile?.contact_name || "");
-  const [contactRole, setContactRole] = useState(initialData?.contactRole || initialProfile?.contact_role || "");
-  const [otherRole, setOtherRole] = useState("");
+  const [contactRole, setContactRole] = useState(roleIsKnown ? initialRole : initialRole ? "Other" : "");
+  const [otherRole, setOtherRole] = useState(roleIsKnown ? "" : initialRole);
   const [officialEmail, setOfficialEmail] = useState(initialData?.officialEmail || initialProfile?.official_email || "");
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.websiteUrl || initialStudio?.website_url || "");
   const [description, setDescription] = useState(initialData?.description || initialStudio?.description || "");
   const [localError, setLocalError] = useState("");
+  const draftSaveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!logoPreview.startsWith("blob:")) return;
@@ -117,6 +127,29 @@ export default function StudioOnboardingWizard({
   }, [logoPreview]);
 
   const resolvedRole = contactRole === "Other" ? otherRole.trim() : contactRole;
+
+  useEffect(() => {
+    if (!preAuth || !onDraftChange) return;
+    const timer = window.setTimeout(() => {
+      draftSaveTimer.current = null;
+      void onDraftChange({
+        studioName,
+        logoFile,
+        removeLogo: logoRemoved,
+        contactName,
+        contactRole: resolvedRole,
+        officialEmail,
+        websiteUrl,
+        description,
+      }, step);
+    }, 350);
+    draftSaveTimer.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (draftSaveTimer.current === timer) draftSaveTimer.current = null;
+    };
+  }, [preAuth, onDraftChange, studioName, logoFile, logoRemoved, contactName, resolvedRole, officialEmail, websiteUrl, description, step]);
+
   const totalSteps = STEPS.length;
   const progress = Math.round(((step + 1) / totalSteps) * 100);
 
@@ -140,7 +173,7 @@ export default function StudioOnboardingWizard({
   function validateCurrentStep() {
     if (step === 0) {
       if (studioName.trim().length < 2 || studioName.trim().length > 80) return "Company name must be between 2 and 80 characters.";
-      if (!/[a-z0-9]/i.test(studioName)) return "Add at least one letter or number to your company name.";
+      if (!/[\p{L}\p{N}]/u.test(studioName)) return "Add at least one letter or number to your company name.";
     }
     if (step === 1 && logoFile) {
       if (!["image/jpeg", "image/png", "image/webp"].includes(logoFile.type)) return "Choose a JPG, PNG or WebP image.";
@@ -192,8 +225,22 @@ export default function StudioOnboardingWizard({
       websiteUrl: websiteUrl.trim(),
       description: description.trim(),
     };
-    if (preAuth && onContinueToAccount) onContinueToAccount(data);
-    else await onSave(data);
+    if (preAuth && onContinueToAccount) {
+      if (draftSaveTimer.current !== null) {
+        window.clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = null;
+      }
+      if (onDraftChange) {
+        const saved = await onDraftChange(data, step);
+        if (saved === false) {
+          setLocalError("Your company setup could not be saved in this browser yet. Check the autosave message and try again.");
+          return;
+        }
+      }
+      await onContinueToAccount(data);
+    } else {
+      await onSave(data);
+    }
   }
 
   const current = STEPS[step];
@@ -223,6 +270,9 @@ export default function StudioOnboardingWizard({
           <div className="setup-wizard-step-meta">STEP {String(step + 1).padStart(2, "0")} OF {String(totalSteps).padStart(2, "0")}</div>
           <h1>{current.title}</h1>
           <p className="setup-wizard-copy">{current.copy}</p>
+          {preAuth && <p className="setup-draft-status" aria-live="polite">
+            {draftSaveStatus === "saving" ? "Saving your progress…" : draftSaveStatus === "saved" ? "Your progress is saved in this browser." : draftSaveStatus === "error" ? "Autosave needs attention. Keep this tab open and retry." : "Your progress will save as you go."}
+          </p>}
 
           <form onSubmit={submit}>
             {step === 0 && <div className="setup-field-block">
@@ -236,10 +286,9 @@ export default function StudioOnboardingWizard({
                 {logoPreview ? <img src={logoPreview} alt="Studio logo preview"/> : <span>{studioName.trim().slice(0, 1).toUpperCase() || "G"}</span>}
               </div>
               <label className="setup-upload-button" htmlFor="setup-studio-logo">{logoFile ? "Choose a different logo" : "Choose company logo"}</label>
-              <input id="setup-studio-logo" className="setup-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => chooseLogo(event.currentTarget.files?.[0])}/>
-              <p>JPG, PNG or WebP · Maximum 3 MB. A square image works best.</p>
+              <input id="setup-studio-logo" className="setup-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { chooseLogo(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }}/>
+              <p>JPG, PNG or WebP · Maximum 3 MB. A square image works best. This step is optional; use Continue below to move on without a logo.</p>
               {logoPreview && <button className="setup-text-button" type="button" onClick={() => { setLogoFile(null); setLogoRemoved(true); setLogoPreview(""); }}>Remove logo</button>}
-              <button className="setup-skip-button" type="button" onClick={nextStep}>Skip logo for now →</button>
             </div>}
 
             {step === 2 && <div className="setup-fields-grid">
@@ -301,7 +350,7 @@ export default function StudioOnboardingWizard({
           </form>
         </div>
       </section>
-      <p className="setup-privacy-note">Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON.</p>
+      <p className="setup-privacy-note">{preAuth ? `Your unfinished company setup is saved in this browser for up to ${PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details.` : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
 }
