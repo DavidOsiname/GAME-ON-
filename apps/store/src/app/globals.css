@@ -62,3 +62,49 @@
 .game-fit-disclaimer{margin:14px 0 0;color:#72879f;font-size:9px;line-height:1.5}
 @media(max-width:850px){.game-fit-fields{grid-template-columns:repeat(2,minmax(0,1fr))}.game-fit-results{grid-template-columns:1fr}}
 @media(max-width:590px){.game-fit-launch{margin-left:0;padding:11px 12px}.game-fit-panel{padding:17px}.game-fit-heading{align-items:flex-start}.game-fit-mark{width:48px;height:48px;font-size:19px;border-radius:13px}.game-fit-fields{grid-template-columns:1fr 1fr;gap:10px}.game-fit-fields label{font-size:8px}.game-fit-fields select{font-size:10px}.game-fit-results-heading h3{font-size:14px}.game-fit-result{gap:8px;padding:9px}.game-fit-result-icon{width:36px;height:36px}.game-fit-view{padding:8px 9px}}
+
+
+/* GAME FIT: source-labelled, platform-specific listing facts. */
+.game-fit-facts {
+  margin: 24px 0;
+  padding: 20px;
+  border: 1px solid rgba(116, 145, 180, .2);
+  border-radius: 18px;
+  background: rgba(9, 17, 31, .46);
+}
+.game-fit-platform-list { display: grid; gap: 12px; }
+.game-fit-platform-card {
+  padding: 16px;
+  border: 1px solid rgba(116, 145, 180, .18);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, .025);
+}
+.game-fit-platform-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.game-fit-platform-head b { letter-spacing: .08em; }
+.game-fit-platform-head span,
+.game-fit-fact-row small,
+.game-fit-facts-note { color: var(--muted, #94a3b8); font-size: .78rem; }
+.game-fit-fact-row {
+  display: grid;
+  grid-template-columns: minmax(130px, .7fr) minmax(0, 1.3fr);
+  gap: 14px;
+  padding: 11px 0;
+  border-top: 1px solid rgba(116, 145, 180, .12);
+}
+.game-fit-fact-row > span { color: var(--muted, #94a3b8); font-size: .83rem; }
+.game-fit-fact-row > div { display: grid; gap: 4px; min-width: 0; }
+.game-fit-fact-row a { color: #76d7ff; overflow-wrap: anywhere; }
+.game-fit-requirement { display: block; font-size: .85rem; font-weight: 500; text-transform: capitalize; }
+.game-fit-facts-empty,
+.game-fit-facts-note { margin: 12px 0 0; line-height: 1.6; }
+@media (max-width: 560px) {
+  .game-fit-facts { padding: 14px; }
+  .game-fit-fact-row { grid-template-columns: 1fr; gap: 5px; }
+  .game-fit-platform-head { align-items: flex-start; flex-direction: column; }
+}
