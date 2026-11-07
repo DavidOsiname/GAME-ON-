@@ -35,8 +35,10 @@ type Props = {
   initialStudio?: StudioSetupStudio | null;
   initialProfile?: StudioSetupProfile | null;
   initialData?: StudioSetupData | null;
+  initialStep?: number;
   preAuth?: boolean;
-  onContinueToAccount?: (data: StudioSetupData) => void;
+  onDraftChange?: (data: StudioSetupData, step: number) => void | Promise<void>;
+  onContinueToAccount?: (data: StudioSetupData) => void | Promise<void>;
   userEmail?: string;
   isEditing?: boolean;
   busy?: boolean;
@@ -89,7 +91,9 @@ export default function StudioOnboardingWizard({
   initialStudio,
   initialProfile,
   initialData,
+  initialStep = 0,
   preAuth = false,
+  onDraftChange,
   onContinueToAccount,
   userEmail,
   isEditing = false,
@@ -98,14 +102,16 @@ export default function StudioOnboardingWizard({
   onSave,
   onSignOut,
 }: Props) {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, Math.floor(initialStep || 0))));
+  const initialRole = initialData?.contactRole || initialProfile?.contact_role || "";
+  const roleIsKnown = ROLES.includes(initialRole);
   const [studioName, setStudioName] = useState(initialData?.studioName || initialStudio?.studio_name || "");
   const [logoFile, setLogoFile] = useState<File | null>(initialData?.logoFile || null);
   const [logoRemoved, setLogoRemoved] = useState(initialData?.removeLogo || false);
   const [logoPreview, setLogoPreview] = useState(initialData?.logoFile ? URL.createObjectURL(initialData.logoFile) : initialStudio?.logo_url || "");
   const [contactName, setContactName] = useState(initialData?.contactName || initialProfile?.contact_name || "");
-  const [contactRole, setContactRole] = useState(initialData?.contactRole || initialProfile?.contact_role || "");
-  const [otherRole, setOtherRole] = useState("");
+  const [contactRole, setContactRole] = useState(roleIsKnown ? initialRole : initialRole ? "Other" : "");
+  const [otherRole, setOtherRole] = useState(roleIsKnown ? "" : initialRole);
   const [officialEmail, setOfficialEmail] = useState(initialData?.officialEmail || initialProfile?.official_email || "");
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.websiteUrl || initialStudio?.website_url || "");
   const [description, setDescription] = useState(initialData?.description || initialStudio?.description || "");
@@ -117,6 +123,24 @@ export default function StudioOnboardingWizard({
   }, [logoPreview]);
 
   const resolvedRole = contactRole === "Other" ? otherRole.trim() : contactRole;
+
+  useEffect(() => {
+    if (!preAuth || !onDraftChange) return;
+    const timer = window.setTimeout(() => {
+      void onDraftChange({
+        studioName,
+        logoFile,
+        removeLogo: logoRemoved,
+        contactName,
+        contactRole: resolvedRole,
+        officialEmail,
+        websiteUrl,
+        description,
+      }, step);
+    }, 350);
+    return () => window.clearTimeout(timer);
+  }, [preAuth, onDraftChange, studioName, logoFile, logoRemoved, contactName, resolvedRole, officialEmail, websiteUrl, description, step]);
+
   const totalSteps = STEPS.length;
   const progress = Math.round(((step + 1) / totalSteps) * 100);
 
@@ -192,7 +216,7 @@ export default function StudioOnboardingWizard({
       websiteUrl: websiteUrl.trim(),
       description: description.trim(),
     };
-    if (preAuth && onContinueToAccount) onContinueToAccount(data);
+    if (preAuth && onContinueToAccount) await onContinueToAccount(data);
     else await onSave(data);
   }
 
@@ -236,10 +260,9 @@ export default function StudioOnboardingWizard({
                 {logoPreview ? <img src={logoPreview} alt="Studio logo preview"/> : <span>{studioName.trim().slice(0, 1).toUpperCase() || "G"}</span>}
               </div>
               <label className="setup-upload-button" htmlFor="setup-studio-logo">{logoFile ? "Choose a different logo" : "Choose company logo"}</label>
-              <input id="setup-studio-logo" className="setup-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => chooseLogo(event.currentTarget.files?.[0])}/>
-              <p>JPG, PNG or WebP · Maximum 3 MB. A square image works best.</p>
+              <input id="setup-studio-logo" className="setup-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => { chooseLogo(event.currentTarget.files?.[0]); event.currentTarget.value = ""; }}/>
+              <p>JPG, PNG or WebP · Maximum 3 MB. A square image works best. This step is optional; use Continue below to move on without a logo.</p>
               {logoPreview && <button className="setup-text-button" type="button" onClick={() => { setLogoFile(null); setLogoRemoved(true); setLogoPreview(""); }}>Remove logo</button>}
-              <button className="setup-skip-button" type="button" onClick={nextStep}>Skip logo for now →</button>
             </div>}
 
             {step === 2 && <div className="setup-fields-grid">
@@ -301,7 +324,7 @@ export default function StudioOnboardingWizard({
           </form>
         </div>
       </section>
-      <p className="setup-privacy-note">Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON.</p>
+      <p className="setup-privacy-note">{preAuth ? "Your unfinished company setup is saved in this browser for up to 72 hours. Use a trusted device, especially when entering contact details." : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
 }
