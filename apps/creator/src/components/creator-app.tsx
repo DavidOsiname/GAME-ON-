@@ -43,7 +43,7 @@ function readGameFitInput(form: FormData, platform: string): ParsedGameFit {
   }
   const rawSize = String(field("downloadSizeMb") || "").trim(); const sizeMb = rawSize ? Number(rawSize) : null;
   if (sizeMb !== null && (!Number.isFinite(sizeMb) || sizeMb <= 0 || sizeMb > 1048576)) return { error: `Enter a valid download size for ${platform.toUpperCase()} (greater than 0 and no more than 1,048,576 MB).`, supportedLanguages: [], ageRating: null, platformDetail: null };
-  const internetRequirement = String(field("internetRequirement") || "unknown");
+  const internetRequirement = String(field("internetRequirement") || "unknown") as NonNullable<PlatformDetail["internet_requirement"]>;
   if (!["unknown", "offline", "online", "both"].includes(internetRequirement)) return { error: `Choose a valid internet requirement for ${platform.toUpperCase()}.`, supportedLanguages: [], ageRating: null, platformDetail: null };
   const requirements: Record<string, string> = {};
   const requirementFields: Record<string, string> = { operating_system: "minimumOs", processor: "minimumProcessor", ram: "minimumRam", graphics: "minimumGraphics", storage: "minimumStorage" };
