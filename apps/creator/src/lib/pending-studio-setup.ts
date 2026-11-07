@@ -158,19 +158,22 @@ export async function loadPendingStudioSetupDraft(): Promise<PendingStudioSetupD
   };
 }
 
-export async function clearPendingStudioSetupDraft(): Promise<void> {
-  const database = await openDatabase();
-  try {
-    await new Promise<void>((resolve, reject) => {
-      const transaction = database.transaction(STORE_NAME, "readwrite");
-      transaction.objectStore(STORE_NAME).delete("active");
-      transaction.oncomplete = () => resolve();
-      transaction.onerror = () => reject(transaction.error || new Error("Saved company setup could not be cleared."));
-      transaction.onabort = () => reject(transaction.error || new Error("Saved company setup could not be cleared."));
-    });
-  } finally {
-    database.close();
-  }
+export function clearPendingStudioSetupDraft(): Promise<void> {
+  writeQueue = writeQueue.catch(() => undefined).then(async () => {
+    const database = await openDatabase();
+    try {
+      await new Promise<void>((resolve, reject) => {
+        const transaction = database.transaction(STORE_NAME, "readwrite");
+        transaction.objectStore(STORE_NAME).delete("active");
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error("Saved company setup could not be cleared."));
+        transaction.onabort = () => reject(transaction.error || new Error("Saved company setup could not be cleared."));
+      });
+    } finally {
+      database.close();
+    }
+  });
+  return writeQueue;
 }
 
 export const PENDING_STUDIO_SETUP_TTL_HOURS = DRAFT_TTL_MS / (60 * 60 * 1000);
