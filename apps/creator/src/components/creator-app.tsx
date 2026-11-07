@@ -38,7 +38,17 @@ const demoRows: GameRow[] = [
   { id: "demo-003", title: "Orbit Keepers", slug: "orbit-keepers", genre: "Strategy", status: "draft", short_description: "Build and defend a frontier space outpost.", monetization_type: "free" },
 ];
 
-function makeSlug(value: string) { return value.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, ""); }
+function makeSlug(value: string) {
+  const normalized = value.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  const asciiSlug = normalized.replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+  if (asciiSlug) return asciiSlug;
+  let hash = 2166136261;
+  for (const character of value.normalize("NFKC").toLowerCase()) {
+    hash ^= character.codePointAt(0) || 0;
+    hash = Math.imul(hash, 16777619);
+  }
+  return `studio-${(hash >>> 0).toString(36)}`;
+}
 
 type ParsedGameFit = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetail: PlatformDetail | null };
 type ParsedGameFits = { error: string | null; supportedLanguages: string[]; ageRating: string | null; platformDetails: PlatformDetail[] };
@@ -324,8 +334,8 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     setNotice("");
     try {
       const studioName = input.studioName.trim();
-      const slug = makeSlug(studioName);
-      if (studioName.length < 2 || studioName.length > 80 || !slug) throw new Error("Enter a valid company name between 2 and 80 characters.");
+      const baseSlug = makeSlug(studioName);
+      if (studioName.length < 2 || studioName.length > 80 || !baseSlug) throw new Error("Enter a valid company name between 2 and 80 characters.");
       const website = input.websiteUrl.trim();
       if (website) {
         const parsed = new URL(website);
@@ -371,18 +381,49 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         return true;
       }
 
-      const studioValues = {
-        studio_name: studioName,
-        slug,
-        description: input.description.trim() || null,
-        website_url: website || null,
-      };
       const { data: existingStudioData, error: existingStudioError } = await supabase
         .from("developer_studios")
         .select("id,studio_name,slug,description,website_url,logo_url,verification_status")
         .eq("owner_user_id", setupUser.id)
         .maybeSingle();
       if (existingStudioError) throw existingStudioError;
+
+      let slug = baseSlug;
+      const { data: slugCollision, error: slugCheckError } = await supabase
+        .from("developer_studios")
+        .select("id")
+        .eq("slug", slug)
+        .maybeSingle();
+      if (slugCheckError) throw slugCheckError;
+      if (slugCollision && slugCollision.id !== existingStudioData?.id) {
+        const ownerSuffix = setupUser.id.replace(/-/g, "").slice(0, 8);
+        slug = `${baseSlug.slice(0, 52)}-${ownerSuffix}`;
+        const { data: ownerSlugCollision, error: ownerSlugCheckError } = await supabase
+          .from("developer_studios")
+          .select("id")
+          .eq("slug", slug)
+          .maybeSingle();
+        if (ownerSlugCheckError) throw ownerSlugCheckError;
+        if (ownerSlugCollision && ownerSlugCollision.id !== existingStudioData?.id) {
+          slug = `${baseSlug.slice(0, 48)}-${ownerSuffix}-${Math.random().toString(36).slice(2, 6)}`;
+          const { data: finalSlugCollision, error: finalSlugCheckError } = await supabase
+            .from("developer_studios")
+            .select("id")
+            .eq("slug", slug)
+            .maybeSingle();
+          if (finalSlugCheckError) throw finalSlugCheckError;
+          if (finalSlugCollision && finalSlugCollision.id !== existingStudioData?.id) {
+            throw new Error("We could not create a unique studio URL. Try a slightly different company name.");
+          }
+        }
+      }
+
+      const studioValues = {
+        studio_name: studioName,
+        slug,
+        description: input.description.trim() || null,
+        website_url: website || null,
+      };
 
       let savedStudio: Studio;
       if (existingStudioData) {
