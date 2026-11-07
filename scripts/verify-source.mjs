@@ -207,6 +207,47 @@ for (const marker of ["game_platform_details(", "gameHasOfflineSupportForPlatfor
   if (!storeFitSource.includes(marker)) throw new Error(`Store GAME FIT display is missing: ${marker}`);
 }
 
+const moderationUiSource = fs.readFileSync(path.join(root, "apps/creator/src/components/admin-review-app.tsx"), "utf8");
+for (const marker of [
+  "(game.game_platform_details || []).map",
+  "detail.platform",
+  "actGameFit(game.id, detail.platform, fact.field",
+  "GAME FIT ·",
+]) {
+  if (!moderationUiSource.includes(marker)) throw new Error(`Creator moderation is missing per-platform review support: ${marker}`);
+}
+
+const moderationApiSource = fs.readFileSync(path.join(root, "apps/creator/src/app/api/admin/games/route.ts"), "utf8");
+for (const marker of [
+  "game_platform_details(platform,official_access_url",
+  'if (entityType === "game_fit")',
+  '["android", "windows", "web"]',
+  '.eq("game_id", recordId).eq("platform", platform)',
+  "event_data: { platform, field, action }",
+]) {
+  if (!moderationApiSource.includes(marker)) throw new Error(`Creator moderation API is missing platform-scoped verification: ${marker}`);
+}
+
+const catalogMappingSource = fs.readFileSync(path.join(root, "apps/store/src/lib/catalog.ts"), "utf8");
+for (const marker of [
+  "const supportedPlatforms =",
+  "const rawDetails =",
+  "supportedPlatforms.some",
+  "platformDetails",
+]) {
+  if (!catalogMappingSource.includes(marker)) throw new Error(`Store catalogue mapping is missing multi-platform detail handling: ${marker}`);
+}
+
+const storePlatformUiSource = fs.readFileSync(path.join(root, "apps/store/src/components/store-app.tsx"), "utf8");
+for (const marker of [
+  "details.map((detail)",
+  "detail.platform.toUpperCase()",
+  "gameHasOfflineSupportForPlatform",
+  "game_platform_details(",
+]) {
+  if (!storePlatformUiSource.includes(marker)) throw new Error(`Store UI is missing per-platform GAME FIT handling: ${marker}`);
+}
+
 const androidReleaseWorkflow = fs.readFileSync(path.join(root, ".github/workflows/android-release.yml"), "utf8");
 for (const needle of [
   "workflow_dispatch:",
