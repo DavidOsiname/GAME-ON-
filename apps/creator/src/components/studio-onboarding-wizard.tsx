@@ -23,6 +23,7 @@ export type StudioSetupProfile = {
 export type StudioSetupData = {
   studioName: string;
   logoFile: File | null;
+  removeLogo: boolean;
   contactName: string;
   contactRole: string;
   officialEmail: string;
@@ -92,6 +93,7 @@ export default function StudioOnboardingWizard({
   const [step, setStep] = useState(0);
   const [studioName, setStudioName] = useState(initialStudio?.studio_name || "");
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [logoRemoved, setLogoRemoved] = useState(false);
   const [logoPreview, setLogoPreview] = useState(initialStudio?.logo_url || "");
   const [contactName, setContactName] = useState(initialProfile?.contact_name || "");
   const [contactRole, setContactRole] = useState(initialProfile?.contact_role || "");
@@ -123,6 +125,7 @@ export default function StudioOnboardingWizard({
       return;
     }
     setLogoFile(file);
+    setLogoRemoved(false);
     setLogoPreview(URL.createObjectURL(file));
   }
 
@@ -174,6 +177,7 @@ export default function StudioOnboardingWizard({
     await onSave({
       studioName: studioName.trim(),
       logoFile,
+      removeLogo: logoRemoved,
       contactName: contactName.trim(),
       contactRole: resolvedRole,
       officialEmail: officialEmail.trim().toLowerCase(),
@@ -224,7 +228,7 @@ export default function StudioOnboardingWizard({
               <label className="setup-upload-button" htmlFor="setup-studio-logo">{logoFile ? "Choose a different logo" : "Choose company logo"}</label>
               <input id="setup-studio-logo" className="setup-file-input" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => chooseLogo(event.currentTarget.files?.[0])}/>
               <p>JPG, PNG or WebP · Maximum 3 MB. A square image works best.</p>
-              {logoPreview && <button className="setup-text-button" type="button" onClick={() => { setLogoFile(null); setLogoPreview(""); }}>Remove logo</button>}
+              {logoPreview && <button className="setup-text-button" type="button" onClick={() => { setLogoFile(null); setLogoRemoved(true); setLogoPreview(""); }}>Remove logo</button>}
               <button className="setup-skip-button" type="button" onClick={nextStep}>Skip logo for now →</button>
             </div>}
 
