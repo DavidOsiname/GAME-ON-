@@ -22,7 +22,8 @@ export default function StoreApp() {
   const [sortMode, setSortMode] = useState<"newest" | "title" | "free-first" | "price-low">("newest");
   const [fitOpen, setFitOpen] = useState(false);
   const [fitPlatform, setFitPlatform] = useState("Any device");
-  const [fitBudget, setFitBudget] = useState("Any budget");
+  const [fitBudgetAmount, setFitBudgetAmount] = useState("");
+  const [fitBudgetCurrency, setFitBudgetCurrency] = useState("NGN");
   const [fitConnection, setFitConnection] = useState("Any connection");
   const [fitGenre, setFitGenre] = useState("Any genre");
   const [selected, setSelected] = useState<Game | null>(null);
@@ -193,6 +194,7 @@ export default function StoreApp() {
     }
     return matches;
   }, [games, genre, query, platformFilter, priceFilter, offlineOnly, sortMode]);
+  const fitCurrencies = useMemo(() => Array.from(new Set(games.map((game) => game.currency))).sort(), [games]);
   const fitMatches = useMemo(() => games.filter((game) => {
     const matchesPlatform = fitPlatform === "Any device" || game.platforms.some((platform) => {
       const value = platform.toLowerCase();
@@ -200,14 +202,12 @@ export default function StoreApp() {
       return value === fitPlatform.toLowerCase();
     });
     const isPaid = game.monetization.toLowerCase().startsWith("paid");
-    const matchesBudget = fitBudget === "Any budget"
-      || (fitBudget === "Free only" && !isPaid)
-      || (fitBudget === "Up to ₦2,000" && (!isPaid || (game.currency === "NGN" && game.priceMinor !== null && game.priceMinor <= 200000)))
-      || (fitBudget === "Up to ₦5,000" && (!isPaid || (game.currency === "NGN" && game.priceMinor !== null && game.priceMinor <= 500000)));
+    const budget = fitBudgetAmount.trim() === "" ? null : Number(fitBudgetAmount);
+    const matchesBudget = budget === null || !isPaid || (Number.isFinite(budget) && budget >= 0 && game.currency === fitBudgetCurrency && game.priceMinor !== null && game.priceMinor <= Math.round(budget * 100));
     const matchesConnection = fitConnection !== "Offline required" || game.offline;
     const matchesGenre = fitGenre === "Any genre" || game.genre === fitGenre;
     return matchesPlatform && matchesBudget && matchesConnection && matchesGenre;
-  }), [games, fitPlatform, fitBudget, fitConnection, fitGenre]);
+  }), [games, fitPlatform, fitBudgetAmount, fitBudgetCurrency, fitConnection, fitGenre]);
   const visible = tab === "library" ? games.filter((game) => library.includes(game.id)) : tab === "wishlist" ? games.filter((game) => wishlist.includes(game.id)) : filtered;
 
   function flash(message: string) { setNotice(message); window.setTimeout(() => setNotice(isSupabaseConfigured ? "Live Game ON catalogue" : "Demo catalogue · fictional sample games"), 3600); }
@@ -405,17 +405,18 @@ export default function StoreApp() {
           </div>
           <div className="game-fit-fields">
             <label><span>What do you play on?</span><select value={fitPlatform} onChange={(event) => setFitPlatform(event.target.value)}><option>Any device</option><option>Android</option><option>PC</option><option>Web</option></select></label>
-            <label><span>What's your budget?</span><select value={fitBudget} onChange={(event) => setFitBudget(event.target.value)}><option>Any budget</option><option>Free only</option><option>Up to ₦2,000</option><option>Up to ₦5,000</option></select></label>
+            <label><span>Maximum budget</span><input type="number" min="0" step="0.01" value={fitBudgetAmount} onChange={(event) => setFitBudgetAmount(event.target.value)} placeholder="No limit"/></label>
+            <label><span>Budget currency</span><select value={fitBudgetCurrency} onChange={(event) => setFitBudgetCurrency(event.target.value)}>{fitCurrencies.map((currency) => <option key={currency} value={currency}>{currency} — {new Intl.NumberFormat("en", { style: "currency", currency, maximumFractionDigits: 2 }).format(1)}</option>)}</select></label>
             <label><span>How's your internet?</span><select value={fitConnection} onChange={(event) => setFitConnection(event.target.value)}><option>Any connection</option><option>Offline required</option></select></label>
             <label><span>Which genre do you enjoy?</span><select value={fitGenre} onChange={(event) => setFitGenre(event.target.value)}><option>Any genre</option>{genres.filter((item) => item !== "All games").map((item) => <option key={item}>{item}</option>)}</select></label>
           </div>
-          <div className="game-fit-results-heading"><div><p className="eyebrow">YOUR MATCHES</p><h3>{fitMatches.length} {fitMatches.length === 1 ? "game" : "games"} match your choices</h3></div><button type="button" className="game-fit-reset" onClick={() => { setFitPlatform("Any device"); setFitBudget("Any budget"); setFitConnection("Any connection"); setFitGenre("Any genre"); }}>Reset choices</button></div>
+          <div className="game-fit-results-heading"><div><p className="eyebrow">YOUR MATCHES</p><h3>{fitMatches.length} {fitMatches.length === 1 ? "game" : "games"} match your choices</h3></div><button type="button" className="game-fit-reset" onClick={() => { setFitPlatform("Any device"); setFitBudgetAmount(""); setFitBudgetCurrency(fitCurrencies.includes("NGN") ? "NGN" : fitCurrencies[0] || "USD"); setFitConnection("Any connection"); setFitGenre("Any genre"); }}>Reset choices</button></div>
           {fitMatches.length > 0 ? <div className="game-fit-results">{fitMatches.slice(0, 6).map((game) => <article className="game-fit-result" key={game.id}>
             <span className={`game-fit-result-icon cover-${game.accent}`}>{game.icon}</span>
             <div className="game-fit-result-copy"><b>{game.title}</b><span>{game.genre} · {game.studio}</span><small>{game.platforms.join(", ")} · {game.offline ? "Offline play" : "Internet required"} · {game.monetization}</small></div>
             <button type="button" className="game-fit-view" onClick={() => setSelected(game)}>View game</button>
           </article>)}</div> : <div className="game-fit-empty"><b>No exact matches yet.</b><p>Try choosing any device, a wider budget or any genre to see more games.</p></div>}
-          <p className="game-fit-disclaimer">Matches use the information supplied in each game listing. GAME FIT does not test your device's hardware or guarantee game performance.</p>
+          <p className="game-fit-disclaimer">Budget limits compare prices in the currency shown on each listing. Choose the matching currency; automatic exchange-rate conversion is not enabled yet. Matches use publisher-supplied details and do not guarantee device performance.</p>
         </section>}
         <div className="filter-row"><label className="search-box"><span>⌕</span><input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search games, genres or studios…" aria-label="Search games"/><kbd>⌘ K</kbd></label><div className="genre-pills">{genres.map((item) => <button key={item} className={genre === item ? "chosen" : ""} onClick={() => setGenre(item)}>{item}</button>)}</div></div><div className="discovery-filter-row" aria-label="More game filters">
           <label className="discovery-filter-select"><span>Platform</span><select value={platformFilter} onChange={(event) => setPlatformFilter(event.target.value)} aria-label="Filter by platform"><option>All platforms</option><option>Android</option><option>PC</option><option>Web</option></select></label>
