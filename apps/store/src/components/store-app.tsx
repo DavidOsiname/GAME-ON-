@@ -194,7 +194,7 @@ export default function StoreApp() {
     }
     return matches;
   }, [games, genre, query, platformFilter, priceFilter, offlineOnly, sortMode]);
-  const fitCurrencies = useMemo(() => Array.from(new Set(games.map((game) => game.currency))).sort(), [games]);
+  const fitCurrencies = useMemo(() => { const intl = Intl as typeof Intl & { supportedValuesOf?: (key: "currency") => string[] }; const isoCurrencies = intl.supportedValuesOf?.("currency") || []; return Array.from(new Set([...isoCurrencies, ...games.map((game) => game.currency)])).sort(); }, [games]);
   const fitMatches = useMemo(() => games.filter((game) => {
     const matchesPlatform = fitPlatform === "Any device" || game.platforms.some((platform) => {
       const value = platform.toLowerCase();
