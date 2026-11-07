@@ -185,14 +185,14 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
     const slug = `${makeSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
     if (studio.demo || !supabase) {
-      const row: GameRow = { id: `demo-${Date.now()}`, title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: [platform] };
+      const row: GameRow = { id: `demo-${Date.now()}`, title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: [platform], game_platform_details: [fitInput.platformDetail as PlatformDetail] };
       setGames((old) => [row, ...old]); setNotice("Demo submission saved locally. Connect the shared backend for real review and publishing."); setSection("games"); setBusy(false); return;
     }
     const { data, error } = await supabase.from("games").insert({ studio_id: studio.id, title, slug, short_description: description, description, genre, supported_platforms: [platform], supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, status: "submitted" }).select("id,title,slug,genre,status,short_description,monetization_type,price_minor,currency,created_at,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases").single();
     if (error || !data) { setBusy(false); setNotice(error?.message || "The game listing could not be created."); return; }
     const { error: detailsError } = await supabase.from("game_platform_details").upsert({ ...fitInput.platformDetail, game_id: data.id }, { onConflict: "game_id,platform" });
     setBusy(false);
-    setGames((old) => [data as GameRow, ...old]); setSection("games");
+    setGames((old) => [{ ...(data as GameRow), game_platform_details: [fitInput.platformDetail as PlatformDetail] }, ...old]); setSection("games");
     setNotice(detailsError ? `Listing created, but GAME FIT details could not be saved: ${detailsError.message}` : "Your game listing and GAME FIT details were submitted for review.");
   }
 
@@ -216,7 +216,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (monetization === "paid" && (!Number.isFinite(priceNaira) || priceNaira <= 0 || !Number.isSafeInteger(Math.round(priceNaira * 100)))) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
     const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
     if (studio.demo || !supabase) {
-      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, slug: makeSlug(title), genre, short_description: description } : game));
+      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, slug: makeSlug(title), genre, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: [platform], game_platform_details: [fitInput.platformDetail as PlatformDetail] } : game));
       setNotice("Demo listing updated on this device."); setEditingGame(null); setSection("games"); setBusy(false); return;
     }
     const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: [platform], supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
