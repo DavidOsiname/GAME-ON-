@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { PENDING_STUDIO_SETUP_TTL_HOURS } from "@/lib/pending-studio-setup";
 
 export type StudioSetupStudio = {
@@ -119,6 +119,7 @@ export default function StudioOnboardingWizard({
   const [websiteUrl, setWebsiteUrl] = useState(initialData?.websiteUrl || initialStudio?.website_url || "");
   const [description, setDescription] = useState(initialData?.description || initialStudio?.description || "");
   const [localError, setLocalError] = useState("");
+  const draftSaveTimer = useRef<number | null>(null);
 
   useEffect(() => {
     if (!logoPreview.startsWith("blob:")) return;
@@ -130,6 +131,7 @@ export default function StudioOnboardingWizard({
   useEffect(() => {
     if (!preAuth || !onDraftChange) return;
     const timer = window.setTimeout(() => {
+      draftSaveTimer.current = null;
       void onDraftChange({
         studioName,
         logoFile,
@@ -141,7 +143,11 @@ export default function StudioOnboardingWizard({
         description,
       }, step);
     }, 350);
-    return () => window.clearTimeout(timer);
+    draftSaveTimer.current = timer;
+    return () => {
+      window.clearTimeout(timer);
+      if (draftSaveTimer.current === timer) draftSaveTimer.current = null;
+    };
   }, [preAuth, onDraftChange, studioName, logoFile, logoRemoved, contactName, resolvedRole, officialEmail, websiteUrl, description, step]);
 
   const totalSteps = STEPS.length;
@@ -219,8 +225,22 @@ export default function StudioOnboardingWizard({
       websiteUrl: websiteUrl.trim(),
       description: description.trim(),
     };
-    if (preAuth && onContinueToAccount) await onContinueToAccount(data);
-    else await onSave(data);
+    if (preAuth && onContinueToAccount) {
+      if (draftSaveTimer.current !== null) {
+        window.clearTimeout(draftSaveTimer.current);
+        draftSaveTimer.current = null;
+      }
+      if (onDraftChange) {
+        const saved = await onDraftChange(data, step);
+        if (saved === false) {
+          setLocalError("Your company setup could not be saved in this browser yet. Check the autosave message and try again.");
+          return;
+        }
+      }
+      await onContinueToAccount(data);
+    } else {
+      await onSave(data);
+    }
   }
 
   const current = STEPS[step];
