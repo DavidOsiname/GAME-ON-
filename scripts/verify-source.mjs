@@ -7,6 +7,9 @@ const required = [
   "apps/store/src/app/page.tsx",
   "apps/store/src/components/store-app.tsx",
   "apps/creator/src/components/creator-insights.tsx",
+  "apps/creator/src/components/creator-app.tsx",
+  "apps/creator/src/components/studio-onboarding-wizard.tsx",
+  "apps/creator/src/lib/pending-studio-setup.ts",
   "apps/creator/src/app/page.tsx",
   "apps/creator/src/app/admin/page.tsx",
   "apps/creator/src/components/admin-review-app.tsx",
@@ -82,6 +85,50 @@ if (missing.length) {
   console.error("Missing required files:\n" + missing.join("\n"));
   process.exit(1);
 }
+const creatorOnboardingSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const studioWizardSource = fs.readFileSync(path.join(root, "apps/creator/src/components/studio-onboarding-wizard.tsx"), "utf8");
+const pendingStudioDraftSource = fs.readFileSync(path.join(root, "apps/creator/src/lib/pending-studio-setup.ts"), "utf8");
+for (const [name, source, needles] of [
+  ["pending Creator setup storage", pendingStudioDraftSource, [
+    "window.indexedDB.open",
+    "logoBlob",
+    "expiresAt",
+    "DRAFT_TTL_MS = 72 * 60 * 60 * 1000",
+    "savePendingStudioSetupDraft",
+    "loadPendingStudioSetupDraft",
+    "clearPendingStudioSetupDraft",
+  ]],
+  ["Creator company wizard recovery", studioWizardSource, [
+    "initialStep?: number",
+    "onDraftChange?:",
+    "await onContinueToAccount(data)",
+    "PENDING_STUDIO_SETUP_TTL_HOURS",
+  ]],
+  ["Creator company-first auth recovery", creatorOnboardingSource, [
+    "if (!user && !showAccountCreation)",
+    "if (!user && showAccountCreation)",
+    "loadPendingStudioSetupDraft()",
+    "savePendingStudioSetupDraft(data, step, \"company\")",
+    "savePendingStudioSetupDraft(data, 5, \"account\")",
+    "finishConfirmedAccountSetup",
+    '.eq("owner_user_id", setupUser.id)',
+    'from("developer_studio_contacts").upsert',
+  ]],
+]) {
+  for (const needle of needles) {
+    if (!source.includes(needle)) throw new Error(`${name} is missing required recovery control: ${needle}`);
+  }
+}
+if (creatorOnboardingSource.indexOf("if (!user && !showAccountCreation)") > creatorOnboardingSource.indexOf("if (!user && showAccountCreation)")) {
+  throw new Error("First-time Creator visitors must complete company setup before account creation.");
+}
+if (pendingStudioDraftSource.includes("password")) {
+  throw new Error("Pending company setup storage must never persist account passwords.");
+}
+if (creatorOnboardingSource.indexOf("finishConfirmedAccountSetup") < 0 || !creatorOnboardingSource.includes("return false;")) {
+  throw new Error("Creator account confirmation must be able to resume failed setup without discarding the draft.");
+}
+
 const creatorEnv = fs.readFileSync(path.join(root, "apps/creator/.env.example"), "utf8");
 const storeEnv = fs.readFileSync(path.join(root, "apps/store/.env.example"), "utf8");
 if (!creatorEnv.includes("SUPABASE_SECRET_KEY=") || !creatorEnv.includes("GAMEON_ADMIN_USER_IDS=")) throw new Error("Creator server environment template is incomplete.");
