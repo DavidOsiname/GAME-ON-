@@ -3,7 +3,7 @@
 begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
-select plan(49);
+select plan(50);
 
 select has_table('public', 'marketplace_orders', 'marketplace order ledger exists');
 select has_table('public', 'refund_requests', 'refund request ledger exists');
@@ -94,6 +94,18 @@ select ok(
   and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
     like '%GAME ON verification markers are managed%',
   'verification markers are cleared on developer insert and protected on update'
+);
+
+select ok(
+  pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%new.official_access_url_verified_at := null%'
+  and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%new.download_size_verified_at := null%'
+  and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%new.internet_requirement_verified_at := null%'
+  and pg_get_functiondef('public.protect_game_platform_detail_verification()'::regprocedure)
+    like '%new.minimum_requirements_verified_at := null%',
+  'changing developer-provided GAME FIT facts invalidates the corresponding Game ON verification timestamp'
 );
 
 select * from finish();
