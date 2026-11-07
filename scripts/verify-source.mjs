@@ -229,6 +229,21 @@ for (const marker of [
 ]) {
   if (!creatorStatusSource.includes(marker)) throw new Error("Creator draft management is missing: " + marker);
 }
+for (const marker of [
+  "function getDraftProgress(game: GameRow)",
+  '{ id: "drafts", label: "Drafts", icon: "✎" }',
+  "const visibleDraftGames = draftGames.filter",
+  "section === \"drafts\"",
+  "value={draftSearch}",
+  "value={draftSort}",
+  '<option value="most-complete">Most complete</option>',
+  '<option value="least-complete">Least complete</option>',
+  "aria-valuenow={progress.percent}",
+  "Submission readiness",
+  "Ready to submit",
+]) {
+  if (!creatorStatusSource.includes(marker)) throw new Error("Creator Drafts workspace is missing: " + marker);
+}
 const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
 for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {
   if (!creatorFitSource.includes(marker)) throw new Error(`Creator GAME FIT submission is missing: ${marker}`);
