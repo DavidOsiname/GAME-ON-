@@ -11,6 +11,13 @@ type ModerationReport = { id: string; game_id: string; category: string; details
 
 type ModerationReview = { id: string; user_id: string; game_id: string; rating: number; review_text?: string | null; created_at: string; game: { title: string; slug: string } | null; player: { username?: string | null; display_name?: string | null } | null };
 
+function isPublicHttpsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    return parsed.protocol === "https:" && Boolean(parsed.hostname) && !parsed.username && !parsed.password;
+  } catch { return false; }
+}
+
 type ModerationFactField = "official_access_url" | "download_size_bytes" | "internet_requirement" | "minimum_requirements";
 type ModerationPlatformDetail = {
   platform: string;
@@ -203,7 +210,7 @@ export default function AdminReviewApp() {
               return <div className="admin-fit-review-row" key={fact.field}>
                 <div>
                   <b>{fact.label}</b>
-                  {fact.field === "official_access_url" && detail.official_access_url && /^https:\/\//i.test(detail.official_access_url)
+                  {fact.field === "official_access_url" && detail.official_access_url && isPublicHttpsUrl(detail.official_access_url)
                     ? <a href={detail.official_access_url} target="_blank" rel="noopener noreferrer" className="admin-link">{detail.official_access_url} ↗</a>
                     : <span>{fact.value}</span>}
                   <small>{fact.verifiedAt ? `Game ON verified · ${new Date(fact.verifiedAt).toLocaleDateString()}` : "Not yet Game ON verified"}</small>
