@@ -9,7 +9,7 @@ type BuildRow = { id: string; game_id: string; game_title: string; version_label
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const extensions: Record<string, string[]> = { android: ["apk", "aab"], windows: ["exe", "msi", "zip"], web: ["zip"] };
 
-export default function BuildManager({ games, studioVerified }: { games: GameOption[]; studioVerified: boolean }) {
+export default function BuildManager({ games, studioVerified, scannerEnabled }: { games: GameOption[]; studioVerified: boolean; scannerEnabled: boolean }) {
   const eligibleGames = useMemo(() => games.filter((game) => ["draft", "submitted", "rejected"].includes(game.status)), [games]);
   const [builds, setBuilds] = useState<BuildRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -43,6 +43,7 @@ export default function BuildManager({ games, studioVerified }: { games: GameOpt
     const formElement = event.currentTarget;
     if (!supabase) { setError("Connect Game ON Creator to Supabase before uploading real builds. Demo mode never uploads files."); return; }
     if (!studioVerified) { setError("Your developer studio must be verified before you can upload builds."); return; }
+    if (!scannerEnabled) { setError("Secure build scanning is not enabled yet. Uploads will open after the private scanner is deployed and tested."); return; }
     if (!selectedGame) { setError("Choose one of your eligible game listings."); return; }
     const form = new FormData(event.currentTarget);
     const version = String(form.get("version") || "").trim();
@@ -83,12 +84,12 @@ export default function BuildManager({ games, studioVerified }: { games: GameOpt
     <section className="surface-card submit-form">
       <div className="form-section-heading"><b>UPLOAD A GAME BUILD</b><span>PRIVATE · 50 MB MAX</span></div>
       {!supabase && <div className="build-warning">Demo mode is active. Connect Supabase to upload real files; demo mode intentionally disables file upload.</div>}
-      {!studioVerified ? <div className="build-warning">Studio verification is required before uploads are enabled. Your current studio status must be approved by Game ON.</div> : !eligibleGames.length ? <p className="build-muted">You need a draft, submitted or rejected listing before uploading a build. Published and actively reviewed listings are locked.</p> : <form onSubmit={handleUpload} className="build-upload-form">
+      {!studioVerified ? <div className="build-warning">Studio verification is required before uploads are enabled. Your current studio status must be approved by Game ON.</div> : !scannerEnabled ? <div className="build-warning">Uploads are disabled until Game ON’s private malware scanner and ClamAV service have been deployed and tested.</div> : !eligibleGames.length ? <p className="build-muted">You need a draft, submitted or rejected listing before uploading a build. Published and actively reviewed listings are locked.</p> : <form onSubmit={handleUpload} className="build-upload-form">
         <label>Game listing<select value={gameId} onChange={(event) => { setGameId(event.target.value); const next = eligibleGames.find((g) => g.id === event.target.value); setPlatform(next?.supported_platforms?.[0] || "android"); }} required>{eligibleGames.map((game) => <option value={game.id} key={game.id}>{game.title} · {game.status.replaceAll("_", " ")}</option>)}</select></label>
         <div className="form-two"><label>Platform<select value={platform} onChange={(event) => setPlatform(event.target.value)}>{platforms.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label><label>Version label<input name="version" required maxLength={40} placeholder="e.g. 1.0.0" pattern="[A-Za-z0-9][A-Za-z0-9._+-]{0,39}"/></label></div>
         <label>Game build file<input type="file" name="buildFile" accept=".apk,.aab,.exe,.msi,.zip" required/><small>Android: APK/AAB · Windows: EXE/MSI/ZIP · Web: ZIP. Current limit: 50 MB.</small></label>
         <div className="submission-note"><b>Important safety notice</b><p>Uploads remain private. This initial pipeline does not itself scan malware; it waits for a separately configured trusted scanner. Never upload third-party games without distribution rights.</p></div>
-        <div className="form-actions"><button className="creator-primary" disabled={busy || !supabase || !studioVerified}>{busy ? "Uploading securely…" : "Upload to private quarantine →"}</button></div>
+        <div className="form-actions"><button className="creator-primary" disabled={busy || !supabase || !studioVerified || !scannerEnabled}>{busy ? "Uploading securely…" : "Upload to private quarantine →"}</button></div>
       </form>}
     </section>
     <section className="surface-card full-card"><div className="surface-heading"><div><h2>Build history</h2><p>{builds.length} uploaded or pending build records</p></div></div>
