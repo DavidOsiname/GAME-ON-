@@ -44,6 +44,7 @@ const required = [
   "supabase/migrations/0008_player_creator_experience.sql",
   "supabase/migrations/0009_marketplace_commerce.sql",
   "supabase/migrations/0012_game_fit_platform_details.sql",
+  "supabase/migrations/0014_creator_game_drafts.sql",
   "apps/store/src/lib/payment-server.ts",
   "apps/store/src/lib/payment-config.mjs",
   "apps/store/src/lib/refund-event.mjs",
@@ -206,6 +207,18 @@ for (const marker of [
   "Locked during review",
 ]) {
   if (!creatorStatusSource.includes(marker)) throw new Error(`Creator review status guidance is missing: ${marker}`);
+}
+
+for (const marker of [
+  "async function saveNewGameDraft(",
+  'rpc("create_game_draft"',
+  'rpc("submit_game_draft"',
+  'name="submissionAction" value="draft"',
+  'name="submissionAction" value="submit"',
+  'editingGame.status === "draft" ? "Draft submitted for Game ON review."',
+  "readGameFitInputs(form, platforms, !saveDraftOnly)",
+]) {
+  if (!creatorStatusSource.includes(marker)) throw new Error("Creator Save as Draft / Resume Later is missing: " + marker);
 }
 const creatorFitSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
 for (const marker of ["readGameFitInput", "game_platform_details", "officialAccessUrl", "downloadSizeMb", "internetRequirement", "minimum_requirements", "supported_languages", "age_rating"]) {

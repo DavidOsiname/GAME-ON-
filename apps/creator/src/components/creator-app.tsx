@@ -54,15 +54,26 @@ function readGameFitInput(form: FormData, platform: string): ParsedGameFit {
   if (rawAgeRating.length > 60) return { error: "Age rating must be 60 characters or fewer.", supportedLanguages: [], ageRating: null, platformDetail: null };
   return { error: null, supportedLanguages, ageRating: rawAgeRating || null, platformDetail: { platform, official_access_url: officialAccessUrl, download_size_bytes: sizeMb === null ? null : Math.round(sizeMb * 1024 * 1024), internet_requirement: internetRequirement, minimum_requirements: requirements } };
 }
-function readGameFitInputs(form: FormData, platforms: string[]): ParsedGameFits {
+function readGameFitInputs(form: FormData, platforms: string[], requirePlatform = true): ParsedGameFits {
   const allowed = new Set<string>(GAME_PLATFORMS.map((item) => item.value));
   const uniquePlatforms = [...new Set(platforms)].filter((platform) => allowed.has(platform));
-  if (!uniquePlatforms.length) return { error: "Select at least one supported platform.", supportedLanguages: [], ageRating: null, platformDetails: [] };
+  if (!uniquePlatforms.length) {
+    if (requirePlatform) return { error: "Select at least one supported platform.", supportedLanguages: [], ageRating: null, platformDetails: [] };
+    const supportedLanguages = [...new Set(String(form.get("supportedLanguages") || "").split(",").map((item) => item.trim()).filter(Boolean))].slice(0, 20);
+    if (supportedLanguages.some((item) => item.length > 40)) return { error: "Each supported language must be 40 characters or fewer.", supportedLanguages: [], ageRating: null, platformDetails: [] };
+    const rawAgeRating = String(form.get("ageRating") || "").trim();
+    if (rawAgeRating.length > 60) return { error: "Age rating must be 60 characters or fewer.", supportedLanguages: [], ageRating: null, platformDetails: [] };
+    return { error: null, supportedLanguages, ageRating: rawAgeRating || null, platformDetails: [] };
+  }
   const parsed = uniquePlatforms.map((platform) => readGameFitInput(form, platform));
   const invalid = parsed.find((item) => item.error || !item.platformDetail);
   const shared = parsed[0];
   if (invalid || !shared) return { error: invalid?.error || "Check the GAME FIT information for each selected platform.", supportedLanguages: shared?.supportedLanguages || [], ageRating: shared?.ageRating || null, platformDetails: [] };
   return { error: null, supportedLanguages: shared.supportedLanguages, ageRating: shared.ageRating, platformDetails: parsed.map((item) => item.platformDetail as PlatformDetail) };
+}
+function getSubmissionAction(event: FormEvent<HTMLFormElement>) {
+  const submitter = (event.nativeEvent as SubmitEvent).submitter;
+  return submitter instanceof HTMLButtonElement && submitter.value ? submitter.value : "submit";
 }
 function PlatformGameFitFields({ platform, detail }: { platform: string; detail?: PlatformDetail | null }) {
   const platformLabel = GAME_PLATFORMS.find((item) => item.value === platform)?.label || platform.toUpperCase();
@@ -171,9 +182,53 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     setBusy(false); if (error) setNotice(error.message); else { setStudio(data as Studio); setNotice("Studio created. Verification status: pending."); }
   }
 
+  async function saveNewGameDraft(formElement: HTMLFormElement) {
+    if (!studio) return;
+    setBusy(true); setNotice("");
+    const form = new FormData(formElement);
+    const title = String(form.get("title") || "").trim();
+    if (title.length < 2 || title.length > 100) { setBusy(false); setNotice("Enter a game title between 2 and 100 characters before saving a draft."); return; }
+    const genre = String(form.get("genre") || "");
+    const description = String(form.get("description") || "").trim();
+    const platforms = form.getAll("platforms").map(String);
+    const fitInput = readGameFitInputs(form, platforms, false);
+    if (fitInput.error) { setBusy(false); setNotice(fitInput.error); return; }
+    const monetization = String(form.get("monetization") || "free");
+    const priceInput = String(form.get("priceNaira") || "").trim();
+    const priceNaira = priceInput ? Number(priceInput) : 0;
+    const priceMinor = monetization === "paid" && Number.isFinite(priceNaira) && priceNaira > 0 && Number.isSafeInteger(Math.round(priceNaira * 100)) ? Math.round(priceNaira * 100) : null;
+    const ads = form.get("ads") === "on";
+    const iap = form.get("iap") === "on";
+    const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
+    const slug = (makeSlug(title) || "game") + "-" + Math.random().toString(36).slice(2, 6);
+    const fallbackId = "draft-" + Date.now();
+    if (studio.demo || !supabase) {
+      const row: GameRow = { id: fallbackId, title, slug, genre, status: "draft", short_description: description, monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap };
+      setGames((old) => [row, ...old]); setSection("games"); setBusy(false); setNotice("Draft saved on this device. Open My games and choose Continue editing whenever you are ready."); return;
+    }
+    const { data: draftId, error: createError } = await supabase.rpc("create_game_draft", { p_studio_id: studio.id, p_title: title, p_slug: slug });
+    if (createError || !draftId) { setBusy(false); setNotice(createError?.message || "The draft could not be created."); return; }
+    const patch = { short_description: description, description, genre, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: priceMinor === null ? null : "NGN", offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() };
+    const { error: updateError } = await supabase.from("games").update(patch).eq("id", draftId).eq("studio_id", studio.id);
+    let detailsError: { message: string } | null = null;
+    if (!updateError && fitInput.platformDetails.length) {
+      const result = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: draftId })), { onConflict: "game_id,platform" });
+      detailsError = result.error;
+    }
+    const { data: saved } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("id", draftId).eq("studio_id", studio.id).maybeSingle();
+    if (saved) setGames((old) => [saved as GameRow, ...old.filter((game) => game.id !== draftId)]);
+    else setGames((old) => [{ id: String(draftId), title, slug, genre, status: "draft", short_description: description, monetization_type: monetization, price_minor: priceMinor, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap }, ...old]);
+    setBusy(false); setSection("games");
+    setNotice(updateError ? "Your draft record was created, but some listing details did not save: " + updateError.message : detailsError ? "Draft saved, but some GAME FIT details did not save: " + detailsError.message : "Draft saved privately. Continue editing it from My games whenever you are ready.");
+  }
+
   async function submitGame(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); if (!studio) return; setBusy(true); setNotice("");
-    const form = new FormData(event.currentTarget); const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platforms = form.getAll("platforms").map(String); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
+    event.preventDefault();
+    const formElement = event.currentTarget;
+    if (!studio) return;
+    if (getSubmissionAction(event) === "draft") { await saveNewGameDraft(formElement); return; }
+    setBusy(true); setNotice("");
+    const form = new FormData(formElement); const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platforms = form.getAll("platforms").map(String); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
     const fitInput = readGameFitInputs(form, platforms);
     if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
@@ -181,9 +236,9 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const priceNaira = priceInput ? Number(priceInput) : 0;
     if (monetization === "paid" && (!Number.isFinite(priceNaira) || priceNaira <= 0 || !Number.isSafeInteger(Math.round(priceNaira * 100)))) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
     const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
-    const slug = `${makeSlug(title)}-${Math.random().toString(36).slice(2, 6)}`;
+    const slug = (makeSlug(title) || "game") + "-" + Math.random().toString(36).slice(2, 6);
     if (studio.demo || !supabase) {
-      const row: GameRow = { id: `demo-${Date.now()}`, title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails };
+      const row: GameRow = { id: "demo-" + Date.now(), title, slug, genre, status: "submitted", short_description: description, monetization_type: monetization, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails };
       setGames((old) => [row, ...old]); setNotice("Demo submission saved locally. Connect the shared backend for real review and publishing."); setSection("games"); setBusy(false); return;
     }
     const { data, error } = await supabase.from("games").insert({ studio_id: studio.id, title, slug, short_description: description, description, genre, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, status: "submitted" }).select("id,title,slug,genre,status,reviewed_at,rejection_reason,short_description,monetization_type,price_minor,currency,created_at,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases").single();
@@ -191,12 +246,14 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const { error: detailsError } = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: data.id })), { onConflict: "game_id,platform" });
     setBusy(false);
     setGames((old) => [{ ...(data as GameRow), game_platform_details: fitInput.platformDetails }, ...old]); setSection("games");
-    setNotice(detailsError ? `Listing created, but GAME FIT details could not be saved: ${detailsError.message}` : "Your game listing and GAME FIT details were submitted for review.");
+    setNotice(detailsError ? "Listing created, but GAME FIT details could not be saved: " + detailsError.message : "Your game listing and GAME FIT details were submitted for review.");
   }
 
   async function saveGameEdits(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!studio || !editingGame) return;
+    const action = getSubmissionAction(event);
+    const saveDraftOnly = editingGame.status === "draft" && action === "draft";
     setBusy(true); setNotice("");
     const form = new FormData(event.currentTarget);
     const title = String(form.get("title") || "").trim();
@@ -204,40 +261,49 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const description = String(form.get("description") || "").trim();
     const platforms = form.getAll("platforms").map(String);
     const monetization = String(form.get("monetization") || "free");
-    const fitInput = readGameFitInputs(form, platforms);
-    if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    if (title.length < 2 || title.length > 100) { setBusy(false); setNotice("Enter a game title between 2 and 100 characters."); return; }
+    const fitInput = readGameFitInputs(form, platforms, !saveDraftOnly);
+    if (fitInput.error || (!saveDraftOnly && !fitInput.platformDetails.length)) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const ads = form.get("ads") === "on";
     const iap = form.get("iap") === "on";
     const priceInput = String(form.get("priceNaira") || "").trim();
     const priceNaira = priceInput ? Number(priceInput) : 0;
-    if (monetization === "paid" && (!Number.isFinite(priceNaira) || priceNaira <= 0 || !Number.isSafeInteger(Math.round(priceNaira * 100)))) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
-    const priceMinor = monetization === "paid" ? Math.round(priceNaira * 100) : null;
+    const validPrice = Number.isFinite(priceNaira) && priceNaira > 0 && Number.isSafeInteger(Math.round(priceNaira * 100));
+    if (!saveDraftOnly && monetization === "paid" && !validPrice) { setBusy(false); setNotice("Enter a valid NGN price greater than zero for a paid game."); return; }
+    const priceMinor = monetization === "paid" && validPrice ? Math.round(priceNaira * 100) : null;
     if (studio.demo || !supabase) {
-      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, slug: makeSlug(title), genre, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, monetization_type: monetization, price_minor: priceMinor } : game));
-      setNotice("Demo listing updated on this device."); setEditingGame(null); setSection("games"); setBusy(false); return;
+      const nextStatus = editingGame.status === "rejected" || (editingGame.status === "draft" && !saveDraftOnly) ? "submitted" : editingGame.status;
+      setGames((old) => old.map((game) => game.id === editingGame.id ? { ...game, title, genre, status: nextStatus, short_description: description, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, supported_platforms: platforms, game_platform_details: fitInput.platformDetails, monetization_type: monetization, price_minor: priceMinor, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap } : game));
+      setNotice(saveDraftOnly ? "Draft saved on this device." : nextStatus === "submitted" ? "Draft or rejected listing sent back for review in this local demo." : "Demo listing updated on this device."); setEditingGame(null); setSection("games"); setBusy(false); return;
     }
-    const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: monetization === "paid" ? "NGN" : null, offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
+    const { error } = await supabase.from("games").update({ title, genre, short_description: description, description, supported_platforms: platforms, supported_languages: fitInput.supportedLanguages, age_rating: fitInput.ageRating, monetization_type: monetization, price_minor: priceMinor, currency: priceMinor === null ? null : "NGN", offline_support: offline, contains_ads: ads, has_in_app_purchases: iap, updated_at: new Date().toISOString() }).eq("id", editingGame.id).eq("studio_id", studio.id);
     if (error) { setBusy(false); setNotice(error.message); return; }
-    const { error: detailsError } = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: editingGame.id })), { onConflict: "game_id,platform" });
-    if (detailsError) { setBusy(false); setNotice(`Listing updated, but GAME FIT details could not be saved: ${detailsError.message}`); return; }
+    if (fitInput.platformDetails.length) {
+      const { error: detailsError } = await supabase.from("game_platform_details").upsert(fitInput.platformDetails.map((detail) => ({ ...detail, game_id: editingGame.id })), { onConflict: "game_id,platform" });
+      if (detailsError) { setBusy(false); setNotice("Listing updated, but GAME FIT details could not be saved: " + detailsError.message); return; }
+    }
     const removedPlatforms = GAME_PLATFORMS.map((item) => item.value).filter((platform) => !platforms.includes(platform));
     if (removedPlatforms.length) {
       const { error: deleteDetailsError } = await supabase.from("game_platform_details").delete().eq("game_id", editingGame.id).in("platform", removedPlatforms);
-      if (deleteDetailsError) { setBusy(false); setNotice(`Listing saved, but old platform details could not be removed: ${deleteDetailsError.message}`); return; }
+      if (deleteDetailsError) { setBusy(false); setNotice("Listing saved, but old platform details could not be removed: " + deleteDetailsError.message); return; }
     }
     if (editingGame.status === "rejected") {
       const resubmit = await supabase.rpc("resubmit_game", { p_game_id: editingGame.id });
-      if (resubmit.error) { setBusy(false); setNotice(`Changes saved, but resubmission failed: ${resubmit.error.message}`); return; }
+      if (resubmit.error) { setBusy(false); setNotice("Changes saved, but resubmission failed: " + resubmit.error.message); return; }
+    } else if (editingGame.status === "draft" && !saveDraftOnly) {
+      const submission = await supabase.rpc("submit_game_draft", { p_game_id: editingGame.id });
+      if (submission.error) { setBusy(false); setNotice("Your changes were saved as a draft, but submission was blocked: " + submission.error.message); return; }
     }
     const { data, error: refreshError } = await supabase.from("games").select("id,title,slug,genre,status,reviewed_at,rejection_reason,created_at,short_description,monetization_type,price_minor,currency,supported_platforms,supported_languages,age_rating,offline_support,contains_ads,has_in_app_purchases,game_platform_details(platform,official_access_url,official_access_url_verified_at,download_size_bytes,download_size_verified_at,internet_requirement,internet_requirement_verified_at,minimum_requirements,minimum_requirements_verified_at)").eq("studio_id", studio.id).order("created_at", { ascending: false });
     if (!refreshError && data) setGames(data as GameRow[]);
-    setBusy(false); setEditingGame(null); setSection("games"); setNotice(editingGame.status === "rejected" ? "Changes saved and listing resubmitted for review." : "Game listing updated.");
+    setBusy(false); setEditingGame(null); setSection("games");
+    setNotice(saveDraftOnly ? "Draft saved privately. Continue editing it from My games whenever you are ready." : editingGame.status === "rejected" ? "Changes saved and listing resubmitted for review." : editingGame.status === "draft" ? "Draft submitted for Game ON review." : "Game listing updated.");
   }
 
   function beginEdit(game: GameRow) {
     if (game.status === "published") { setNotice("Published listings are locked for editing in this early release. Contact Game ON support for a listing change."); return; }
-    setEditingGame(game); const selectedPlatforms = (game.supported_platforms || ["android"]).filter((platform) => GAME_PLATFORMS.some((item) => item.value === platform)); setEditingPlatforms(selectedPlatforms.length ? selectedPlatforms : ["android"]); setSection("edit"); setNotice("");
+    setEditingGame(game); const selectedPlatforms = (game.supported_platforms || []).filter((platform) => GAME_PLATFORMS.some((item) => item.value === platform)); setEditingPlatforms(game.status === "draft" ? selectedPlatforms : selectedPlatforms.length ? selectedPlatforms : ["android"]); setSection("edit"); setNotice("");
   }
 
   async function signOut() {
@@ -270,13 +336,13 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
             <div><b>Published</b><span>Approved and visible in the separate GAME ON Store.</span></div>
           </div>
           <GameTable games={games} onEdit={beginEdit}/></section></>}
-        {section === "submit" && <><div className="page-intro"><div><p className="eyebrow">PUBLISH ON GAME ON</p><h1>Submit a game.</h1><p>Create the store listing. Game builds and downloads are handled separately after security review is ready.</p></div></div><form className="surface-card submit-form" onSubmit={submitGame}><div className="form-section-heading"><b>GAME INFORMATION</b><span>STEP 1 OF 2</span></div><div className="form-two"><label>Game title<input name="title" placeholder="Enter your game title" required maxLength={80}/></label><label>Genre<select name="genre" required defaultValue=""><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required placeholder="Describe your game in 180 characters or fewer."/></label><div className="form-section-heading separated"><b>PLATFORM & MONETIZATION</b><span>STORE DISCLOSURES</span></div><div className="platform-selection"><b>Where can players play this game?</b><p>Select every platform this same game supports. You will enter separate GAME FIT facts for each selected platform.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={submitPlatforms.includes(platform.value)} onChange={(event) => setSubmitPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
+        {section === "submit" && <><div className="page-intro"><div><p className="eyebrow">PUBLISH ON GAME ON</p><h1>Submit a game.</h1><p>Create the store listing. Game builds and downloads are handled separately after security review is ready.</p></div></div><form className="surface-card submit-form" onSubmit={submitGame}><div className="form-section-heading"><b>GAME INFORMATION</b><span>STEP 1 OF 2</span></div><div className="form-two"><label>Game title<input name="title" placeholder="Enter your game title" required maxLength={100}/></label><label>Genre<select name="genre" required defaultValue=""><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required placeholder="Describe your game in 180 characters or fewer."/></label><div className="form-section-heading separated"><b>PLATFORM & MONETIZATION</b><span>STORE DISCLOSURES</span></div><div className="platform-selection"><b>Where can players play this game?</b><p>Select every platform this same game supports. You will enter separate GAME FIT facts for each selected platform.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={submitPlatforms.includes(platform.value)} onChange={(event) => setSubmitPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
       <div className="form-two"><label>Monetization<select name="monetization" defaultValue="free"><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div><div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>{GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!submitPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value}/></div>)}
-        <div className="checkbox-grid"><label><input type="checkbox" name="ads"/> Contains advertising</label><label><input type="checkbox" name="iap"/> Contains in-app purchases</label></div><div className="submission-note"><b>Before you submit</b><p>This creates a listing record for review. After submission, use the Builds section to upload an APK, AAB, EXE, MSI or ZIP package. Uploads remain private until a trusted malware scanner and Game ON release review both approve them. Your studio must be verified before uploads are enabled.</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button><button className="creator-primary" disabled={busy}>{busy ? "Submitting…" : "Submit listing for review →"}</button></div></form></>}
-        {section === "edit" && editingGame && <><div className="page-intro"><div><p className="eyebrow">UPDATE YOUR LISTING</p><h1>Edit game.</h1><p>Make changes to your listing. Rejected listings can be sent back for review after you save.</p></div></div><form className="surface-card submit-form" onSubmit={saveGameEdits}><div className="form-section-heading"><b>GAME INFORMATION</b><span>{editingGame.status.replace("_", " ").toUpperCase()}</span></div><div className="form-two"><label>Game title<input name="title" defaultValue={editingGame.title} required maxLength={100}/></label><label>Genre<select name="genre" defaultValue={editingGame.genre} required>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required defaultValue={editingGame.short_description || ""}/></label><div className="platform-selection"><b>Supported platforms</b><p>Choose every platform this game supports. Each selected platform has its own GAME FIT details.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={editingPlatforms.includes(platform.value)} onChange={(event) => setEditingPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
+        <div className="checkbox-grid"><label><input type="checkbox" name="ads"/> Contains advertising</label><label><input type="checkbox" name="iap"/> Contains in-app purchases</label></div><div className="submission-note"><b>Before you submit</b><p>This creates a listing record for review. After submission, use the Builds section to upload an APK, AAB, EXE, MSI or ZIP package. Uploads remain private until a trusted malware scanner and Game ON release review both approve them. Your studio must be verified before uploads are enabled.</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button><button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save as draft"}</button><button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy}>{busy ? "Submitting…" : "Submit listing for review →"}</button></div></form></>}
+        {section === "edit" && editingGame && <><div className="page-intro"><div><p className="eyebrow">UPDATE YOUR LISTING</p><h1>Edit game.</h1><p>{editingGame.status === "draft" ? "Save your work privately and return later, or complete every required field to send it for review." : "Make changes to your listing. Rejected listings can be sent back for review after you save."}</p></div></div><form className="surface-card submit-form" onSubmit={saveGameEdits}><div className="form-section-heading"><b>GAME INFORMATION</b><span>{editingGame.status.replace("_", " ").toUpperCase()}</span></div><div className="form-two"><label>Game title<input name="title" defaultValue={editingGame.title} required maxLength={100}/></label><label>Genre<select name="genre" defaultValue={editingGame.genre || ""} required><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required defaultValue={editingGame.short_description || ""}/></label><div className="platform-selection"><b>Supported platforms</b><p>Choose every platform this game supports. Each selected platform has its own GAME FIT details.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={editingPlatforms.includes(platform.value)} onChange={(event) => setEditingPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
       <div className="form-two"><label>Monetization<select name="monetization" defaultValue={editingGame.monetization_type || "free"}><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" defaultValue={editingGame.price_minor ? (editingGame.price_minor / 100).toFixed(2) : ""} placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div>
       <div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} defaultValue={editingGame.age_rating || ""} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} defaultValue={(editingGame.supported_languages || []).join(", ")} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>
-      {GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!editingPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value} detail={editingGame.game_platform_details?.find((detail) => detail.platform === platform.value) || null}/></div>)}<div className="submission-note"><b>Review status protection</b><p>Saving changes will not publish your game. If the listing was rejected, the app will call the secure resubmission function to return it to the review queue.</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => { setEditingGame(null); setSection("games"); }}>Cancel</button><button className="creator-primary" disabled={busy}>{busy ? "Saving…" : editingGame.status === "rejected" ? "Save and resubmit →" : "Save changes →"}</button></div></form></>}
+      {GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!editingPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value} detail={editingGame.game_platform_details?.find((detail) => detail.platform === platform.value) || null}/></div>)}<div className="submission-note"><b>Review status protection</b><p>{editingGame.status === "draft" ? "Drafts stay private and are not visible in GAME ON Store. Saving preserves the draft. Submitting checks the required listing details and sends it to Game ON for review." : "Saving changes will not publish your game. If the listing was rejected, the app will call the secure resubmission function to return it to the review queue."}</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => { setEditingGame(null); setSection("games"); }}>Cancel</button>{editingGame.status === "draft" ? <><button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save draft"}</button><button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy}>{busy ? "Submitting…" : "Submit draft for review →"}</button></> : <button type="submit" className="creator-primary" disabled={busy}>{busy ? "Saving…" : editingGame.status === "rejected" ? "Save and resubmit →" : "Save changes →"}</button>}</div></form></>}
         {section === "builds" && <BuildManager studioVerified={studio?.verification_status === "verified"} scannerEnabled={scannerEnabled} games={games.map((game) => ({ id: game.id, title: game.title, status: game.status, supported_platforms: game.supported_platforms }))}/>}
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
@@ -305,7 +371,7 @@ function GameTable({ games, onEdit }: { games: GameRow[]; onEdit: (game: GameRow
     const actionLabel = game.status === "published" ? "Published" : game.status === "in_review" ? "Locked during review" : game.status === "rejected" ? "Edit & resubmit →" : game.status === "draft" ? "Continue editing →" : "Edit listing →";
     return <tr key={game.id}>
       <td><div className="table-game"><span className="mini-game-icon">🎮</span><div><b>{game.title}</b><small>{game.slug}</small></div></div></td>
-      <td>{game.genre}</td>
+      <td>{game.genre || "—"}</td>
       <td><div className="listing-status-cell"><span className={`status-pill ${status.tone}`}>{status.label}</span><small>{status.detail}</small>
         {game.status === "rejected" && game.rejection_reason && <div className="game-rejection-note"><b>Reason from Game ON review</b><p>{game.rejection_reason}</p></div>}
         {game.reviewed_at && <small>Last reviewed {new Date(game.reviewed_at).toLocaleDateString()}</small>}
