@@ -96,6 +96,13 @@ if (!storeCode.includes('from("game_reports").insert') || !route.includes('from(
 for (const app of ["store", "creator"]) { const recovery = fs.readFileSync(path.join(root, `apps/${app}/src/components/password-recovery.tsx`), "utf8"); if (!recovery.includes("resetPasswordForEmail") || !recovery.includes("updateUser({ password })")) throw new Error(`${app} password recovery flow is incomplete.`); }
 const adminUi = fs.readFileSync(path.join(root, "apps/creator/src/components/admin-review-app.tsx"), "utf8");
 if (!adminUi.includes("Player safety reports") || !adminUi.includes('act("report"')) throw new Error("Admin report triage UI is missing.");
+const gameFitAdminRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/admin/games/route.ts"), "utf8");
+for (const marker of ['entityType === "game_fit"', "official_access_url_verified_at", "download_size_verified_at", "internet_requirement_verified_at", "minimum_requirements_verified_at", "audit_events"]) {
+  if (!gameFitAdminRoute.includes(marker)) throw new Error(`Admin GAME FIT verification route is missing: ${marker}`);
+}
+for (const marker of ["ModerationPlatformDetail", "actGameFit", "Verify fact", "Revoke verification", "game_platform_details"]) {
+  if (!adminUi.includes(marker)) throw new Error(`Admin GAME FIT review UI is missing: ${marker}`);
+}
 const downloadRoute = fs.readFileSync(path.join(root, "apps/store/src/app/api/downloads/[gameId]/route.ts"), "utf8");
 const buildRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/builds/upload-url/route.ts"), "utf8");
 const finalizeRoute = fs.readFileSync(path.join(root, "apps/creator/src/app/api/builds/finalize/route.ts"), "utf8");
