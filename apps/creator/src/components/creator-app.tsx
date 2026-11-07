@@ -247,13 +247,13 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         setAuthMode("signin");
       } else {
         const authenticatedUser = result.data.user ? { id: result.data.user.id, email: result.data.user.email } : null;
-        setUser(authenticatedUser);
         if (authenticatedUser && pendingSetupData) {
           const { data: existingStudio, error: lookupError } = await supabase.from("developer_studios").select("id").eq("owner_user_id", authenticatedUser.id).maybeSingle();
           if (lookupError) throw lookupError;
           if (!existingStudio) await finishStudioSetup(pendingSetupData, authenticatedUser);
-          setPendingSetupData(null);
+          else setPendingSetupData(null);
         }
+        setUser(authenticatedUser);
       }
     } catch (caught) {
       setAuthMessage(caught instanceof Error ? caught.message : "Could not contact the account service. Check your connection and try again.");
@@ -305,6 +305,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         localStorage.setItem("goc-demo-studio-profile", JSON.stringify(profile));
         setNotice("Your company setup has been saved. Demo data stays on this device.");
         setEditingStudioSetup(false);
+        setPendingSetupData(null);
         return;
       }
 
@@ -379,6 +380,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       setStudioProfileLoading(false);
       setNotice("Your company setup has been saved. Studio verification is still pending until Game ON reviews it.");
       setEditingStudioSetup(false);
+      setPendingSetupData(null);
     } catch (caught) {
       if (supabase && setupUser && !setupUser.demo) {
         const { data: partialStudio } = await supabase.from("developer_studios").select("id,studio_name,slug,description,website_url,logo_url,verification_status").eq("owner_user_id", setupUser.id).maybeSingle();
@@ -590,13 +592,12 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
   if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><button className="auth-switch" type="button" onClick={() => { setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
 
-  if (!user) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">DEVELOPER ACCESS</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Access your publishing workspace and manage your game listings.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form><a className="forgot-password-link" href="/forgot-password">Forgot your password?</a><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button onClick={() => { setAuthMode(authMode === "signup" ? "signin" : "signup"); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
-
   if (studioLoading || studioProfileLoading) return <main className="studio-onboarding"><header className="onboarding-top"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div></header><section className="onboarding-card"><div className="onboarding-symbol">✦</div><p className="eyebrow">CREATOR WORKSPACE</p><h1>Preparing your studio.</h1><p className="auth-help">We’re loading your company profile and setup progress.</p></section></main>;
 
   if (!studio || !studioProfile || editingStudioSetup) return <StudioOnboardingWizard
     initialStudio={studio}
     initialProfile={studioProfile}
+    initialData={pendingSetupData}
     userEmail={user.email}
     isEditing={Boolean(studio)}
     busy={busy}
