@@ -102,6 +102,8 @@ for (const [name, source, needles] of [
     "initialStep?: number",
     "onDraftChange?:",
     "await onContinueToAccount(data)",
+    "draftSaveTimer",
+    "if (saved === false)",
     "PENDING_STUDIO_SETUP_TTL_HOURS",
   ]],
   ["Creator company-first auth recovery", creatorOnboardingSource, [
