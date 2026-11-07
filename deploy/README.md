@@ -50,7 +50,7 @@ Caddy handles routing and TLS certificate renewal. The local app endpoints remai
 
 `GET /api/health` confirms the Node/Next process is responding. `GET /api/ready` checks the required backend configuration and Supabase availability; it should return HTTP 200 before sending public traffic. A health response alone does not mean the marketplace is fully configured.
 
-The malware scanner remains a separate private service. After Creator has its public HTTPS URL, configure `services/build-scanner/.env` from its example and deploy it with its own Compose file. Keep ClamAV port 3310 private. Verify clean, EICAR, malformed, oversized, stale-lease and outage cases before accepting developer uploads.
+The malware scanner remains a separate private service. Keep `GAMEON_SCANNER_ENABLED=false` in Creator until the scanner and ClamAV are deployed and tested. After Creator has its public HTTPS URL, configure `services/build-scanner/.env` from its example and deploy it with its own Compose file. Keep ClamAV port 3310 private. Verify clean, EICAR, malformed, oversized, stale-lease and outage cases before setting `GAMEON_SCANNER_ENABLED=true` and accepting developer uploads.
 
 ## Dependency lockfile recovery (network-restricted workstation)
 
