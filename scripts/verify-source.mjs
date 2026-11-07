@@ -97,6 +97,8 @@ for (const [name, source, needles] of [
     "savePendingStudioSetupDraft",
     "loadPendingStudioSetupDraft",
     "clearPendingStudioSetupDraft",
+    "function isStoredDraft(value: unknown)",
+    "record.expiresAt <= Date.now()",
   ]],
   ["Creator company wizard recovery", studioWizardSource, [
     "initialStep?: number",
