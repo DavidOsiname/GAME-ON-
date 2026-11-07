@@ -1,0 +1,19 @@
+{
+  "expo": {
+    "name": "GAME ON CREATOR",
+    "slug": "game-on-creator",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "gameoncreator",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.gameon.creator"
+    },
+    "android": {
+      "package": "com.gameon.creator",
+      "versionCode": 1
+    }
+  }
+}

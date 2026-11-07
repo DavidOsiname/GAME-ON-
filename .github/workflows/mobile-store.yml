@@ -1,0 +1,158 @@
+name: GAME ON STORE mobile
+
+on:
+  push:
+    branches:
+      - mobile/store-native-foundation
+      - import/game-on-mvp-0.9.10
+    paths:
+      - "mobile/store/**"
+      - ".github/workflows/mobile-store.yml"
+  pull_request:
+    paths:
+      - "mobile/store/**"
+      - ".github/workflows/mobile-store.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: Expo dependency and TypeScript checks
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mobile/store
+    env:
+      EXPO_PUBLIC_SUPABASE_URL: ${{ secrets.EXPO_PUBLIC_SUPABASE_URL }}
+      EXPO_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.EXPO_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.16.0"
+          cache: npm
+          cache-dependency-path: mobile/store/package.json
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check Expo SDK dependency compatibility
+        run: npx expo install --check
+
+      - name: Type-check mobile app
+        run: npm run typecheck
+
+      - name: Run Expo project diagnostics
+        run: npx expo-doctor
+      - name: Bundle GAME ON STORE for Android and iOS
+        run: npx expo export --platform android --platform ios --output-dir dist
+      - name: Set up Java for Android build
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Generate Android native project
+        run: npx expo prebuild --platform android --no-install --non-interactive
+
+      - name: Configure phone-test APK for ARM64 only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          gradle_file = Path("android/app/build.gradle")
+          source = gradle_file.read_text()
+          marker = "defaultConfig {"
+          if marker not in source:
+              raise SystemExit("Could not find Android defaultConfig block")
+          if "abiFilters" not in source:
+              source = source.replace(
+                  marker,
+                  marker + '\n        ndk { abiFilters "arm64-v8a" }',
+                  1,
+              )
+              gradle_file.write_text(source)
+
+          properties_file = Path("android/gradle.properties")
+          lines = properties_file.read_text().splitlines()
+          lines = [
+              line for line in lines
+              if not line.strip().startswith("reactNativeArchitectures=")
+          ]
+          lines.append("reactNativeArchitectures=arm64-v8a")
+          properties_file.write_text("\n".join(lines) + "\n")
+          print("Configured React Native architecture: arm64-v8a")
+          PY
+
+      - name: Build standalone ARM64 phone-test APK
+        run: |
+          cd android
+          # Use the release variant so React Native embeds the JavaScript bundle in the APK.
+          # The generated Expo project signs this internal test APK with the debug key.
+          sed -i 's#services.gradle.org/distributions#downloads.gradle.org/distributions#' gradle/wrapper/gradle-wrapper.properties
+          if grep -q '^networkTimeout=' gradle/wrapper/gradle-wrapper.properties; then
+            sed -i 's/^networkTimeout=.*/networkTimeout=300000/' gradle/wrapper/gradle-wrapper.properties
+          else
+            sed -i '/^distributionUrl=/a networkTimeout=300000' gradle/wrapper/gradle-wrapper.properties
+          fi
+          chmod +x gradlew
+          built=0
+          for attempt in 1 2 3; do
+            if ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon; then built=1; break; fi
+            echo "Gradle attempt $attempt failed; retrying after a short pause."
+            rm -rf "$HOME/.gradle/wrapper/dists/gradle-9.4.1-bin"
+            sleep 15
+          done
+          test "$built" -eq 1
+          test -s app/build/outputs/apk/release/app-release.apk
+
+
+      - name: Verify APK contains ARM64 libraries only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          from zipfile import ZipFile
+
+          apk = Path("android/app/build/outputs/apk/release/app-release.apk")
+          with ZipFile(apk) as archive:
+              names = archive.namelist()
+              libraries = [
+                  name for name in names
+                  if name.startswith("lib/") and name.endswith(".so")
+              ]
+              bundles = [
+                  name for name in names
+                  if name.startswith("assets/")
+                  and "bundle" in Path(name).name
+                  and not name.endswith(".map")
+              ]
+          abis = sorted({
+              name.split("/")[1]
+              for name in libraries
+              if len(name.split("/")) >= 3
+          })
+          print(f"Native library ABIs in APK: {abis}")
+          print(f"Native libraries found: {len(libraries)}")
+          print(f"Embedded JavaScript bundles found: {bundles}")
+          if not bundles:
+              raise SystemExit("APK is missing its embedded JavaScript bundle; refusing upload")
+          if not libraries:
+              raise SystemExit("APK contains no native libraries; refusing upload")
+          if abis != ["arm64-v8a"]:
+              raise SystemExit(
+                  f"Expected only arm64-v8a, found {abis}; refusing upload"
+              )
+          PY
+
+      - name: Upload GAME ON STORE standalone Android test APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-on-store-android-standalone-apk
+          path: mobile/store/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
+          retention-days: 14

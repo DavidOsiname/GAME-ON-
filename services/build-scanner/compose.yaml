@@ -1,0 +1,26 @@
+services:
+  clamav:
+    image: clamav/clamav:stable
+    restart: unless-stopped
+    expose:
+      - "3310"
+    volumes:
+      - clamav-database:/var/lib/clamav
+    # Deliberately no `ports:` entry: ClamAV TCP is reachable only on this
+    # private Compose network, never from the public internet.
+
+  build-scanner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      CLAMAV_HOST: clamav
+      CLAMAV_PORT: "3310"
+    depends_on:
+      - clamav
+
+volumes:
+  clamav-database:

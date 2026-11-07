@@ -1,0 +1,102 @@
+name: GAME ON validation
+on:
+  pull_request:
+    branches: [main, "import/**"]
+  push:
+    branches: [main, "import/**", "feature/**"]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked workspace dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Install GAME ON STORE native dependencies
+        working-directory: mobile/store
+        run: npm install --no-audit --no-fund
+      - name: Check Expo SDK dependency alignment
+        working-directory: mobile/store
+        run: npx expo install --check
+      - name: Type-check GAME ON STORE native app
+        working-directory: mobile/store
+        run: npm run typecheck
+      - name: Run Expo project diagnostics
+        working-directory: mobile/store
+        run: npx expo-doctor
+
+      - name: Run strict release configuration preflight
+        run: npm run release:preflight
+      - name: Upload generated root lockfile for review
+        uses: actions/upload-artifact@v4
+        with:
+          name: game-on-root-package-lock
+          path: package-lock.json
+          if-no-files-found: error
+          retention-days: 14
+      - name: Set up Supabase CLI
+        uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase stack
+        run: supabase start
+      - name: Apply all Supabase migrations
+        run: supabase db reset
+      - name: Run pgTAP database security tests
+        run: supabase test db
+      - name: Run automated safety and source tests
+        run: npm test
+      - name: Type-check both apps
+        run: npm run typecheck
+      - name: Build both apps
+        run: npm run build
+      - name: Build separate production deployment containers
+        run: |
+          cat > deploy/store.env <<'EOF'
+          STORE_DOMAIN=store.ci.invalid
+          CREATOR_DOMAIN=creator.ci.invalid
+          NEXT_PUBLIC_SUPABASE_URL=https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ci_placeholder
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          PAYSTACK_SECRET_KEY=
+          GAMEON_PAYMENTS_ENABLED=false
+          GAMEON_PAYMENTS_MODE=test
+          GAMEON_LIVE_PAYMENTS_APPROVED=false
+          GAMEON_PLATFORM_FEE_BPS=1000
+          GAMEON_STORE_URL=https://store.ci.invalid
+          NEXT_PUBLIC_STORE_URL=https://store.ci.invalid
+          NEXT_PUBLIC_SITE_URL=https://store.ci.invalid
+          EOF
+          cat > deploy/creator.env <<'EOF'
+          NEXT_PUBLIC_SUPABASE_URL=https://ci.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY=sb_publishable_ci_placeholder
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          GAMEON_ADMIN_USER_IDS=00000000-0000-4000-8000-000000000001
+          GAMEON_SCANNER_WEBHOOK_SECRET=ci-only-not-a-real-secret-0123456789abcdef
+          GAMEON_MAX_BUILD_BYTES=52428800
+          PAYSTACK_SECRET_KEY=
+          GAMEON_PAYMENTS_ENABLED=false
+          GAMEON_PAYMENTS_MODE=test
+          GAMEON_LIVE_PAYMENTS_APPROVED=false
+          NEXT_PUBLIC_STORE_URL=https://store.ci.invalid
+          EOF
+          cat > services/build-scanner/.env <<'EOF'
+          SUPABASE_URL=https://ci.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY=sb_secret_ci_placeholder
+          GAMEON_CREATOR_BASE_URL=https://creator.ci.invalid
+          GAMEON_SCANNER_WEBHOOK_SECRET=ci-only-not-a-real-secret-0123456789abcdef
+          CLAMAV_HOST=clamav
+          CLAMAV_PORT=3310
+          EOF
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env config --quiet
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env build store
+          docker compose --env-file deploy/store.env --env-file deploy/creator.env build creator
+          docker compose -f services/build-scanner/compose.yaml build build-scanner

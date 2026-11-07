@@ -1,0 +1,78 @@
+# GAME ON staging only. Both web services are explicitly pinned to Render Free.
+# The scanner is intentionally not included: Render Free cannot run private/background workers.
+services:
+  - type: web
+    name: game-on-store-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: import/game-on-mvp-0.9.10
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm run build --workspace=@game-on/store
+    startCommand: npm run start --workspace=@game-on/store
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: PORT
+        value: "10000"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://viwczhmthlyagqwcrgrt.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: sb_publishable_U5kiDPYsfyUje8HvkDABKw_4cBW8SCO
+      - key: NEXT_PUBLIC_STORE_URL
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: NEXT_PUBLIC_SITE_URL
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: GAMEON_STORE_URL
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: GAMEON_PAYMENTS_ENABLED
+        value: "false"
+      - key: GAMEON_PAYMENTS_MODE
+        value: test
+      - key: GAMEON_LIVE_PAYMENTS_APPROVED
+        value: "false"
+
+  - type: web
+    name: game-on-creator-staging
+    runtime: node
+    plan: free
+    region: frankfurt
+    branch: import/game-on-mvp-0.9.10
+    autoDeployTrigger: off
+    buildCommand: npm ci --include=dev && npm run build --workspace=@game-on/creator
+    startCommand: npm run start --workspace=@game-on/creator
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.12.0
+      - key: PORT
+        value: "10000"
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://viwczhmthlyagqwcrgrt.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        value: sb_publishable_U5kiDPYsfyUje8HvkDABKw_4cBW8SCO
+      - key: GAMEON_SCANNER_ENABLED
+        value: "false"
+      - key: NEXT_PUBLIC_STORE_URL
+        fromService:
+          name: game-on-store-staging
+          type: web
+          envVarKey: RENDER_EXTERNAL_URL
+      - key: GAMEON_MAX_BUILD_BYTES
+        value: "52428800"
+      - key: GAMEON_PAYMENTS_ENABLED
+        value: "false"
+      - key: GAMEON_PAYMENTS_MODE
+        value: test
+      - key: GAMEON_LIVE_PAYMENTS_APPROVED
+        value: "false"

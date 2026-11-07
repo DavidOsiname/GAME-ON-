@@ -1,0 +1,16 @@
+.git
+.github
+node_modules
+**/node_modules
+**/.next
+**/out
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+.env
+.env.*
+deploy/*.env
+deploy/*.env.example
+services/build-scanner/.env
+*.log
+.DS_Store

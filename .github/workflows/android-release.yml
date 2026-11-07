@@ -1,0 +1,111 @@
+name: GAME ON Android release build
+
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: Which independent GAME ON app should be built?
+        required: true
+        type: choice
+        options:
+          - store
+          - creator
+      profile:
+        description: Release artifact to create (build only; no Play submission)
+        required: true
+        type: choice
+        options:
+          - production-apk
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: game-on-android-release-${{ inputs.app }}-${{ inputs.profile }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build GAME ON ${{ inputs.app }} Android ${{ inputs.profile }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment:
+      name: game-on-android-release
+    permissions:
+      contents: read
+    env:
+      EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+      GAMEON_APP: ${{ inputs.app }}
+      EAS_PROFILE: ${{ inputs.profile }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: mobile/${{ inputs.app }}
+    steps:
+      - name: Check out approved source
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22.23.4"
+
+      - name: Require adult-owned Expo token and linked project
+        run: |
+          set -euo pipefail
+          if [[ -z "${EXPO_TOKEN:-}" ]]; then
+            echo "::error::Add EXPO_TOKEN as a secret in the protected game-on-android-release GitHub environment."
+            exit 1
+          fi
+          node <<'NODE'
+          const fs = require("node:fs");
+          const app = JSON.parse(fs.readFileSync("app.json", "utf8")).expo;
+          const expectedPackage = process.env.GAMEON_APP === "store"
+            ? "com.gameon.store"
+            : "com.gameon.creator";
+          if (app.android?.package !== expectedPackage) {
+            throw new Error(`Expected Android package ${expectedPackage}; found ${app.android?.package ?? "missing"}.`);
+          }
+          const projectId = app.extra?.eas?.projectId;
+          if (typeof projectId !== "string" || !/^[0-9a-f-]{36}$/i.test(projectId)) {
+            throw new Error("This app has no valid extra.eas.projectId. The adult project owner must initialise/link its own EAS project.");
+          }
+          console.log(`Verified ${process.env.GAMEON_APP.toUpperCase()} package identity and linked EAS project.`);
+          NODE
+
+      - name: Install mobile dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Check Expo SDK dependencies
+        run: npx expo install --check
+
+      - name: Run Expo diagnostics
+        run: npx expo-doctor
+
+      - name: Verify pinned EAS CLI
+        run: npx --yes eas-cli@27.4.1 --version
+
+      - name: Build with protected remote signing credentials
+        run: |
+          set -euo pipefail
+          npx --yes eas-cli@27.4.1 build \
+            --platform android \
+            --profile "$EAS_PROFILE" \
+            --non-interactive \
+            --wait \
+            --freeze-credentials \
+            --json
+
+      - name: Record build completion
+        if: success()
+        run: |
+          {
+            echo "## GAME ON Android build completed"
+            echo
+            echo "- App: GAME ON ${GAMEON_APP^^}"
+            echo "- EAS profile: ${EAS_PROFILE}"
+            echo "- Source commit: ${GITHUB_SHA}"
+            echo
+            echo "The binary is available in the app's Expo EAS build history. This workflow does not submit to Google Play or publish a rollout."
+          } >> "$GITHUB_STEP_SUMMARY"

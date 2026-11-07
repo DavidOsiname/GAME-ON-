@@ -1,0 +1,13 @@
+node_modules
+.next
+out
+.env
+.env.local
+.env.*.local
+.DS_Store
+npm-debug.log*
+*.tsbuildinfo
+services/build-scanner/.env
+# Local self-host deployment secrets
+/deploy/store.env
+/deploy/creator.env
