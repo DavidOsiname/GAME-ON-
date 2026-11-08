@@ -95,6 +95,16 @@ function getSubmissionAction(event: FormEvent<HTMLFormElement>) {
   const submitter = (event.nativeEvent as SubmitEvent).submitter;
   return submitter instanceof HTMLButtonElement && submitter.value ? submitter.value : "submit";
 }
+
+function isEmailDeliveryConfigurationError(error: unknown) {
+  const message = error instanceof Error
+    ? error.message
+    : typeof error === "string"
+      ? error
+      : String((error as { message?: unknown } | null)?.message || "");
+  return /\\b535\\b|badcredentials|username and password not accepted|smtp|failed to send.*email|error sending.*email|confirmation email.*failed/i.test(message);
+}
+
 function PlatformGameFitFields({ platform, detail }: { platform: string; detail?: PlatformDetail | null }) {
   const platformLabel = GAME_PLATFORMS.find((item) => item.value === platform)?.label || platform.toUpperCase();
   const requirements = detail?.minimum_requirements || {};
@@ -126,6 +136,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
   const [submitPlatforms, setSubmitPlatforms] = useState<string[]>(["android"]);
   const [editingPlatforms, setEditingPlatforms] = useState<string[]>(["android"]);
   const [authMode, setAuthMode] = useState<"signup" | "signin">("signup");
+  const [authEmail, setAuthEmail] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");
   const [confirmationMessage, setConfirmationMessage] = useState("");
@@ -331,6 +342,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const form = new FormData(event.currentTarget);
     const email = String(form.get("email") || "").trim();
     const password = String(form.get("password") || "");
+    setAuthEmail(email);
 
     if (submittedMode === "signup") {
       setPendingConfirmationEmail("");
@@ -355,7 +367,15 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
-        setAuthMessage(result.error.message);
+        if (submittedMode === "signup" && isEmailDeliveryConfigurationError(result.error)) {
+          const confirmationEmail = email.toLowerCase();
+          setPendingConfirmationEmail(confirmationEmail);
+          setConfirmationError(true);
+          setConfirmationMessage("GAME ON could not deliver the confirmation email because its email provider rejected the mail-server login. This is a service configuration issue on our side, not a problem with your password. Your company setup is still saved in this browser. Do not keep registering; use Resend confirmation email after delivery is restored.");
+          setAuthMode("signin");
+        } else {
+          setAuthMessage(result.error.message);
+        }
       } else if (submittedMode === "signup" && !result.data.session) {
         const confirmationEmail = email.toLowerCase();
         setPendingConfirmationEmail(confirmationEmail);
@@ -396,16 +416,20 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       });
       if (error) {
         setConfirmationError(true);
-        setConfirmationMessage(`We could not resend the confirmation email. ${error.message}`);
+        setConfirmationMessage(isEmailDeliveryConfigurationError(error)
+          ? "GAME ON email delivery is still unavailable because the mail provider is rejecting its server login. This is a service issue on our side. Your company setup remains saved in this browser. Please try again after the email service is repaired."
+          : `We could not resend the confirmation email. ${error.message}`);
       } else {
         setConfirmationError(false);
         setConfirmationMessage(`A new confirmation email was sent to ${pendingConfirmationEmail}. Check your inbox and Spam/Junk folder.`);
       }
     } catch (caught) {
       setConfirmationError(true);
-      setConfirmationMessage(caught instanceof Error
-        ? caught.message
-        : "The confirmation email could not be resent. Check your connection and try again.");
+      setConfirmationMessage(isEmailDeliveryConfigurationError(caught)
+        ? "GAME ON email delivery is still unavailable because the mail provider is rejecting its server login. This is a service issue on our side. Your company setup remains saved in this browser. Please try again after the email service is repaired."
+        : caught instanceof Error
+          ? caught.message
+          : "The confirmation email could not be resent. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -866,7 +890,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     onSignOut={signOut}
   />;
 
-  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">COMPANY SETUP COMPLETE</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your account to save this setup and open your Creator workspace.</p><p className="auth-help">Your unfinished setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device.</p><form onSubmit={handleAuth}><label>Email address<input name="email" type="email" placeholder="you@studio.com" required autoComplete="email"/></label><label>Password<input name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"}/></label>{authMessage && <p className="error-message">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form>{pendingConfirmationEmail && authMode === "signin" && <section className={`creator-confirmation-panel${confirmationError ? " error" : ""}`} aria-live="polite"><p>{confirmationMessage}</p><button className="creator-outline" type="button" onClick={resendSignupConfirmation} disabled={busy}>{busy ? "Sending…" : "Resend confirmation email"}</button></section>}<button className="auth-switch" type="button" onClick={async () => { if (pendingSetupData) await persistCompanySetupDraft(pendingSetupData, 5); setPendingConfirmationEmail(""); setConfirmationMessage(""); setConfirmationError(false); setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button type="button" onClick={() => { const nextMode = authMode === "signup" ? "signin" : "signup"; if (nextMode === "signup") { setPendingConfirmationEmail(""); setConfirmationMessage(""); setConfirmationError(false); } setAuthMode(nextMode); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
+  if (!user && showAccountCreation) return <main className="creator-auth-screen"><div className="auth-visual"><div className="visual-glow"/><img src="/game-on-logo.jpg" alt="Game ON company logo"/><p className="eyebrow">BUILT FOR THE PEOPLE WHO BUILD GAMES</p><h1>Your game.<br/><em>Your audience.</em></h1><p className="auth-tagline">Publish with clarity. Understand your players. Grow on Game ON.</p><div className="auth-footnote">GAME ON CREATOR · DEVELOPER PORTAL</div></div><section className="auth-panel"><div className="auth-form-wrap"><div className="small-brand"><span className="brand-square">G</span><span>GAME ON <b>CREATOR</b></span></div><p className="eyebrow">STEP 2 OF 2 · ACCOUNT</p><h2>{authMode === "signup" ? "Create your account" : "Welcome back"}</h2><p className="auth-help">Your company details are ready. Create your secure account to open your Creator workspace.</p><div className="creator-company-summary" aria-label={`Company setup completed for ${pendingSetupData?.studioName || "your company"}`}><span className="creator-company-summary__mark" aria-hidden="true">{pendingSetupData?.studioName?.trim().slice(0, 1).toUpperCase() || "G"}</span><span className="creator-company-summary__content"><small>COMPANY SETUP COMPLETE</small><strong>{pendingSetupData?.studioName || "Your company"}</strong><span>Six setup steps completed · ready for your account</span></span><span className="creator-company-summary__status"><i aria-hidden="true">✓</i>Ready</span></div><p className="auth-help">Your unfinished setup is saved in this browser for up to {PENDING_STUDIO_SETUP_TTL_HOURS} hours. Keep using this device until account creation is complete.</p><form onSubmit={handleAuth}><label htmlFor="creator-auth-email">Email address<input id="creator-auth-email" name="email" type="email" value={authEmail} onChange={(event) => { setAuthEmail(event.target.value); setAuthMessage(""); }} placeholder="you@studio.com" required autoComplete="email" aria-invalid={Boolean(authMessage)} aria-describedby={authMessage ? "creator-auth-error" : undefined}/></label><label htmlFor="creator-auth-password">Password<input id="creator-auth-password" name="password" type="password" placeholder="At least 8 characters" required minLength={8} autoComplete={authMode === "signup" ? "new-password" : "current-password"} aria-invalid={Boolean(authMessage)} aria-describedby={authMessage ? "creator-auth-error" : undefined}/></label>{authMessage && <p id="creator-auth-error" className="error-message" role="alert">{authMessage}</p>}<button className="creator-primary" disabled={busy}>{busy ? "Please wait…" : authMode === "signup" ? "Create developer account" : "Sign in to Creator"}</button></form>{pendingConfirmationEmail && authMode === "signin" && <section className={`creator-confirmation-panel${confirmationError ? " error" : " success"}`} role={confirmationError ? "alert" : "status"} aria-live={confirmationError ? "assertive" : "polite"} aria-atomic="true"><span className="creator-confirmation-icon" aria-hidden="true">{confirmationError ? "!" : confirmationMessage.startsWith("Sending") ? "…" : "✓"}</span><div className="creator-confirmation-copy"><strong>{confirmationError ? "Email delivery needs attention" : confirmationMessage.startsWith("Sending") ? "Sending confirmation email" : "Check your inbox"}</strong><p>{confirmationMessage}</p><small>Confirmation address: <b>{pendingConfirmationEmail}</b></small><button className="creator-primary" type="button" onClick={resendSignupConfirmation} disabled={busy}>{busy ? "Sending…" : "Resend confirmation email"}</button></div></section>}<button className="auth-switch" type="button" onClick={async () => { if (pendingSetupData) await persistCompanySetupDraft(pendingSetupData, 5); setPendingConfirmationEmail(""); setConfirmationMessage(""); setConfirmationError(false); setShowAccountCreation(false); setAuthMessage(""); }}>← Back to company setup</button><p className="auth-switch">{authMode === "signup" ? "Already registered?" : "New to Game ON Creator?"} <button type="button" onClick={() => { const nextMode = authMode === "signup" ? "signin" : "signup"; if (nextMode === "signup") { setPendingConfirmationEmail(""); setConfirmationMessage(""); setConfirmationError(false); } setAuthMode(nextMode); setAuthMessage(""); }}>{authMode === "signup" ? "Sign in" : "Create account"}</button></p>{!isSupabaseConfigured && <p className="demo-banner">DEMO MODE · No password is saved. Connect Supabase to create real developer accounts.</p>}<a className="back-store" href={process.env.NEXT_PUBLIC_STORE_URL || "http://localhost:3000"}>← Back to Game ON Store</a></div></section></main>;
 
   // The two unauthenticated branches above handle setup and account creation.
   // Keep the authenticated workspace explicitly narrowed for TypeScript below.
