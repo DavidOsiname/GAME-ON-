@@ -209,6 +209,33 @@ export default function StudioOnboardingWizard({
     setStep((current) => Math.max(current - 1, 0));
   }
 
+  async function signInExistingAccount() {
+    if (!onSignIn) return;
+    setLocalError("");
+    if (draftSaveTimer.current !== null) {
+      window.clearTimeout(draftSaveTimer.current);
+      draftSaveTimer.current = null;
+    }
+    if (preAuth && onDraftChange) {
+      const data: StudioSetupData = {
+        studioName: studioName.trim(),
+        logoFile,
+        removeLogo: logoRemoved,
+        contactName: contactName.trim(),
+        contactRole: resolvedRole,
+        officialEmail: officialEmail.trim().toLowerCase(),
+        websiteUrl: websiteUrl.trim(),
+        description: description.trim(),
+      };
+      const saved = await onDraftChange(data, step);
+      if (saved === false) {
+        setLocalError("Your company setup could not be saved yet. Please check the save message and try again.");
+        return;
+      }
+    }
+    onSignIn();
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const validationError = validateCurrentStep();
@@ -350,9 +377,9 @@ export default function StudioOnboardingWizard({
                 : <button className="creator-primary" type="submit" disabled={busy}>{busy ? (isEditing ? "Saving company changes…" : "Please wait…") : (preAuth ? "Continue to create account →" : isEditing ? "Save company changes →" : "Create my studio →")}</button>}
             </div>
           </form>
+          {preAuth && onSignIn && <p className="setup-existing-account">Already have a Creator account? <button className="setup-text-button" type="button" onClick={() => void signInExistingAccount()} disabled={busy}>Sign in</button></p>}
         </div>
       </section>
-      {preAuth && onSignIn && <p className="setup-privacy-note">Already have a Creator account? <button className="setup-text-button" type="button" onClick={onSignIn}>Sign in</button></p>}
       <p className="setup-privacy-note">{preAuth ? `Your unfinished company setup is saved in this browser for up to ${PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details.` : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
