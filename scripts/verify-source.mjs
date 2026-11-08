@@ -578,7 +578,7 @@ for (const needle of [
   "editingGame.rejection_reason",
   'defaultChecked={Boolean(editingGame.contains_ads)}',
   'defaultChecked={Boolean(editingGame.has_in_app_purchases)}',
-  'editingGame.status === "rejected" && !formReadiness.ready',
+  'disabled={busy || !formReadiness.ready}',
   "listing-submit-readiness-hint",
 ]) {
   if (!editSection.includes(needle)) {
