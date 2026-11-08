@@ -104,7 +104,7 @@ async function main() {
     assert.ok(signup.data.user?.id, "Signup must create a local Auth user");
     userId = signup.data.user.id;
     assert.equal(signup.data.session, null, "Unconfirmed signup must not create a signed-in session");
-    assert.equal(signup.data.user.email_confirmed_at, undefined,
+    assert.ok(!signup.data.user.email_confirmed_at,
       "Unconfirmed signup must not return a confirmed email timestamp");
 
     const blockedSignIn = await client.auth.signInWithPassword({ email, password });
