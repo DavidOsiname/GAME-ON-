@@ -917,6 +917,9 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
           </div>
         </section>
 
+        <div className="listing-submit-readiness-hint" role="status">
+          {formReadiness.ready ? "All required listing details are in place. You can submit this listing for review." : "To submit, complete this next item: " + formReadiness.nextStep}
+        </div>
         <div className="form-actions listing-form-actions">
           <button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button>
           <button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save as draft"}</button>
