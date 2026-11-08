@@ -209,6 +209,15 @@ for (const selector of [
   }
 }
 
+for (const needle of [
+  "uploadNeedsAttention",
+  '!["rejected", "failed"].includes(build.upload_status)',
+  '!["approved", "rejected"].includes(build.release_status)',
+]) {
+  if (!buildManager.includes(needle)) {
+    throw new Error("Build history filters must classify failed uploads and rejected releases separately: " + needle);
+  }
+}
 const marketplaceMigration = fs.readFileSync(path.join(root, "supabase/migrations/0007_marketplace_notifications_analytics.sql"), "utf8");
 for (const needle of ["public.notifications", "notifications_read_own", "public.download_events", "notify_studio_when_game_published", "notify_players_when_build_approved", "No client policies"]) if (!marketplaceMigration.includes(needle)) throw new Error(`Marketplace migration missing expected control: ${needle}`);
 if (!downloadRoute.includes('from("download_events").insert') || !downloadRoute.includes("sha256: build.sha256_hex")) throw new Error("Download analytics or build-integrity metadata is missing.");
