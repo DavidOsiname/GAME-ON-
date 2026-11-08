@@ -6,39 +6,182 @@ import { supabase } from "@/lib/supabase";
 type NotificationRow = { id: string; title: string; message: string; notification_type: string; read_at: string | null; created_at: string };
 type AnalyticsRow = { game_id: string; game_title: string; game_status: string; download_link_issues: number; latest_download_link_at: string | null; approved_builds: number; latest_approved_version: string | null };
 
+type NotificationFilter = "all" | "unread" | "read";
+
+function notificationPresentation(type: string) {
+  const labels: Record<string, { label: string; icon: string }> = {
+    game_published: { label: "Game published", icon: "✓" },
+    build_update: { label: "Build update", icon: "↻" },
+    game_rejected: { label: "Review feedback", icon: "!" },
+    studio_verified: { label: "Studio verification", icon: "◆" },
+  };
+  return labels[type] || { label: "Studio update", icon: "✦" };
+}
+
 export function CreatorInbox({ userId }: { userId: string }) {
   const [items, setItems] = useState<NotificationRow[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
   const [message, setMessage] = useState("");
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<NotificationFilter>("all");
+  const [pendingIds, setPendingIds] = useState<Set<string>>(() => new Set());
+  const [markingAll, setMarkingAll] = useState(false);
+
   useEffect(() => {
-    if (!supabase || !userId || userId.startsWith("demo-")) { setItems([]); setLoading(false); setMessage("Connect a real Game ON Creator account to receive publishing notifications."); return; }
     let active = true;
-    supabase.from("notifications").select("id,title,message,notification_type,read_at,created_at").eq("user_id", userId).order("created_at", { ascending: false }).limit(50)
-      .then(({ data, error }) => { if (!active) return; setLoading(false); if (error) setMessage(error.message); else setItems((data || []) as NotificationRow[]); });
+    async function loadNotifications() {
+      setLoading(true);
+      setMessage("");
+      if (!supabase || !userId || userId.startsWith("demo-")) {
+        setItems([]);
+        setLoading(false);
+        setMessage("Connect a real Game ON Creator account to receive publishing notifications.");
+        return;
+      }
+      try {
+        const { data, error } = await supabase
+          .from("notifications")
+          .select("id,title,message,notification_type,read_at,created_at")
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(50);
+        if (!active) return;
+        if (error) {
+          setMessage("Notifications could not be loaded: " + error.message);
+        } else {
+          setItems((data || []) as NotificationRow[]);
+        }
+      } catch (caught) {
+        if (active) setMessage(caught instanceof Error ? caught.message : "Notifications could not be loaded. Please try again.");
+      } finally {
+        if (active) setLoading(false);
+      }
+    }
+    void loadNotifications();
     return () => { active = false; };
-  }, [userId]);
+  }, [userId, refreshKey]);
+
+  const unreadCount = useMemo(() => items.filter((item) => !item.read_at).length, [items]);
+  const readCount = items.length - unreadCount;
+  const visibleItems = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return items.filter((item) => {
+      const matchesFilter = filter === "all" || (filter === "unread" && !item.read_at) || (filter === "read" && Boolean(item.read_at));
+      const searchable = [item.title, item.message, item.notification_type].join(" ").toLowerCase();
+      return matchesFilter && (!term || searchable.includes(term));
+    });
+  }, [items, filter, query]);
 
   async function markRead(id: string) {
-    if (!supabase) return;
-    const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id).eq("user_id", userId);
-    if (error) setMessage(error.message);
-    else setItems((old) => old.map((item) => item.id === id ? { ...item, read_at: new Date().toISOString() } : item));
+    if (!supabase || pendingIds.has(id) || markingAll) return;
+    const now = new Date().toISOString();
+    setPendingIds((old) => new Set(old).add(id));
+    setMessage("");
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read_at: now })
+        .eq("id", id)
+        .eq("user_id", userId);
+      if (error) setMessage("This notification could not be marked as read: " + error.message);
+      else setItems((old) => old.map((item) => item.id === id ? { ...item, read_at: now } : item));
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "This notification could not be updated.");
+    } finally {
+      setPendingIds((old) => {
+        const next = new Set(old);
+        next.delete(id);
+        return next;
+      });
+    }
   }
+
   async function markAllRead() {
-    if (!supabase) return;
-    const { error } = await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("user_id", userId).is("read_at", null);
-    if (error) setMessage(error.message);
-    else { const now = new Date().toISOString(); setItems((old) => old.map((item) => item.read_at ? item : { ...item, read_at: now })); setMessage("All notifications marked as read."); }
+    if (!supabase || unreadCount === 0 || markingAll || pendingIds.size > 0) return;
+    const now = new Date().toISOString();
+    setMarkingAll(true);
+    setMessage("");
+    try {
+      const { error } = await supabase
+        .from("notifications")
+        .update({ read_at: now })
+        .eq("user_id", userId)
+        .is("read_at", null);
+      if (error) setMessage("Notifications could not be marked as read: " + error.message);
+      else {
+        setItems((old) => old.map((item) => item.read_at ? item : { ...item, read_at: now }));
+        setMessage("All notifications marked as read.");
+      }
+    } catch (caught) {
+      setMessage(caught instanceof Error ? caught.message : "Notifications could not be updated.");
+    } finally {
+      setMarkingAll(false);
+    }
   }
-  return <>
-    <div className="page-intro"><div><p className="eyebrow">STUDIO ACTIVITY</p><h1>Notifications.</h1><p>Publishing decisions and important Game ON account updates.</p></div><button className="creator-outline" onClick={markAllRead} disabled={!items.some((item) => !item.read_at)}>Mark all read</button></div>
-    {message && <p className="insight-message" role="status">{message}</p>}
-    <section className="surface-card insight-list">
-      {loading && <p className="build-muted">Loading your notifications…</p>}
-      {!loading && items.length === 0 && <div className="table-empty"><span>✦</span><b>No notifications yet</b><p>Studio verification and game publishing updates will appear here.</p></div>}
-      {items.map((item) => <article className={`insight-notification ${item.read_at ? "read" : "unread"}`} key={item.id}><span className="insight-icon">{item.notification_type === "game_published" ? "✓" : item.notification_type === "build_update" ? "↻" : "✦"}</span><div><b>{item.title}</b><p>{item.message}</p><small>{new Date(item.created_at).toLocaleString()}</small></div>{!item.read_at && <button className="row-menu" onClick={() => markRead(item.id)}>Mark read</button>}</article>)}
+
+  const filters = [
+    { id: "all" as const, label: "All", count: items.length },
+    { id: "unread" as const, label: "Unread", count: unreadCount },
+    { id: "read" as const, label: "Read", count: readCount },
+  ];
+
+  return <div className="creator-inbox-workspace">
+    <div className="page-intro inbox-page-intro">
+      <div>
+        <p className="eyebrow">STUDIO ACTIVITY</p>
+        <h1>Notifications.</h1>
+        <p>Publishing decisions and important Game ON account updates.</p>
+      </div>
+      <div className="inbox-header-actions">
+        <button className="creator-outline" type="button" onClick={() => setRefreshKey((key) => key + 1)} disabled={loading}>↻ {loading ? "Refreshing…" : "Refresh"}</button>
+        <button className="creator-primary compact" type="button" onClick={markAllRead} disabled={loading || markingAll || unreadCount === 0 || pendingIds.size > 0}>{markingAll ? "Updating…" : "Mark all read"}</button>
+      </div>
+    </div>
+
+    <section className="inbox-summary-grid" aria-label="Notification summary">
+      <article><span>UNREAD</span><strong>{loading ? "—" : unreadCount.toLocaleString()}</strong><small>Needs your attention</small></article>
+      <article><span>READ</span><strong>{loading ? "—" : readCount.toLocaleString()}</strong><small>Already seen</small></article>
+      <article><span>TOTAL</span><strong>{loading ? "—" : items.length.toLocaleString()}</strong><small>Latest 50 notifications</small></article>
     </section>
-  </>;
+
+    {message && <p className="insight-message" role="status">{message}</p>}
+
+    <section className="surface-card inbox-list-card" aria-label="Studio notifications">
+      <div className="inbox-toolbar">
+        <label className="inbox-search">
+          <span>SEARCH NOTIFICATIONS</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search titles, messages or update type…" aria-label="Search notifications"/>
+        </label>
+        <div className="inbox-result-count" aria-live="polite"><b>{loading ? "—" : visibleItems.length.toLocaleString()}</b><span>shown</span></div>
+      </div>
+
+      <div className="inbox-filter-row" aria-label="Filter notifications">
+        {filters.map((item) => <button type="button" key={item.id} className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}<strong>{item.count}</strong></button>)}
+      </div>
+
+      {loading && <div className="inbox-empty-state"><span aria-hidden="true">↻</span><b>Loading notifications</b><p>Checking the latest publishing and studio updates.</p></div>}
+      {!loading && items.length === 0 && <div className="inbox-empty-state"><span aria-hidden="true">✦</span><b>No notifications yet</b><p>Studio verification and game publishing updates will appear here.</p></div>}
+      {!loading && items.length > 0 && visibleItems.length === 0 && <div className="inbox-empty-state"><span aria-hidden="true">⌕</span><b>No notifications match this view</b><p>Try another filter or search term.</p><button className="creator-outline" type="button" onClick={() => { setFilter("all"); setQuery(""); }}>Clear filters</button></div>}
+
+      {!loading && visibleItems.map((item) => {
+        const presentation = notificationPresentation(item.notification_type);
+        const isPending = pendingIds.has(item.id) || markingAll;
+        return <article className={"inbox-notification " + (item.read_at ? "read" : "unread")} key={item.id}>
+          <span className={"inbox-notification-icon " + (item.read_at ? "read" : "unread")} aria-hidden="true">{presentation.icon}</span>
+          <div className="inbox-notification-copy">
+            <div className="inbox-notification-heading"><b>{item.title}</b><span>{presentation.label}</span></div>
+            <p>{item.message}</p>
+            <small>{new Date(item.created_at).toLocaleString()}</small>
+          </div>
+          <div className="inbox-notification-action">
+            {item.read_at ? <span className="inbox-read-label">Read</span> : <button className="row-menu" type="button" onClick={() => void markRead(item.id)} disabled={isPending}>{pendingIds.has(item.id) ? "Updating…" : "Mark read"}</button>}
+          </div>
+        </article>;
+      })}
+    </section>
+    <p className="inbox-footnote">Only notifications returned for your signed-in Creator account are shown here.</p>
+  </div>;
 }
 
 type AnalyticsFilter = "all" | "published" | "review" | "draft" | "rejected";
