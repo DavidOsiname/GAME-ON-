@@ -47,6 +47,7 @@ type Props = {
   error?: string;
   onSave: (data: StudioSetupData) => void | Promise<unknown>;
   onSignOut: () => void;
+  onSignIn?: () => void;
 };
 
 const STEPS = [
@@ -104,6 +105,7 @@ export default function StudioOnboardingWizard({
   error = "",
   onSave,
   onSignOut,
+  onSignIn,
 }: Props) {
   const [step, setStep] = useState(() => Math.max(0, Math.min(STEPS.length - 1, Math.floor(initialStep || 0))));
   const initialRole = initialData?.contactRole || initialProfile?.contact_role || "";
@@ -350,6 +352,7 @@ export default function StudioOnboardingWizard({
           </form>
         </div>
       </section>
+      {preAuth && onSignIn && <p className="setup-privacy-note">Already have a Creator account? <button className="setup-text-button" type="button" onClick={onSignIn}>Sign in</button></p>}
       <p className="setup-privacy-note">{preAuth ? `Your unfinished company setup is saved in this browser for up to ${PENDING_STUDIO_SETUP_TTL_HOURS} hours. Use a trusted device, especially when entering contact details.` : "Your company contact details stay private to your studio account. Studio verification and publishing permissions are reviewed separately by Game ON."}</p>
     </main>
   );
