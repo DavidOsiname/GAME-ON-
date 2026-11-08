@@ -75,6 +75,7 @@ const required = [
   "services/build-scanner/Dockerfile",
   "services/build-scanner/README.md",
   "scripts/test-build-scanner.mjs",
+  "scripts/test-creator-auth-email.mjs",
   "SCANNER_TEST_RESULTS.md",
   "RELEASE_READINESS.md",
   "deploy/ANDROID-RELEASE-RUNBOOK.md",
@@ -772,6 +773,7 @@ const creatorSignupHandler = creatorOnboardingSource.slice(confirmationAuthStart
 const creatorResendHandler = creatorOnboardingSource.slice(confirmationResendStart, confirmationSetupStart);
 for (const needle of [
   'submittedMode === "signup" && !result.data.session',
+  'options: { emailRedirectTo: window.location.origin }',
   "const confirmationEmail = email.toLowerCase();",
   "setPendingConfirmationEmail(confirmationEmail);",
   'setAuthMode("signin");',
@@ -783,6 +785,7 @@ for (const needle of [
   'supabase.auth.resend({',
   'type: "signup",',
   "email: pendingConfirmationEmail",
+  'options: { emailRedirectTo: window.location.origin }',
   "setConfirmationError(true);",
   "setConfirmationMessage(`A new confirmation email was sent to ${pendingConfirmationEmail}.",
   "setBusy(false);",
@@ -808,6 +811,19 @@ for (const selector of [
   ".creator-confirmation-panel button:focus-visible",
 ]) {
   if (!creatorConfirmationStyles.includes(selector)) throw new Error("Creator confirmation feedback is missing accessible styling: " + selector);
+}
+
+const creatorAuthEmailTestSource = fs.readFileSync(path.join(root, "scripts/test-creator-auth-email.mjs"), "utf8");
+for (const needle of [
+  "client.auth.signUp({",
+  "client.auth.resend({",
+  "type: \"signup\",",
+  "options: { emailRedirectTo: creatorOrigin }",
+  "waitForMessages(mailpitUrl, email, 2)",
+  "signInWithPassword({ email, password })",
+  "Refusing to run the Creator Auth email test against a hosted/non-local Supabase project",
+]) {
+  if (!creatorAuthEmailTestSource.includes(needle)) throw new Error("Creator local Auth email integration test is missing a required check: " + needle);
 }
 
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls, deployment probes and Creator email-confirmation recovery.`);
