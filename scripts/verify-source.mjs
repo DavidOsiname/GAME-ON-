@@ -811,6 +811,8 @@ for (const needle of [
   "onClick={resendSignupConfirmation}",
   'disabled={busy}',
   "Resend confirmation email",
+  "The request was accepted, but email delivery is not confirmed.",
+  "An already-confirmed account does not need another email; use Sign in.",
   "creator-company-summary",
   "aria-atomic=\"true\"",
   "value={authEmail}",
@@ -838,4 +840,5 @@ for (const needle of [
   if (!creatorAuthEmailTestSource.includes(needle)) throw new Error("Creator local Auth email integration test is missing a required check: " + needle);
 }
 
+if (creatorOnboardingSource.includes("A new confirmation email was sent to")) throw new Error("Creator must not claim an email was delivered from an HTTP 200 response alone.");
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls, deployment probes and Creator email-confirmation recovery.`);
