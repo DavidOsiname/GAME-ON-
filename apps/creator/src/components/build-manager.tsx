@@ -18,8 +18,35 @@ export default function BuildManager({ games, studioVerified, scannerEnabled }: 
   const [error, setError] = useState("");
   const [gameId, setGameId] = useState(eligibleGames[0]?.id || "");
   const [platform, setPlatform] = useState(eligibleGames[0]?.supported_platforms?.[0] || "android");
+  const [buildQuery, setBuildQuery] = useState("");
+  const [buildFilter, setBuildFilter] = useState<"all" | "pending" | "attention" | "approved">("all");
 
   const selectedGame = eligibleGames.find((game) => game.id === gameId);
+  const canUpload = Boolean(supabase && studioVerified && scannerEnabled && eligibleGames.length > 0);
+  const buildCounts = useMemo(() => ({
+    all: builds.length,
+    pending: builds.filter((build) => !["clean", "rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved").length,
+    attention: builds.filter((build) => ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected").length,
+    approved: builds.filter((build) => build.release_status === "approved").length,
+  }), [builds]);
+  const visibleBuilds = useMemo(() => {
+    const term = buildQuery.trim().toLowerCase();
+    return builds.filter((build) => {
+      const matchesFilter = buildFilter === "all"
+        || (buildFilter === "pending" && !["clean", "rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved")
+        || (buildFilter === "attention" && (["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected"))
+        || (buildFilter === "approved" && build.release_status === "approved");
+      const searchable = [build.game_title, build.version_label, build.original_file_name || "", build.platform, build.upload_status, build.scan_status, build.release_status, build.scan_report || ""].join(" ").toLowerCase();
+      return matchesFilter && (!term || searchable.includes(term));
+    }).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+  }, [builds, buildFilter, buildQuery]);
+  const buildFilters = [
+    { id: "all" as const, label: "All builds", count: buildCounts.all },
+    { id: "pending" as const, label: "Awaiting scan / decision", count: buildCounts.pending },
+    { id: "attention" as const, label: "Needs attention", count: buildCounts.attention },
+    { id: "approved" as const, label: "Release approved", count: buildCounts.approved },
+  ];
+  const allowedExtensions = extensions[platform] || [];
   const platforms = selectedGame?.supported_platforms?.length ? selectedGame.supported_platforms : ["android"];
 
   const loadBuilds = useCallback(async () => {
