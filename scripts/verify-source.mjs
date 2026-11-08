@@ -594,7 +594,8 @@ if (editHandlerStart < 0 || editHandlerEnd <= editHandlerStart
   || editFitValidationIndex < 0 || editReadinessIndex <= editFitValidationIndex
   || !editHandler.includes("if (!saveDraftOnly && !readiness.ready)")
   || !editHandler.includes('const ads = form.get("ads") === "on"')
-  || !editHandler.includes('const iap = form.get("iap") === "on"')) {
+  || !editHandler.includes('const iap = form.get("iap") === "on"')
+  || !creatorEditSource.includes("contains_ads,has_in_app_purchases")) {
   throw new Error("Creator edit handler must validate GAME FIT before readiness and persist both monetisation disclosures.");
 }
 for (const selector of [
