@@ -117,6 +117,8 @@ for (const [name, source, needles] of [
     "if (!user && !showAccountCreation)",
     "if (!user && showAccountCreation)",
     "onSignIn={() => {",
+    'pendingSetupStage === "account"',
+    "Your company setup progress is saved.",
     "loadPendingStudioSetupDraft()",
     "savePendingStudioSetupDraft(data, step, \"company\")",
     "savePendingStudioSetupDraft(data, 5, \"account\")",
