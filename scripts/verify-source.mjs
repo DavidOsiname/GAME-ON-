@@ -771,6 +771,8 @@ if (confirmationStateStart < 0 || confirmationAuthStart < 0 || confirmationResen
 }
 const creatorSignupHandler = creatorOnboardingSource.slice(confirmationAuthStart, confirmationResendStart);
 const creatorResendHandler = creatorOnboardingSource.slice(confirmationResendStart, confirmationSetupStart);
+if (!creatorSignupHandler.includes("isEmailDeliveryConfigurationError(result.error)") || !creatorSignupHandler.includes("Do not keep registering")) throw new Error("Creator must recover from SMTP confirmation failures without asking users to repeat signup.");
+if (!creatorResendHandler.includes("isEmailDeliveryConfigurationError(error)") || !creatorResendHandler.includes("email service is repaired")) throw new Error("Creator resend must explain when the mail provider is misconfigured.");
 for (const needle of [
   'submittedMode === "signup" && !result.data.session',
   'options: { emailRedirectTo: window.location.origin }',
@@ -802,8 +804,11 @@ for (const needle of [
   "onClick={resendSignupConfirmation}",
   'disabled={busy}',
   "Resend confirmation email",
+  "creator-company-summary",
+  "aria-atomic=\"true\"",
+  "value={authEmail}",
 ]) {
-  if (!confirmationScreen.includes(needle)) throw new Error("Creator account screen is missing its resend confirmation action: " + needle);
+  if (!confirmationScreen.includes(needle)) throw new Error("Creator account screen is missing its resend confirmation action or company summary: " + needle);
 }
 for (const selector of [
   ".creator-confirmation-panel{",
