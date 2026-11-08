@@ -318,6 +318,36 @@ for (const selector of [
   }
 }
 
+for (const needle of [
+  "Secure download links issued are requests recorded",
+  "Each issuance is one event; requesting a fresh link again counts as another issuance.",
+  "The current report includes secure download-link issues",
+  "This report does not include listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales. Play time is not measured either.",
+  "This report counts secure download links issued by Game ON.",
+  'aria-label="Search analytics by game"',
+  'aria-label="Filter analytics by listing status"',
+  "const barWidth = maxIssues > 0",
+  "const loadAnalytics = useCallback",
+  'onClick={() => void loadAnalytics()}',
+  "setLoadError(true)",
+]) {
+  if (!creatorAnalytics.includes(needle)) {
+    throw new Error("Creator analytics must keep metric limitations, filtering, zero values and refresh/error states clear: " + needle);
+  }
+}
+for (const selector of [
+  ".analytics-summary-grid",
+  ".analytics-measurement-note",
+  ".analytics-performance-section",
+  ".analytics-filter-row",
+  ".analytics-game-row",
+  "@media (max-width: 700px)",
+]) {
+  if (!creatorAnalyticsStyles.includes(selector)) {
+    throw new Error("Creator analytics workspace is missing responsive styling: " + selector);
+  }
+}
+
 const reportMigration = fs.readFileSync(path.join(root, "supabase/migrations/0004_player_reports.sql"), "utf8");
 for (const needle of ["game_reports_insert_own_published", "game_reports_read_own", "protect_game_report_metadata", "game_reports_queue_idx"]) if (!reportMigration.includes(needle)) throw new Error(`Report migration missing expected safety control: ${needle}`);
 const migration = fs.readFileSync(path.join(root, "supabase/migrations/0003_admin_moderation.sql"), "utf8");
