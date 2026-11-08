@@ -240,6 +240,44 @@ for (const [name, source, needles] of [
   ["experience migration", experienceMigration, ['get_creator_game_analytics', 'get_game_release_history', 'security definer', 'owner_user_id = caller', "scan_status = 'clean'", "release_status = 'approved'"]],
 ]) for (const needle of needles) if (!source.includes(needle)) throw new Error(`${name} missing required behavior: ${needle}`);
 
+
+const creatorAnalyticsStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const creatorAnalyticsStart = creatorInsights.indexOf("export function CreatorAnalytics()");
+const creatorAnalytics = creatorInsights.slice(creatorAnalyticsStart);
+if (creatorAnalyticsStart < 0) throw new Error("Creator analytics workspace is missing.");
+for (const needle of [
+  'supabase.rpc("get_creator_game_analytics")',
+  "download_link_issues",
+  "approved_builds",
+  "latest_download_link_at",
+  "latest_approved_version",
+  "Secure download links issued",
+  "The current report includes secure download-link issues",
+  "listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales",
+  "This report counts secure download links issued by Game ON.",
+  'aria-label="Search analytics by game"',
+  'aria-label="Filter analytics by listing status"',
+]) {
+  if (!creatorAnalytics.includes(needle)) {
+    throw new Error("Creator analytics must clearly report only available metrics and their limits: " + needle);
+  }
+}
+for (const selector of [
+  ".analytics-summary-grid",
+  ".analytics-measurement-note",
+  ".analytics-performance-section",
+  ".analytics-filter-row",
+  ".analytics-game-row",
+  "@media (max-width: 700px)",
+]) {
+  if (!creatorAnalyticsStyles.includes(selector)) {
+    throw new Error("Creator analytics workspace is missing responsive styling: " + selector);
+  }
+}
+if (creatorAnalytics.includes("window.location.reload()")) {
+  throw new Error("Creator analytics refresh must not force a full-page reload.");
+}
+
 const reportMigration = fs.readFileSync(path.join(root, "supabase/migrations/0004_player_reports.sql"), "utf8");
 for (const needle of ["game_reports_insert_own_published", "game_reports_read_own", "protect_game_report_metadata", "game_reports_queue_idx"]) if (!reportMigration.includes(needle)) throw new Error(`Report migration missing expected safety control: ${needle}`);
 const migration = fs.readFileSync(path.join(root, "supabase/migrations/0003_admin_moderation.sql"), "utf8");
