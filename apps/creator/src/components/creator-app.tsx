@@ -842,16 +842,14 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
               <div className="draft-card-footer"><small>{saved ? "Last saved " + new Date(saved).toLocaleString() : "Saved draft"}</small><div><button className="draft-continue-button" onClick={() => beginEdit(game)}>Continue editing →</button><button className="draft-delete-button" onClick={() => deleteGameDraft(game)} disabled={Boolean(deletingDraftId)}>{deletingDraftId === game.id ? "Deleting…" : "Delete draft"}</button></div></div>
             </article>; })}</div>}
           </section></>}
-        {section === "games" && <><div className="page-intro"><div><p className="eyebrow">YOUR CATALOGUE</p><h1>My games</h1><p>Manage your studio's game listings and review status.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ Submit a game</button></div><section className="surface-card full-card"><div className="surface-heading"><div><h2>All listings</h2><p>{games.length} game listings in your studio</p></div></div>
-          <div className="review-status-guide" aria-label="Game listing status guide">
-            <div><b>Submitted</b><span>Waiting for the Game ON review queue.</span></div>
-            <div><b>In review</b><span>Game ON is checking the listing. Editing is locked until the review finishes.</span></div>
-            <div><b>Rejected</b><span>Read the reason, make changes and resubmit.</span></div>
-            <div><b>Published</b><span>Approved and visible in the separate GAME ON Store.</span></div>
-          </div>
-          <GameTable games={games} onEdit={beginEdit} onDeleteDraft={deleteGameDraft} deletingDraftId={deletingDraftId}/></section></>}
-        
-{section === "submit" && <>
+        {section === "games" && <CreatorGamesScreen
+          games={games}
+          onNavigate={setSection}
+          onEdit={beginEdit}
+          onDeleteDraft={deleteGameDraft}
+          deletingDraftId={deletingDraftId}
+        />}
+        {section === "submit" && <>
   <div className="page-intro listing-page-intro">
     <div>
       <p className="eyebrow">PUBLISH ON GAME ON</p>
@@ -963,6 +961,114 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div><button className="creator-primary" type="button" onClick={() => { setSetupError(""); setEditingStudioSetup(true); }}>Edit company setup →</button></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
       </div>
     </section></main>;
+}
+
+
+type GameListFilter = "all" | "draft" | "review" | "rejected" | "published";
+
+type CreatorGamesScreenProps = {
+  games: GameRow[];
+  onNavigate: (section: Section) => void;
+  onEdit: (game: GameRow) => void;
+  onDeleteDraft: (game: GameRow) => void;
+  deletingDraftId: string | null;
+};
+
+function CreatorGamesScreen({ games, onNavigate, onEdit, onDeleteDraft, deletingDraftId }: CreatorGamesScreenProps) {
+  const [query, setQuery] = useState("");
+  const [filter, setFilter] = useState<GameListFilter>("all");
+  const counts = useMemo(() => ({
+    all: games.length,
+    draft: games.filter((game) => game.status === "draft").length,
+    review: games.filter((game) => game.status === "submitted" || game.status === "in_review").length,
+    rejected: games.filter((game) => game.status === "rejected").length,
+    published: games.filter((game) => game.status === "published").length,
+  }), [games]);
+  const visibleGames = useMemo(() => {
+    const term = query.trim().toLowerCase();
+    return games.filter((game) => {
+      const matchesFilter = filter === "all"
+        || (filter === "review" && ["submitted", "in_review"].includes(game.status))
+        || game.status === filter;
+      const searchable = [
+        game.title,
+        game.genre,
+        game.slug,
+        game.short_description || "",
+        game.status,
+        ...(game.supported_platforms || []),
+        game.rejection_reason || "",
+      ].join(" ").toLowerCase();
+      return matchesFilter && (!term || searchable.includes(term));
+    }).sort((a, b) => {
+      const aTime = Date.parse(a.updated_at || a.created_at || "") || 0;
+      const bTime = Date.parse(b.updated_at || b.created_at || "") || 0;
+      return bTime - aTime || a.title.localeCompare(b.title);
+    });
+  }, [games, filter, query]);
+  const filters: { id: GameListFilter; label: string; count: number; detail: string }[] = [
+    { id: "all", label: "All games", count: counts.all, detail: "Every listing" },
+    { id: "draft", label: "Drafts", count: counts.draft, detail: "Private and unfinished" },
+    { id: "review", label: "In review", count: counts.review, detail: "Submitted to Game ON" },
+    { id: "rejected", label: "Changes requested", count: counts.rejected, detail: "Needs your attention" },
+    { id: "published", label: "Published", count: counts.published, detail: "Visible in the Store" },
+  ];
+
+  return <div className="games-workspace">
+    <div className="page-intro">
+      <div><p className="eyebrow">YOUR CATALOGUE</p><h1>My games</h1><p>Find a listing, follow its review status, and see what you can do next.</p></div>
+      <button className="creator-primary compact" onClick={() => onNavigate("submit")}>＋ Submit a game</button>
+    </div>
+
+    <section className="games-filter-grid" aria-label="Filter games by status">
+      {filters.map((item) => <button
+        type="button"
+        key={item.id}
+        className={`games-filter-card ${filter === item.id ? "active" : ""} ${item.id}`}
+        aria-pressed={filter === item.id}
+        onClick={() => setFilter(item.id)}
+      >
+        <span className="games-filter-label">{item.label}</span>
+        <strong>{item.count.toLocaleString()}</strong>
+        <small>{item.detail}</small>
+      </button>)}
+    </section>
+
+    <section className="surface-card games-management-panel">
+      <div className="games-management-toolbar">
+        <label className="games-search">
+          <span>SEARCH YOUR LISTINGS</span>
+          <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by game title, genre, platform or review reason…" aria-label="Search game listings"/>
+        </label>
+        <div className="games-result-count" aria-live="polite">
+          <b>{visibleGames.length.toLocaleString()}</b>
+          <span>{visibleGames.length === 1 ? "listing shown" : "listings shown"}</span>
+        </div>
+      </div>
+
+      <details className="games-status-guide">
+        <summary>Understand your listing statuses</summary>
+        <div className="games-status-guide-grid">
+          <div><b><span className="status-guide-dot draft"/> Draft</b><p>Private to your studio. Continue editing or delete the draft.</p></div>
+          <div><b><span className="status-guide-dot review"/> Submitted / in review</b><p>Game ON is reviewing the listing. Editing is locked while the review is active.</p></div>
+          <div><b><span className="status-guide-dot rejected"/> Changes requested</b><p>Read the reviewer’s reason, update the listing and resubmit it.</p></div>
+          <div><b><span className="status-guide-dot published"/> Published</b><p>Approved and visible to players in the separate GAME ON Store.</p></div>
+        </div>
+      </details>
+
+      {games.length === 0 ? <div className="games-empty">
+        <span aria-hidden="true">▣</span>
+        <h2>Your catalogue is ready for its first game.</h2>
+        <p>Create a listing with honest game details. It will stay in your workspace until Game ON reviews it.</p>
+        <button className="creator-primary compact" onClick={() => onNavigate("submit")}>Create your first listing →</button>
+      </div> : visibleGames.length === 0 ? <div className="games-empty">
+        <span aria-hidden="true">⌕</span>
+        <h2>No listings match this view.</h2>
+        <p>Try another status filter or search term.</p>
+        <button className="creator-outline" onClick={() => { setFilter("all"); setQuery(""); }}>Clear filters</button>
+      </div> : <GameTable games={visibleGames} onEdit={onEdit} onDeleteDraft={onDeleteDraft} deletingDraftId={deletingDraftId}/>}
+    </section>
+  </div>;
 }
 
 type CreatorOverviewProps = {
