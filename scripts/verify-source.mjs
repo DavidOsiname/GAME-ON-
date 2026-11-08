@@ -520,4 +520,44 @@ if (creatorSubmitHandlerStart < 0 || creatorSubmitHandlerEnd <= creatorSubmitHan
   throw new Error("Creator submission must show specific GAME FIT errors before applying the overall readiness gate.");
 }
 
+
+const creatorGamesSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const creatorGamesStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const gamesSectionStart = creatorGamesSource.indexOf('{section === "games" &&');
+const gamesSectionEnd = creatorGamesSource.indexOf('{section === "submit" &&', gamesSectionStart);
+if (gamesSectionStart < 0 || gamesSectionEnd <= gamesSectionStart) {
+  throw new Error("Creator My games screen is missing or its section boundaries are invalid.");
+}
+const gamesSection = creatorGamesSource.slice(gamesSectionStart, gamesSectionEnd);
+for (const needle of [
+  "<CreatorGamesScreen",
+  "function CreatorGamesScreen(",
+  "aria-label=\"Filter games by status\"",
+  'aria-label="Search game listings"',
+  "aria-pressed={filter === item.id}",
+  'game.status === "submitted" || game.status === "in_review"',
+  "game.rejection_reason || \"\"",
+  "<GameTable games={visibleGames}",
+  "Clear filters",
+]) {
+  if (!creatorGamesSource.includes(needle)) {
+    throw new Error("Creator My games workspace is missing a search, filter or status handling feature: " + needle);
+  }
+}
+if (!gamesSection.includes("<CreatorGamesScreen")) {
+  throw new Error("My games navigation must render the new catalogue workspace.");
+}
+for (const selector of [
+  ".games-filter-grid",
+  ".games-filter-card.active",
+  ".games-management-panel",
+  ".games-status-guide",
+  ".games-empty",
+  "@media (max-width: 700px)",
+]) {
+  if (!creatorGamesStyles.includes(selector)) {
+    throw new Error("Creator My games workspace is missing responsive styling: " + selector);
+  }
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
