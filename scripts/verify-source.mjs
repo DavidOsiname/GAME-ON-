@@ -425,4 +425,38 @@ if (!mobileNavigationStyles.includes(".creator-sidebar.mobile-open")
   throw new Error("Creator mobile navigation drawer styles are incomplete.");
 }
 
+
+const creatorOverviewSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const creatorUiStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+for (const needle of [
+  "function CreatorOverview(",
+  'needsAttention = draft + rejected',
+  'const studioVerified = verificationStatus === "verified"',
+  "Uploads remain closed until the private malware-scanning service is deployed and tested.",
+  "A link being issued does not prove a completed download, installation, or sale.",
+  "aria-label=\"Studio verification status\"",
+  "Review feedback",
+  "What happens next?",
+]) {
+  if (!creatorOverviewSource.includes(needle)) {
+    throw new Error("Creator overview is missing a required status, trust or navigation feature: " + needle);
+  }
+}
+for (const selector of [
+  ".creator-overview",
+  ".overview-hero",
+  ".overview-stats",
+  ".overview-main-grid",
+  ".overview-journey-step",
+  ".overview-quick-grid",
+  "@media (max-width: 390px)",
+]) {
+  if (!creatorUiStyles.includes(selector)) {
+    throw new Error("Creator visual system is missing responsive UI styling: " + selector);
+  }
+}
+if (creatorOverviewSource.includes("total downloads") || creatorOverviewSource.includes("installs")) {
+  throw new Error("Creator overview must not mislabel issued download links as completed downloads or installs.");
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
