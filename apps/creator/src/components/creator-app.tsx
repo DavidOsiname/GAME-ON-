@@ -664,16 +664,24 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!studio || !editingGame) return;
     const action = getSubmissionAction(event);
     const saveDraftOnly = editingGame.status === "draft" && action === "draft";
-    setBusy(true); setNotice("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const title = String(form.get("title") || "").trim();
     const genre = String(form.get("genre") || "");
     const description = String(form.get("description") || "").trim();
     const platforms = form.getAll("platforms").map(String);
     const monetization = String(form.get("monetization") || "free");
-    if (title.length < 2 || title.length > 100) { setBusy(false); setNotice("Enter a game title between 2 and 100 characters."); return; }
+    if (title.length < 2 || title.length > 100) { setNotice("Enter a game title between 2 and 100 characters."); return; }
     const fitInput = readGameFitInputs(form, platforms, !saveDraftOnly);
-    if (fitInput.error || (!saveDraftOnly && !fitInput.platformDetails.length)) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    if (fitInput.error || (!saveDraftOnly && !fitInput.platformDetails.length)) { setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    const readiness = getListingFormReadiness(formElement);
+    setFormReadiness(readiness);
+    if (!saveDraftOnly && !readiness.ready) {
+      setNotice("Complete the required listing checks before saving or resubmitting. You can still save this work as a draft.");
+      document.getElementById("edit-section-identity")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setBusy(true); setNotice("");
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const ads = form.get("ads") === "on";
     const iap = form.get("iap") === "on";
