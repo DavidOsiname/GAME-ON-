@@ -58,29 +58,48 @@ export function CreatorAnalytics() {
   const [rows, setRows] = useState<AnalyticsRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState("");
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<AnalyticsFilter>("all");
+  const [loadError, setLoadError] = useState(false);
+  const [gameQuery, setGameQuery] = useState("");
+  const [gameFilter, setGameFilter] = useState<"all" | "published" | "not_published">("all");
+  const totalLinkIssues = useMemo(() => rows.reduce((sum, row) => sum + Number(row.download_link_issues || 0), 0), [rows]);
+  const totalBuilds = useMemo(() => rows.reduce((sum, row) => sum + Number(row.approved_builds || 0), 0), [rows]);
+  const publishedGames = useMemo(() => rows.filter((row) => row.game_status === "published").length, [rows]);
+  const visibleRows = useMemo(() => {
+    const term = gameQuery.trim().toLowerCase();
+    return rows.filter((row) => {
+      const matchesFilter = gameFilter === "all"
+        || (gameFilter === "published" && row.game_status === "published")
+        || (gameFilter === "not_published" && row.game_status !== "published");
+      return matchesFilter && (!term || [row.game_title, row.game_status, row.latest_approved_version || ""].join(" ").toLowerCase().includes(term));
+    }).sort((a, b) => Number(b.download_link_issues || 0) - Number(a.download_link_issues || 0) || a.game_title.localeCompare(b.game_title));
+  }, [rows, gameQuery, gameFilter]);
 
   const loadAnalytics = useCallback(async () => {
     if (!supabase) {
       setRows([]);
       setLoading(false);
-      setMessage("Connect Supabase to view live studio analytics.");
+      setLoadError(false);
+      setMessage("Connect a real Game ON Creator account to view live studio analytics.");
       return;
     }
     setLoading(true);
+    setLoadError(false);
     setMessage("");
     try {
       const { data, error } = await supabase.rpc("get_creator_game_analytics");
       if (error) {
+        setLoadError(true);
+        setMessage(error.message.includes("function")
+          ? "Creator analytics are not available in this database yet. Apply migration 0008 to enable this report."
+          : "We could not load your analytics. Refresh the report or try again later.");
         setRows([]);
-        setMessage(error.message.includes("function") ? "Apply database migration 0008 to enable creator analytics." : error.message);
       } else {
         setRows((data || []) as AnalyticsRow[]);
       }
-    } catch (caught) {
+    } catch {
+      setLoadError(true);
+      setMessage("We could not load your analytics. Check your connection and try again.");
       setRows([]);
-      setMessage(caught instanceof Error ? caught.message : "Analytics could not be loaded. Please refresh and try again.");
     } finally {
       setLoading(false);
     }
@@ -88,136 +107,95 @@ export function CreatorAnalytics() {
 
   useEffect(() => { void loadAnalytics(); }, [loadAnalytics]);
 
-  const totalLinkIssues = useMemo(() => rows.reduce((sum, row) => sum + Number(row.download_link_issues || 0), 0), [rows]);
-  const totalBuilds = useMemo(() => rows.reduce((sum, row) => sum + Number(row.approved_builds || 0), 0), [rows]);
-  const publishedGames = useMemo(() => rows.filter((row) => row.game_status === "published").length, [rows]);
-  const gamesWithLinkActivity = useMemo(() => rows.filter((row) => Number(row.download_link_issues || 0) > 0).length, [rows]);
-
-  const counts = useMemo(() => ({
-    all: rows.length,
-    published: rows.filter((row) => row.game_status === "published").length,
-    review: rows.filter((row) => ["submitted", "in_review"].includes(row.game_status)).length,
-    draft: rows.filter((row) => row.game_status === "draft").length,
-    rejected: rows.filter((row) => row.game_status === "rejected").length,
-  }), [rows]);
-
-  const visibleRows = useMemo(() => {
-    const term = query.trim().toLowerCase();
-    return rows.filter((row) => {
-      const matchesFilter = filter === "all"
-        || (filter === "published" && row.game_status === "published")
-        || (filter === "review" && ["submitted", "in_review"].includes(row.game_status))
-        || (filter === "draft" && row.game_status === "draft")
-        || (filter === "rejected" && row.game_status === "rejected");
-      const searchable = [row.game_title, row.game_status, row.latest_approved_version || ""].join(" ").toLowerCase();
-      return matchesFilter && (!term || searchable.includes(term));
-    }).sort((a, b) => Number(b.download_link_issues || 0) - Number(a.download_link_issues || 0) || a.game_title.localeCompare(b.game_title));
-  }, [rows, filter, query]);
-
-  const maxIssues = Math.max(1, ...rows.map((row) => Number(row.download_link_issues || 0)));
-  const filters = [
-    { id: "all" as const, label: "All games", count: counts.all },
-    { id: "published" as const, label: "Published", count: counts.published },
-    { id: "review" as const, label: "In review", count: counts.review },
-    { id: "draft" as const, label: "Drafts", count: counts.draft },
-    { id: "rejected" as const, label: "Changes requested", count: counts.rejected },
+  const maxIssues = Math.max(0, ...rows.map((row) => Number(row.download_link_issues || 0)));
+  const filterOptions = [
+    { id: "all" as const, label: "All games", count: rows.length },
+    { id: "published" as const, label: "Published", count: publishedGames },
+    { id: "not_published" as const, label: "Not published", count: rows.length - publishedGames },
   ];
 
-  return <div className="creator-analytics-workspace">
+  return <div className="creator-analytics">
     <div className="page-intro analytics-page-intro">
       <div>
         <p className="eyebrow">UNDERSTAND YOUR REACH</p>
         <h1>Analytics.</h1>
-        <p>See secure download-link requests and approved builds recorded for your studio. This report shows only metrics the current data service can verify.</p>
+        <p>See secure download-link requests and approved releases recorded for your studio.</p>
       </div>
       <button className="creator-outline" type="button" onClick={() => void loadAnalytics()} disabled={loading}>↻ {loading ? "Refreshing…" : "Refresh analytics"}</button>
     </div>
 
-    {message && <p className="insight-message" role="status">{message}</p>}
+    {message && <p className={loadError ? "analytics-load-error" : "insight-message"} role="status">{message}</p>}
 
-    <section className="analytics-summary-grid" aria-label="Studio analytics summary">
-      <article className="analytics-summary-card">
-        <div className="analytics-summary-label"><span className="analytics-summary-icon cyan">↧</span><small>SECURE LINKS ISSUED</small></div>
-        <strong>{loading ? "—" : totalLinkIssues.toLocaleString()}</strong>
-        <p>Secure download links issued</p>
-        <small>Issuance events, not completed transfers</small>
+    <section className="analytics-metric-grid" aria-label="Studio analytics summary">
+      <article className="analytics-metric-card">
+        <span className="analytics-metric-icon cyan" aria-hidden="true">↧</span>
+        <div><small>DOWNLOAD LINKS ISSUED</small><strong>{loading ? "—" : totalLinkIssues.toLocaleString()}</strong><p>Secure link requests recorded by Game ON</p></div>
       </article>
-      <article className="analytics-summary-card">
-        <div className="analytics-summary-label"><span className="analytics-summary-icon green">✓</span><small>APPROVED BUILDS</small></div>
-        <strong>{loading ? "—" : totalBuilds.toLocaleString()}</strong>
-        <p>Clean and release-approved builds</p>
-        <small>Across your game listings</small>
+      <article className="analytics-metric-card">
+        <span className="analytics-metric-icon green" aria-hidden="true">✓</span>
+        <div><small>APPROVED BUILDS</small><strong>{loading ? "—" : totalBuilds.toLocaleString()}</strong><p>Uploaded, scan-clean and release-approved builds</p></div>
       </article>
-      <article className="analytics-summary-card">
-        <div className="analytics-summary-label"><span className="analytics-summary-icon violet">▣</span><small>TRACKED GAMES</small></div>
-        <strong>{loading ? "—" : rows.length.toLocaleString()}</strong>
-        <p>Games in your studio report</p>
-        <small>All listing statuses</small>
+      <article className="analytics-metric-card">
+        <span className="analytics-metric-icon violet" aria-hidden="true">▣</span>
+        <div><small>TRACKED GAMES</small><strong>{loading ? "—" : rows.length.toLocaleString()}</strong><p>Games in your studio analytics report</p></div>
       </article>
-      <article className="analytics-summary-card">
-        <div className="analytics-summary-label"><span className="analytics-summary-icon amber">✦</span><small>GAMES WITH LINK ACTIVITY</small></div>
-        <strong>{loading ? "—" : gamesWithLinkActivity.toLocaleString()}</strong>
-        <p>Games with a recorded link issue</p>
-        <small>{loading ? "—" : publishedGames.toLocaleString()} published games</small>
+      <article className="analytics-metric-card">
+        <span className="analytics-metric-icon amber" aria-hidden="true">↗</span>
+        <div><small>PUBLISHED GAMES</small><strong>{loading ? "—" : publishedGames.toLocaleString()}</strong><p>Listings currently marked published</p></div>
       </article>
     </section>
 
-    <section className="analytics-measurement-note" aria-label="Analytics coverage">
-      <div className="analytics-measurement-icon" aria-hidden="true">i</div>
+    <section className="analytics-meaning-panel" aria-label="What these numbers mean">
       <div>
-        <b>What this report measures</b>
-        <p>The current report counts each secure download-link issuance event (including repeat issuances), shows the latest recorded issuance time, and counts builds only when they are uploaded, malware-scan clean, and release-approved. It does not yet report listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales.</p>
+        <p className="eyebrow">READ YOUR METRICS CORRECTLY</p>
+        <h2>What these numbers tell you</h2>
+        <p>Game ON counts a secure download link when it is issued for an eligible published game and approved build.</p>
+      </div>
+      <div className="analytics-meaning-columns">
+        <article><b>Included in this report</b><span>Download-link requests, their latest recorded issue time, approved build totals and published listing status.</span></article>
+        <article><b>Not measured here</b><span>Completed file transfers, unique players, installs, play time, page views, ratings or sales.</span></article>
       </div>
     </section>
 
-    <section className="analytics-performance-section" aria-labelledby="analytics-performance-title">
+    <section className="surface-card analytics-card analytics-performance-card">
       <div className="analytics-performance-heading">
-        <div><p className="eyebrow">PER-GAME BREAKDOWN</p><h2 id="analytics-performance-title">Game performance</h2><p>Games are ranked by secure download-link issuance events.</p></div>
-        <span className="analytics-row-total">{loading ? "—" : visibleRows.length.toLocaleString()} shown</span>
+        <div><p className="eyebrow">GAME-BY-GAME BREAKDOWN</p><h2>Download-link activity</h2><p>Compare the number of secure download links issued for each game.</p></div>
+        <span className="analytics-results-total">{loading ? "…" : visibleRows.length.toLocaleString()} shown</span>
       </div>
-      <section className="surface-card analytics-workspace-card">
-        <div className="analytics-toolbar">
-          <label className="analytics-search"><span>SEARCH YOUR GAMES</span><input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by game title or status…" aria-label="Search analytics by game"/></label>
-          <div className="analytics-result-count" aria-live="polite"><b>{loading ? "—" : visibleRows.length.toLocaleString()}</b><span>games shown</span></div>
+      <div className="analytics-controls">
+        <label className="analytics-search"><span>SEARCH YOUR GAMES</span><input type="search" value={gameQuery} onChange={(event) => setGameQuery(event.target.value)} placeholder="Search game title or status…" aria-label="Search analytics games"/></label>
+        <div className="analytics-filter-row" aria-label="Filter analytics by publication status">
+          {filterOptions.map((option) => <button type="button" key={option.id} className={gameFilter === option.id ? "active" : ""} aria-pressed={gameFilter === option.id} onClick={() => setGameFilter(option.id)}>{option.label}<strong>{option.count}</strong></button>)}
         </div>
-        <div className="analytics-filter-row" aria-label="Filter analytics by listing status">
-          {filters.map((item) => <button key={item.id} type="button" className={filter === item.id ? "active" : ""} aria-pressed={filter === item.id} onClick={() => setFilter(item.id)}>{item.label}<strong>{item.count}</strong></button>)}
-        </div>
+      </div>
 
-        {loading && <p className="build-muted">Loading studio analytics…</p>}
-        {!loading && rows.length === 0 && <div className="analytics-empty"><span aria-hidden="true">⌁</span><b>No analytics yet</b><p>Once players request secure links for your published games, activity will be shown here. A link issue is not proof of an installation.</p></div>}
-        {!loading && rows.length > 0 && visibleRows.length === 0 && <div className="analytics-empty"><span aria-hidden="true">⌕</span><b>No games match this view</b><p>Try a different listing-status filter or search term.</p><button className="creator-outline" type="button" onClick={() => { setFilter("all"); setQuery(""); }}>Clear filters</button></div>}
+      {loading && <div className="analytics-empty-state"><span aria-hidden="true">◌</span><b>Loading studio analytics</b><p>Fetching the latest authorised studio report.</p></div>}
+      {!loading && loadError && <div className="analytics-empty-state"><span aria-hidden="true">!</span><b>Analytics could not be loaded</b><p>Your game data has not been changed. Refresh to try the report again.</p><button className="creator-outline" type="button" onClick={() => void loadAnalytics()}>Try again</button></div>}
+      {!loading && !loadError && rows.length === 0 && <div className="analytics-empty-state"><span aria-hidden="true">⌁</span><b>No games to report yet</b><p>Once your studio has game listings, their real download-link and approved-build activity will appear here.</p></div>}
+      {!loading && !loadError && rows.length > 0 && visibleRows.length === 0 && <div className="analytics-empty-state"><span aria-hidden="true">⌕</span><b>No games match this view</b><p>Try another search term or publication filter.</p><button className="creator-outline" type="button" onClick={() => { setGameQuery(""); setGameFilter("all"); }}>Clear filters</button></div>}
 
-        {!loading && visibleRows.map((row) => {
-          const status = analyticsStatus(row.game_status);
-          const linkIssues = Number(row.download_link_issues || 0);
-          const approvedBuilds = Number(row.approved_builds || 0);
-          const barWidth = Math.min(100, Math.max(0, linkIssues / maxIssues * 100));
-          return <article className="analytics-game-row" key={row.game_id}>
-            <div className="analytics-game-heading">
-              <div><b>{row.game_title}</b><small>{status.label}</small></div>
-              <span className={"status-pill " + status.tone}>{status.label}</span>
+      {!loading && !loadError && visibleRows.map((row) => {
+        const issues = Number(row.download_link_issues || 0);
+        const barWidth = maxIssues > 0 ? Math.min(100, (issues / maxIssues) * 100) : 0;
+        return <article className="analytics-game-row" key={row.game_id}>
+          <div className="analytics-game-heading">
+            <div className="analytics-game-identity">
+              <b>{row.game_title}</b>
+              <span className={row.game_status === "published" ? "analytics-game-status published" : "analytics-game-status"}>{row.game_status.replaceAll("_", " ")}</span>
             </div>
-            <div className="analytics-game-metrics">
-              <div className="analytics-issues-block">
-                <strong>{linkIssues.toLocaleString()}</strong>
-                <span>secure download-link issues</span>
-              </div>
-              <div className="analytics-game-builds">
-                <strong>{approvedBuilds.toLocaleString()}</strong>
-                <span>approved builds</span>
-                <small>{row.latest_approved_version ? "Latest approved version: v" + row.latest_approved_version : "No approved build recorded yet"}</small>
-              </div>
-            </div>
-            <div className="analytics-bar" role="img" aria-label={linkIssues.toLocaleString() + " secure download-link issues for " + row.game_title}>
-              <span style={{ width: barWidth + "%" }}/>
-            </div>
-            <small className="analytics-last">{row.latest_download_link_at ? "Last secure link issued " + new Date(row.latest_download_link_at).toLocaleString() : "No secure download link has been issued yet"}</small>
-          </article>;
-        })}
-      </section>
+            <strong className="analytics-link-count">{issues.toLocaleString()}<small>links issued</small></strong>
+          </div>
+          <div className="analytics-game-details">
+            <span>{Number(row.approved_builds || 0).toLocaleString()} approved {Number(row.approved_builds || 0) === 1 ? "build" : "builds"}{row.latest_approved_version ? " · Latest v" + row.latest_approved_version : ""}</span>
+            <span>{row.latest_download_link_at ? "Latest link " + new Date(row.latest_download_link_at).toLocaleString() : "No download link issued yet"}</span>
+          </div>
+          <div className="analytics-bar" role="img" aria-label={issues + " download links issued, relative to the most active game"}>
+            <span style={{ width: barWidth + "%" }}/>
+          </div>
+          {issues === 0 && <small className="analytics-zero-note">No link activity recorded yet.</small>}
+        </article>;
+      })}
+      <p className="analytics-disclaimer">Important: this report counts secure download links issued by Game ON. A link being issued does not confirm the file transfer finished, the game was installed or played, or that a sale occurred. Sales reporting is separate from these link metrics.</p>
     </section>
-
-    <p className="analytics-disclaimer">Each recorded event represents a secure download link issued by Game ON. Re-issued links are counted as separate events. This does not prove a file transfer finished, that a game was installed, or that a sale occurred. Sales reporting belongs to the separate order and payment ledger.</p>
   </div>;
 }
