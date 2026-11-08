@@ -1076,7 +1076,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     </div>
   </form>
 </>}
-        {section === "builds" && <BuildManager studioVerified={studio?.verification_status === "verified"} scannerEnabled={scannerEnabled} games={games.map((game) => ({ id: game.id, title: game.title, status: game.status, supported_platforms: game.supported_platforms }))}/>}
+        {section === "builds" && <BuildManager studioVerified={studio?.verification_status === "verified"} scannerEnabled={scannerEnabled} onCreateListing={() => setSection("submit")} games={games.map((game) => ({ id: game.id, title: game.title, status: game.status, supported_platforms: game.supported_platforms }))}/>}
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
         {section === "notifications" && <CreatorInbox userId={user.id}/>}
