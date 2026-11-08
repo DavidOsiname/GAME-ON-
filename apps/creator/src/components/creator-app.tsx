@@ -881,7 +881,7 @@ function CreatorOverview({
   onDeleteDraft,
   deletingDraftId,
 }: CreatorOverviewProps) {
-  const firstName = studioProfile.contact_name.trim().split(/\\s+/)[0] || "creator";
+  const firstName = studioProfile.contact_name.trim().split(/\s+/)[0] || "creator";
   const rejectedGames = games.filter((game) => game.status === "rejected");
   const rejected = rejectedGames.length;
   const needsAttention = draft + rejected;
