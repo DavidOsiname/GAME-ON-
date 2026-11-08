@@ -9,7 +9,7 @@ type BuildRow = { id: string; game_id: string; game_title: string; version_label
 const MAX_UPLOAD_BYTES = 50 * 1024 * 1024;
 const extensions: Record<string, string[]> = { android: ["apk", "aab"], windows: ["exe", "msi", "zip"], web: ["zip"] };
 
-export default function BuildManager({ games, studioVerified, scannerEnabled }: { games: GameOption[]; studioVerified: boolean; scannerEnabled: boolean }) {
+export default function BuildManager({ games, studioVerified, scannerEnabled, onCreateListing }: { games: GameOption[]; studioVerified: boolean; scannerEnabled: boolean; onCreateListing?: () => void }) {
   const eligibleGames = useMemo(() => games.filter((game) => ["draft", "submitted", "rejected"].includes(game.status)), [games]);
   const [builds, setBuilds] = useState<BuildRow[]>([]);
   const [loading, setLoading] = useState(false);
