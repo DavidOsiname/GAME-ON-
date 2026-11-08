@@ -112,7 +112,8 @@ async function main() {
     assert.equal(blockedSignIn.data.session, null);
 
     const firstEmails = await waitForMessages(mailpitUrl, email, 1);
-    mailpitIds.push(...firstEmails.map((message) => message.ID).filter(Boolean));
+    const initialMessageIds = new Set(firstEmails.map((message) => message.ID).filter(Boolean));
+    mailpitIds.push(...initialMessageIds);
 
     // Local Auth throttles repeated messages to the same address; this wait does not affect hosted users.
     await new Promise((resolve) => setTimeout(resolve, 1_200));
@@ -134,7 +135,11 @@ async function main() {
       assert.equal(link.searchParams.get("redirect_to"), creatorOrigin,
         "Every signup and resend confirmation link must redirect to the Creator application");
     }
-    const latestLink = links[0];
+    // Resending a signup confirmation rotates the one-time token. Use the message created by this resend.
+    const resentMessage = allEmails.find((message) => !initialMessageIds.has(message.ID));
+    assert.ok(resentMessage?.ID, "Mailpit must contain the newly resent confirmation email");
+    const resentContent = await readMessage(mailpitUrl, resentMessage.ID);
+    const latestLink = confirmationLink(resentContent);
 
     const verification = await fetch(latestLink, {
       redirect: "manual",
