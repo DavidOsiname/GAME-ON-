@@ -175,6 +175,40 @@ const creatorPage = fs.readFileSync(path.join(root, "apps/creator/src/app/page.t
 if (!creatorPage.includes("GAMEON_SCANNER_ENABLED") || !creatorPage.includes("scannerEnabled")) throw new Error("Creator page must pass the server-side scanner readiness flag.");
 if (!buildManager.includes("scannerEnabled") || !buildManager.includes("!scannerEnabled")) throw new Error("Creator upload UI must stay disabled until scanner readiness is enabled.");
 if (!creatorEnv.includes("GAMEON_SCANNER_ENABLED=false")) throw new Error("Creator environment template must default scanner uploads to disabled.");
+
+for (const needle of [
+  'const canUpload = Boolean(supabase && studioVerified && scannerEnabled && eligibleGames.length > 0);',
+  'Three checks before a build can be uploaded',
+  'Trusted malware scanner',
+  'scannerEnabled ? "Configured" : "Not enabled"',
+  "Upload unavailable",
+  "No file is accepted as clean without a real scan.",
+  'accept={allowedExtensions.map((ext) => "." + ext).join(",")}',
+  'aria-label="Search build history"',
+  'aria-label="Filter build history"',
+  "The scanner reported a clean result, but release approval is still separate.",
+  "A successful upload is not a clean scan, and a clean scan is not release approval.",
+  "onCreateListing",
+]) {
+  if (!buildManager.includes(needle)) {
+    throw new Error("Creator build workspace is missing a safety gate, status explanation or management control: " + needle);
+  }
+}
+const buildUiStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+for (const selector of [
+  ".builds-gate-panel",
+  ".builds-gate-steps",
+  ".builds-upload-card",
+  ".builds-history-summary",
+  ".builds-filter-row",
+  ".builds-history-row",
+  "@media (max-width: 700px)",
+]) {
+  if (!buildUiStyles.includes(selector)) {
+    throw new Error("Creator builds workspace is missing responsive UI styling: " + selector);
+  }
+}
+
 const marketplaceMigration = fs.readFileSync(path.join(root, "supabase/migrations/0007_marketplace_notifications_analytics.sql"), "utf8");
 for (const needle of ["public.notifications", "notifications_read_own", "public.download_events", "notify_studio_when_game_published", "notify_players_when_build_approved", "No client policies"]) if (!marketplaceMigration.includes(needle)) throw new Error(`Marketplace migration missing expected control: ${needle}`);
 if (!downloadRoute.includes('from("download_events").insert') || !downloadRoute.includes("sha256: build.sha256_hex")) throw new Error("Download analytics or build-integrity metadata is missing.");
