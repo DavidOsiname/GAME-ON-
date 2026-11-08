@@ -625,10 +625,22 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     const formElement = event.currentTarget;
     if (!studio) return;
     if (getSubmissionAction(event) === "draft") { await saveNewGameDraft(formElement); return; }
-    setBusy(true); setNotice("");
-    const form = new FormData(formElement); const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platforms = form.getAll("platforms").map(String); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
+    const form = new FormData(formElement);
+    const platforms = form.getAll("platforms").map(String);
     const fitInput = readGameFitInputs(form, platforms);
-    if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    if (fitInput.error || !fitInput.platformDetails.length) {
+      setNotice(fitInput.error || "Check the GAME FIT information for each selected platform.");
+      return;
+    }
+    const readiness = getListingFormReadiness(formElement);
+    setFormReadiness(readiness);
+    if (!readiness.ready) {
+      setNotice("Complete the required listing checks before submitting. You can save your work as a draft at any time.");
+      document.getElementById("listing-section-identity")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setBusy(true); setNotice("");
+    const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const priceInput = String(form.get("priceNaira") || "").trim();
     const priceNaira = priceInput ? Number(priceInput) : 0;
@@ -838,9 +850,108 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
             <div><b>Published</b><span>Approved and visible in the separate GAME ON Store.</span></div>
           </div>
           <GameTable games={games} onEdit={beginEdit} onDeleteDraft={deleteGameDraft} deletingDraftId={deletingDraftId}/></section></>}
-        {section === "submit" && <><div className="page-intro"><div><p className="eyebrow">PUBLISH ON GAME ON</p><h1>Submit a game.</h1><p>Create the store listing. Game builds and downloads are handled separately after security review is ready.</p></div></div><form className="surface-card submit-form" onSubmit={submitGame} onChange={(event) => handleListingFormChange(event.currentTarget)}><div className="form-section-heading"><b>GAME INFORMATION</b><span>STEP 1 OF 2</span></div><div className="form-two"><label>Game title<input name="title" placeholder="Enter your game title" required maxLength={100}/></label><label>Genre<select name="genre" required defaultValue=""><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required placeholder="Describe your game in 180 characters or fewer."/></label><div className="form-section-heading separated"><b>PLATFORM & MONETIZATION</b><span>STORE DISCLOSURES</span></div><div className="platform-selection"><b>Where can players play this game?</b><p>Select every platform this same game supports. You will enter separate GAME FIT facts for each selected platform.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={submitPlatforms.includes(platform.value)} onChange={(event) => setSubmitPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
-      <div className="form-two"><label>Monetization<select name="monetization" defaultValue="free"><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div><div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>{GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!submitPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value}/></div>)}
-        <div className="checkbox-grid"><label><input type="checkbox" name="ads"/> Contains advertising</label><label><input type="checkbox" name="iap"/> Contains in-app purchases</label></div><ListingReadinessPanel progress={formReadiness}/><div className="submission-note"><b>Before you submit</b><p>This creates a listing record for review. After submission, use the Builds section to upload an APK, AAB, EXE, MSI or ZIP package. Uploads remain private until a trusted malware scanner and Game ON release review both approve them. Your studio must be verified before uploads are enabled.</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button><button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save as draft"}</button><button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy}>{busy ? "Submitting…" : "Submit listing for review →"}</button></div></form></>}
+        
+{section === "submit" && <>
+  <div className="page-intro listing-page-intro">
+    <div>
+      <p className="eyebrow">PUBLISH ON GAME ON</p>
+      <h1>Submit a game.</h1>
+      <p>Tell players what your game is, which devices it supports, and what they should expect before they choose to play.</p>
+    </div>
+  </div>
+  <form className="surface-card submit-form listing-form" onSubmit={submitGame} onChange={(event) => handleListingFormChange(event.currentTarget)}>
+    <div className="listing-form-layout">
+      <div className="listing-form-main">
+        <nav className="listing-form-nav" aria-label="Game listing form sections">
+          <a href="#listing-section-identity"><span>01</span> Game identity</a>
+          <a href="#listing-section-platforms"><span>02</span> Platforms &amp; fit</a>
+          <a href="#listing-section-player-info"><span>03</span> Player information</a>
+        </nav>
+
+        <section className="listing-form-section" id="listing-section-identity">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">01</span>
+            <div><b>Game identity</b><p>Start with the details players will see first.</p></div>
+            <span className="listing-section-tag">REQUIRED</span>
+          </div>
+          <div className="form-two">
+            <label>Game title<input name="title" placeholder="Enter your game title" required maxLength={100}/><small>Use the official title shown in the game.</small></label>
+            <label>Genre<select name="genre" required defaultValue=""><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select><small>Choose the closest main genre.</small></label>
+          </div>
+          <label>Short description<textarea name="description" rows={4} maxLength={180} required placeholder="What does the player do? What makes your game worth trying?"/><small>10–180 characters. Keep it clear and specific; avoid promotional claims you cannot support.</small></label>
+        </section>
+
+        <section className="listing-form-section" id="listing-section-platforms">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">02</span>
+            <div><b>Platforms and GAME FIT</b><p>Choose where this exact game version can run, then add the facts for each platform.</p></div>
+            <span className="listing-section-tag">REQUIRED</span>
+          </div>
+          <div className="platform-selection listing-platform-picker">
+            <b>Where can players play this game?</b>
+            <p>Select every platform the game currently supports. Add a separate set of compatibility facts for each one. Do not select a platform just because it is planned for the future.</p>
+            <div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={submitPlatforms.includes(platform.value)} onChange={(event) => setSubmitPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div>
+            <p className="listing-platform-count" role="status">{submitPlatforms.length} {submitPlatforms.length === 1 ? "platform" : "platforms"} selected · Add GAME FIT facts below for each selected platform.</p>
+            {submitPlatforms.length === 0 && <p className="listing-platform-error">Select at least one supported platform to submit.</p>}
+          </div>
+          <div className="listing-platform-fit-list">
+            {GAME_PLATFORMS.map((platform) => <div className="listing-platform-fit-card" key={platform.value} hidden={!submitPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value}/></div>)}
+          </div>
+          <p className="listing-form-help"><b>About GAME FIT:</b> these are developer-provided compatibility details. Leave facts blank when you do not know them; Game ON will not treat them as verified until they are checked.</p>
+        </section>
+
+        <section className="listing-form-section" id="listing-section-player-info">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">03</span>
+            <div><b>Player information</b><p>Be clear about cost, age guidance, languages and monetisation.</p></div>
+            <span className="listing-section-tag">DISCLOSURES</span>
+          </div>
+          <div className="form-two">
+            <label>How is the game monetised?<select name="monetization" defaultValue="free"><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select><small>Choose the closest pricing model. Tick all applicable disclosures below too.</small></label>
+            <label>Price in Nigerian naira (₦)<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" placeholder="e.g. 2500.00"/><small>Only required for paid games. Enter the full NGN amount, not kobo.</small></label>
+          </div>
+          <div className="form-two">
+            <label>Age rating or content guidance<input name="ageRating" maxLength={60} placeholder="e.g. ESRB Teen, PEGI 12, or Not yet rated"/><small>Use the rating your game actually has. Do not invent a rating.</small></label>
+            <label>Supported languages<input name="supportedLanguages" maxLength={500} placeholder="English, Yoruba, French"/><small>Separate language names with commas.</small></label>
+          </div>
+          <div className="listing-disclosure-box">
+            <b>Important player disclosures</b>
+            <p>Tell players about any advertising or in-app purchases before they decide to play.</p>
+            <div className="checkbox-grid"><label><input type="checkbox" name="ads"/> Contains advertising</label><label><input type="checkbox" name="iap"/> Contains in-app purchases</label></div>
+          </div>
+        </section>
+
+        <div className="listing-submit-readiness-hint" role="status">
+          {formReadiness.ready ? "All required listing details are in place. You can submit this listing for review." : "To submit, complete this next item: " + formReadiness.nextStep}
+        </div>
+        <div className="form-actions listing-form-actions">
+          <button type="button" className="creator-outline" onClick={() => setSection("games")}>Cancel</button>
+          <button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save as draft"}</button>
+          <button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy || !formReadiness.ready}>{busy ? "Submitting…" : formReadiness.ready ? "Submit for Game ON review →" : "Complete checklist to submit"}</button>
+        </div>
+      </div>
+
+      <aside className="listing-form-aside" aria-label="Submission readiness and next steps">
+        <div className="listing-form-aside-sticky">
+          <ListingReadinessPanel progress={formReadiness}/>
+          <section className="listing-review-path">
+            <p className="eyebrow">WHAT HAPPENS NEXT</p>
+            <ol>
+              <li><b>You submit the listing</b><span>The details go to the Game ON review queue.</span></li>
+              <li><b>Game ON reviews it</b><span>You can follow the status and read any requested changes in My games.</span></li>
+              <li><b>Approval is separate</b><span>A listing is not published just because it was submitted.</span></li>
+            </ol>
+          </section>
+          <div className="listing-form-safety-note">
+            <b>Listing and game build are separate</b>
+            <p>This form submits store information only. It does not upload a game file or make the game downloadable.</p>
+            <p>Build uploads stay closed until studio verification and a trusted malware scanner are in place. Approved builds still require Game ON release approval.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </form>
+</>}
         {section === "edit" && editingGame && <><div className="page-intro"><div><p className="eyebrow">UPDATE YOUR LISTING</p><h1>Edit game.</h1><p>{editingGame.status === "draft" ? "Save your work privately and return later, or complete every required field to send it for review." : "Make changes to your listing. Rejected listings can be sent back for review after you save."}</p></div></div><form className="surface-card submit-form" onSubmit={saveGameEdits} onChange={(event) => handleListingFormChange(event.currentTarget)}><div className="form-section-heading"><b>GAME INFORMATION</b><span>{editingGame.status.replace("_", " ").toUpperCase()}</span></div><div className="form-two"><label>Game title<input name="title" defaultValue={editingGame.title} required maxLength={100}/></label><label>Genre<select name="genre" defaultValue={editingGame.genre || ""} required><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required defaultValue={editingGame.short_description || ""}/></label><div className="platform-selection"><b>Supported platforms</b><p>Choose every platform this game supports. Each selected platform has its own GAME FIT details.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={editingPlatforms.includes(platform.value)} onChange={(event) => setEditingPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
       <div className="form-two"><label>Monetization<select name="monetization" defaultValue={editingGame.monetization_type || "free"}><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" defaultValue={editingGame.price_minor ? (editingGame.price_minor / 100).toFixed(2) : ""} placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div>
       <div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} defaultValue={editingGame.age_rating || ""} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} defaultValue={(editingGame.supported_languages || []).join(", ")} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>

@@ -459,4 +459,65 @@ if (creatorOverviewSource.includes("total downloads") || creatorOverviewSource.i
   throw new Error("Creator overview must not mislabel issued download links as completed downloads or installs.");
 }
 
+
+const creatorSubmissionSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const creatorSubmissionStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const submitSectionStart = creatorSubmissionSource.indexOf('{section === "submit" &&');
+const submitSectionEnd = creatorSubmissionSource.indexOf('{section === "edit" &&', submitSectionStart);
+if (submitSectionStart < 0 || submitSectionEnd <= submitSectionStart) {
+  throw new Error("Creator game submission screen is missing or its section boundaries are invalid.");
+}
+const submitSection = creatorSubmissionSource.slice(submitSectionStart, submitSectionEnd);
+for (const needle of [
+  'id="listing-section-identity"',
+  'id="listing-section-platforms"',
+  'id="listing-section-player-info"',
+  'aria-label="Game listing form sections"',
+  "Complete checklist to submit",
+  "listing-submit-readiness-hint",
+  "Listing and game build are separate",
+  "You can follow the status and read any requested changes in My games.",
+]) {
+  if (!submitSection.includes(needle)) {
+    throw new Error("Creator game submission UI is missing a required section, progress cue or review explanation: " + needle);
+  }
+}
+if (submitSection.includes("STEP 1 OF 2")) {
+  throw new Error("Creator submission UI must not show the old inaccurate two-step label.");
+}
+for (const needle of [
+  "const readiness = getListingFormReadiness(formElement);",
+  "if (!readiness.ready)",
+  'disabled={busy || !formReadiness.ready}',
+  "Complete the required listing checks before submitting.",
+]) {
+  if (!creatorSubmissionSource.includes(needle)) {
+    throw new Error("Creator submission handler is missing readiness enforcement: " + needle);
+  }
+}
+for (const selector of [
+  ".listing-form-layout",
+  ".listing-form-nav",
+  ".listing-form-section",
+  ".listing-form-aside-sticky",
+  ".listing-platform-fit-card[hidden]",
+  "@media (max-width: 700px)",
+]) {
+  if (!creatorSubmissionStyles.includes(selector)) {
+    throw new Error("Creator submission form is missing responsive layout styling: " + selector);
+  }
+}
+
+
+const creatorSubmitHandlerStart = creatorSubmissionSource.indexOf("async function submitGame");
+const creatorSubmitHandlerEnd = creatorSubmissionSource.indexOf("async function saveGameEdits", creatorSubmitHandlerStart);
+const creatorSubmitHandler = creatorSubmissionSource.slice(creatorSubmitHandlerStart, creatorSubmitHandlerEnd);
+const fitValidationIndex = creatorSubmitHandler.indexOf("readGameFitInputs(form, platforms)");
+const readinessValidationIndex = creatorSubmitHandler.indexOf("getListingFormReadiness(formElement)");
+if (creatorSubmitHandlerStart < 0 || creatorSubmitHandlerEnd <= creatorSubmitHandlerStart
+  || fitValidationIndex < 0 || readinessValidationIndex <= fitValidationIndex
+  || !creatorSubmitHandler.includes("if (fitInput.error || !fitInput.platformDetails.length)")) {
+  throw new Error("Creator submission must show specific GAME FIT errors before applying the overall readiness gate.");
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
