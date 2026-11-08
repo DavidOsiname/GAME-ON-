@@ -560,4 +560,52 @@ for (const selector of [
   }
 }
 
+
+const creatorEditSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-app.tsx"), "utf8");
+const creatorEditStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const editSectionStart = creatorEditSource.indexOf('{section === "edit" &&');
+const editSectionEnd = creatorEditSource.indexOf('{section === "builds" &&', editSectionStart);
+if (editSectionStart < 0 || editSectionEnd <= editSectionStart) {
+  throw new Error("Creator edit listing screen is missing or its section boundaries are invalid.");
+}
+const editSection = creatorEditSource.slice(editSectionStart, editSectionEnd);
+for (const needle of [
+  'id="edit-section-identity"',
+  'id="edit-section-platforms"',
+  'id="edit-section-player-info"',
+  'aria-label="Edit listing form sections"',
+  'aria-label="Game ON reviewer feedback"',
+  "editingGame.rejection_reason",
+  'defaultChecked={Boolean(editingGame.contains_ads)}',
+  'defaultChecked={Boolean(editingGame.has_in_app_purchases)}',
+  'editingGame.status === "rejected" && !formReadiness.ready',
+  "listing-submit-readiness-hint",
+]) {
+  if (!editSection.includes(needle)) {
+    throw new Error("Creator edit listing UI is missing review feedback, player disclosure preservation or readiness controls: " + needle);
+  }
+}
+const editHandlerStart = creatorEditSource.indexOf("async function saveGameEdits");
+const editHandlerEnd = creatorEditSource.indexOf("async function ", editHandlerStart + 10);
+const editHandler = creatorEditSource.slice(editHandlerStart, editHandlerEnd);
+const editFitValidationIndex = editHandler.indexOf("readGameFitInputs(form, platforms, !saveDraftOnly)");
+const editReadinessIndex = editHandler.indexOf("getListingFormReadiness(formElement)");
+if (editHandlerStart < 0 || editHandlerEnd <= editHandlerStart
+  || editFitValidationIndex < 0 || editReadinessIndex <= editFitValidationIndex
+  || !editHandler.includes("if (!saveDraftOnly && !readiness.ready)")
+  || !editHandler.includes('const ads = form.get("ads") === "on"')
+  || !editHandler.includes('const iap = form.get("iap") === "on"')) {
+  throw new Error("Creator edit handler must validate GAME FIT before readiness and persist both monetisation disclosures.");
+}
+for (const selector of [
+  ".edit-review-feedback",
+  ".edit-draft-note",
+  ".edit-listing-safety-note",
+  "@media (max-width: 700px)",
+]) {
+  if (!creatorEditStyles.includes(selector)) {
+    throw new Error("Creator edit listing screen is missing its responsive review or draft styling: " + selector);
+  }
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
