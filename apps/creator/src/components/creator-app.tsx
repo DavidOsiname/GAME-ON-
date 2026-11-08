@@ -664,16 +664,24 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!studio || !editingGame) return;
     const action = getSubmissionAction(event);
     const saveDraftOnly = editingGame.status === "draft" && action === "draft";
-    setBusy(true); setNotice("");
-    const form = new FormData(event.currentTarget);
+    const formElement = event.currentTarget;
+    const form = new FormData(formElement);
     const title = String(form.get("title") || "").trim();
     const genre = String(form.get("genre") || "");
     const description = String(form.get("description") || "").trim();
     const platforms = form.getAll("platforms").map(String);
     const monetization = String(form.get("monetization") || "free");
-    if (title.length < 2 || title.length > 100) { setBusy(false); setNotice("Enter a game title between 2 and 100 characters."); return; }
+    if (title.length < 2 || title.length > 100) { setNotice("Enter a game title between 2 and 100 characters."); return; }
     const fitInput = readGameFitInputs(form, platforms, !saveDraftOnly);
-    if (fitInput.error || (!saveDraftOnly && !fitInput.platformDetails.length)) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    if (fitInput.error || (!saveDraftOnly && !fitInput.platformDetails.length)) { setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    const readiness = getListingFormReadiness(formElement);
+    setFormReadiness(readiness);
+    if (!saveDraftOnly && !readiness.ready) {
+      setNotice("Complete the required listing checks before saving or resubmitting. You can still save this work as a draft.");
+      document.getElementById("edit-section-identity")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    setBusy(true); setNotice("");
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const ads = form.get("ads") === "on";
     const iap = form.get("iap") === "on";
@@ -950,10 +958,124 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     </div>
   </form>
 </>}
-        {section === "edit" && editingGame && <><div className="page-intro"><div><p className="eyebrow">UPDATE YOUR LISTING</p><h1>Edit game.</h1><p>{editingGame.status === "draft" ? "Save your work privately and return later, or complete every required field to send it for review." : "Make changes to your listing. Rejected listings can be sent back for review after you save."}</p></div></div><form className="surface-card submit-form" onSubmit={saveGameEdits} onChange={(event) => handleListingFormChange(event.currentTarget)}><div className="form-section-heading"><b>GAME INFORMATION</b><span>{editingGame.status.replace("_", " ").toUpperCase()}</span></div><div className="form-two"><label>Game title<input name="title" defaultValue={editingGame.title} required maxLength={100}/></label><label>Genre<select name="genre" defaultValue={editingGame.genre || ""} required><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select></label></div><label>Short description<textarea name="description" rows={4} maxLength={180} required defaultValue={editingGame.short_description || ""}/></label><div className="platform-selection"><b>Supported platforms</b><p>Choose every platform this game supports. Each selected platform has its own GAME FIT details.</p><div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={editingPlatforms.includes(platform.value)} onChange={(event) => setEditingPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div></div>
-      <div className="form-two"><label>Monetization<select name="monetization" defaultValue={editingGame.monetization_type || "free"}><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select></label><label>Price in NGN<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" defaultValue={editingGame.price_minor ? (editingGame.price_minor / 100).toFixed(2) : ""} placeholder="e.g. 2500.00"/><small>Required only when monetization is set to Paid. Enter the full NGN amount, not kobo.</small></label></div>
-      <div className="form-section-heading separated"><b>SHARED GAME INFORMATION</b><span>USED ACROSS PLATFORMS</span></div><div className="form-two"><label>Age rating / content guidance<input name="ageRating" maxLength={60} defaultValue={editingGame.age_rating || ""} placeholder="e.g. PEGI 12, ESRB Teen"/></label><label>Supported languages<input name="supportedLanguages" maxLength={500} defaultValue={(editingGame.supported_languages || []).join(", ")} placeholder="English, Yoruba, French"/><small>Separate languages with commas.</small></label></div>
-      {GAME_PLATFORMS.map((platform) => <div key={platform.value} hidden={!editingPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value} detail={editingGame.game_platform_details?.find((detail) => detail.platform === platform.value) || null}/></div>)}<ListingReadinessPanel progress={formReadiness}/><div className="submission-note"><b>Review status protection</b><p>{editingGame.status === "draft" ? "Drafts stay private and are not visible in GAME ON Store. Saving preserves the draft. Submitting checks the required listing details and sends it to Game ON for review." : "Saving changes will not publish your game. If the listing was rejected, the app will call the secure resubmission function to return it to the review queue."}</p></div><div className="form-actions"><button type="button" className="creator-outline" onClick={() => { setEditingGame(null); setSection("games"); }}>Cancel</button>{editingGame.status === "draft" ? <><button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save draft"}</button><button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy}>{busy ? "Submitting…" : "Submit draft for review →"}</button></> : <button type="submit" className="creator-primary" disabled={busy}>{busy ? "Saving…" : editingGame.status === "rejected" ? "Save and resubmit →" : "Save changes →"}</button>}</div></form></>}
+        
+{section === "edit" && editingGame && <>
+  <div className="page-intro listing-page-intro">
+    <div>
+      <p className="eyebrow">UPDATE YOUR LISTING</p>
+      <h1>{editingGame.status === "rejected" ? "Address review feedback." : editingGame.status === "draft" ? "Continue your draft." : "Edit game listing."}</h1>
+      <p>Update your game information and platform details. Your changes do not publish the game automatically.</p>
+    </div>
+  </div>
+  {editingGame.status === "rejected" && <section className="edit-review-feedback" aria-label="Game ON reviewer feedback">
+    <div className="edit-review-feedback-icon" aria-hidden="true">!</div>
+    <div>
+      <b>Changes requested by Game ON</b>
+      <p>{editingGame.rejection_reason || "The review team requested changes to this listing. Check each section below, update the information, and resubmit it for review."}</p>
+      {editingGame.reviewed_at && <small>Last reviewed {new Date(editingGame.reviewed_at).toLocaleDateString()}</small>}
+    </div>
+  </section>}
+  <form className="surface-card submit-form listing-form edit-listing-form" onSubmit={saveGameEdits} onChange={(event) => handleListingFormChange(event.currentTarget)}>
+    <div className="listing-form-layout">
+      <div className="listing-form-main">
+        <nav className="listing-form-nav" aria-label="Edit listing form sections">
+          <a href="#edit-section-identity"><span>01</span> Game identity</a>
+          <a href="#edit-section-platforms"><span>02</span> Platforms &amp; fit</a>
+          <a href="#edit-section-player-info"><span>03</span> Player information</a>
+        </nav>
+
+        <section className="listing-form-section" id="edit-section-identity">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">01</span>
+            <div><b>Game identity</b><p>Keep the public game title, genre and description accurate.</p></div>
+            <span className="listing-section-tag">REQUIRED</span>
+          </div>
+          <div className="form-two">
+            <label>Game title<input name="title" defaultValue={editingGame.title} required maxLength={100}/><small>Use the official title shown in the game.</small></label>
+            <label>Genre<select name="genre" defaultValue={editingGame.genre || ""} required><option value="" disabled>Select a genre</option>{["Action","Adventure","Arcade","Casual","Educational","Puzzle","Racing","Role-playing","Simulation","Sports","Strategy"].map((g) => <option key={g}>{g}</option>)}</select><small>Choose the closest main genre.</small></label>
+          </div>
+          <label>Short description<textarea name="description" rows={4} maxLength={180} required defaultValue={editingGame.short_description || ""}/><small>10–180 characters. Describe the actual experience; avoid unsupported promotional claims.</small></label>
+        </section>
+
+        <section className="listing-form-section" id="edit-section-platforms">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">02</span>
+            <div><b>Platforms and GAME FIT</b><p>Update the platforms supported by this game and their compatibility facts.</p></div>
+            <span className="listing-section-tag">REQUIRED</span>
+          </div>
+          <div className="platform-selection listing-platform-picker">
+            <b>Where can players play this game?</b>
+            <p>Select only platforms supported by the current game version. Each selected platform needs its own GAME FIT details before resubmission.</p>
+            <div className="checkbox-grid">{GAME_PLATFORMS.map((platform) => <label key={platform.value}><input type="checkbox" name="platforms" value={platform.value} checked={editingPlatforms.includes(platform.value)} onChange={(event) => setEditingPlatforms((old) => event.target.checked ? [...old, platform.value] : old.filter((item) => item !== platform.value))}/>{platform.label}</label>)}</div>
+            <p className="listing-platform-count" role="status">{editingPlatforms.length} {editingPlatforms.length === 1 ? "platform" : "platforms"} selected · The selected platforms appear below.</p>
+            {editingPlatforms.length === 0 && <p className="listing-platform-error">Select at least one supported platform before submitting.</p>}
+          </div>
+          <div className="listing-platform-fit-list">
+            {GAME_PLATFORMS.map((platform) => <div className="listing-platform-fit-card" key={platform.value} hidden={!editingPlatforms.includes(platform.value)}><PlatformGameFitFields platform={platform.value} detail={editingGame.game_platform_details?.find((detail) => detail.platform === platform.value) || null}/></div>)}
+          </div>
+          <p className="listing-form-help"><b>About GAME FIT:</b> compatibility details are supplied by your studio and remain unverified until Game ON checks them. Leave unknown facts blank rather than guessing.</p>
+        </section>
+
+        <section className="listing-form-section" id="edit-section-player-info">
+          <div className="listing-section-heading">
+            <span className="listing-section-number">03</span>
+            <div><b>Player information</b><p>Keep monetisation, price, age guidance and language details transparent.</p></div>
+            <span className="listing-section-tag">DISCLOSURES</span>
+          </div>
+          <div className="form-two">
+            <label>How is the game monetised?<select name="monetization" defaultValue={editingGame.monetization_type || "free"}><option value="free">Free</option><option value="paid">Paid</option><option value="free_with_ads">Free with ads</option><option value="free_with_iap">Free with in-app purchases</option><option value="demo">Free demo</option></select><small>Choose the closest pricing model and keep the disclosures below accurate.</small></label>
+            <label>Price in Nigerian naira (₦)<input name="priceNaira" type="number" min="0.01" max="1000000" step="0.01" defaultValue={editingGame.price_minor ? (editingGame.price_minor / 100).toFixed(2) : ""} placeholder="e.g. 2500.00"/><small>Only required for paid games. Enter the full NGN amount, not kobo.</small></label>
+          </div>
+          <div className="form-two">
+            <label>Age rating or content guidance<input name="ageRating" maxLength={60} defaultValue={editingGame.age_rating || ""} placeholder="e.g. ESRB Teen, PEGI 12, or Not yet rated"/><small>Use the rating your game actually has. Do not invent a rating.</small></label>
+            <label>Supported languages<input name="supportedLanguages" maxLength={500} defaultValue={(editingGame.supported_languages || []).join(", ")} placeholder="English, Yoruba, French"/><small>Separate language names with commas.</small></label>
+          </div>
+          <div className="listing-disclosure-box">
+            <b>Important player disclosures</b>
+            <p>These settings are saved with your listing. Make sure they reflect the current version of your game.</p>
+            <div className="checkbox-grid">
+              <label><input type="checkbox" name="ads" defaultChecked={Boolean(editingGame.contains_ads)}/> Contains advertising</label>
+              <label><input type="checkbox" name="iap" defaultChecked={Boolean(editingGame.has_in_app_purchases)}/> Contains in-app purchases</label>
+            </div>
+          </div>
+        </section>
+
+        {editingGame.status === "draft" && <div className="edit-draft-note"><b>This is a private draft.</b><p>Saving as a draft keeps it out of GAME ON Store. Submit it for review only when the required details are ready.</p></div>}
+        {editingGame.status !== "draft" && <div className="listing-form-safety-note edit-listing-safety-note"><b>Saving is not publishing</b><p>Changes to a listing do not make a game live. Game ON review and release approval remain separate steps.</p></div>}
+
+        <div className="listing-submit-readiness-hint" role="status">
+          {formReadiness.ready ? "All required listing details are in place." : "Next required item: " + formReadiness.nextStep}
+        </div>
+        <div className="form-actions listing-form-actions">
+          <button type="button" className="creator-outline" onClick={() => { setEditingGame(null); setSection("games"); }}>Cancel</button>
+          {editingGame.status === "draft" ? <>
+            <button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save draft"}</button>
+            <button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy || !formReadiness.ready}>{busy ? "Submitting…" : formReadiness.ready ? "Submit draft for review →" : "Complete checklist to submit"}</button>
+          </> : <button type="submit" className="creator-primary" disabled={busy || !formReadiness.ready}>{busy ? "Saving…" : editingGame.status === "rejected" ? formReadiness.ready ? "Save and resubmit →" : "Complete checklist to resubmit" : "Save changes →"}</button>}
+        </div>
+      </div>
+
+      <aside className="listing-form-aside" aria-label="Edit readiness and review path">
+        <div className="listing-form-aside-sticky">
+          <ListingReadinessPanel progress={formReadiness}/>
+          <section className="listing-review-path">
+            <p className="eyebrow">{editingGame.status === "rejected" ? "RESUBMISSION PATH" : "WHAT HAPPENS NEXT"}</p>
+            <ol>
+              <li><b>Update the listing</b><span>Correct details and check every selected platform.</span></li>
+              <li><b>Save your changes</b><span>{editingGame.status === "draft" ? "Your draft stays private until you submit it." : "Your updated information is saved to your studio listing."}</span></li>
+              <li><b>Game ON review</b><span>{editingGame.status === "rejected" ? "The secure resubmission process returns your listing to the review queue." : "Review and publishing status are managed separately."}</span></li>
+            </ol>
+          </section>
+          <div className="listing-form-safety-note">
+            <b>Platform details matter</b>
+            <p>Device requirements, download size, internet needs and official access links help players understand the game before they choose it.</p>
+            <p>Only provide facts you can support. Game ON may verify them before they appear as confirmed information.</p>
+          </div>
+        </div>
+      </aside>
+    </div>
+  </form>
+</>}
         {section === "builds" && <BuildManager studioVerified={studio?.verification_status === "verified"} scannerEnabled={scannerEnabled} games={games.map((game) => ({ id: game.id, title: game.title, status: game.status, supported_platforms: game.supported_platforms }))}/>}
         {section === "analytics" && <CreatorAnalytics/>}
         {section === "sales" && <CreatorSales/>}
