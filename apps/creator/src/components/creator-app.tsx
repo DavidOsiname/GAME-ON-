@@ -807,7 +807,19 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     <section className="creator-main"><header className="creator-topbar"><div className="topbar-left"><button className="mobile-nav-toggle" type="button" aria-controls="creator-sidebar" aria-expanded={mobileNavOpen} aria-label={mobileNavOpen ? "Close workspace navigation" : "Open workspace navigation"} onClick={() => setMobileNavOpen((open) => !open)}><span aria-hidden="true">☰</span><span>Menu</span></button><span className="breadcrumb">CREATOR PORTAL</span><span className="crumb-divider">/</span><b>{nav.find((n) => n.id === section)?.label.toUpperCase()}</b></div><div className="topbar-right"><span className="secure-label"><i/> {isSupabaseConfigured ? "CONNECTED ENVIRONMENT" : "DEMO ENVIRONMENT"}</span><a className="admin-shortcut" href="/admin">Admin review ↗</a><button className="top-avatar" onClick={signOut}>{(user.email || "D").slice(0, 1).toUpperCase()}</button></div></header>
       <div className="creator-page">
         {notice && <button className="notice-banner" onClick={() => setNotice("")}>{notice}<span>×</span></button>}
-        {section === "overview" && <><div className="page-intro"><div><p className="eyebrow">YOUR STUDIO AT A GLANCE</p><h1>Good to see you.</h1><p>Here is what's happening with {studio.studio_name}.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ Submit a game</button></div><div className="stat-grid"><div className="stat-card"><span className="stat-icon cyan">▣</span><small>TOTAL LISTINGS</small><b>{games.length}</b><em>Across your studio</em></div><div className="stat-card"><span className="stat-icon green">↗</span><small>PUBLISHED GAMES</small><b>{published}</b><em>Visible in the store</em></div><div className="stat-card"><span className="stat-icon amber">◷</span><small>IN REVIEW</small><b>{inReview}</b><em>Waiting for review</em></div><div className="stat-card"><span className="stat-icon violet">✎</span><small>DRAFTS</small><b>{draft}</b><em>Not yet submitted</em></div></div><div className="dashboard-grid"><section className="surface-card recent-card"><div className="surface-heading"><div><h2>Recent games</h2><p>Your latest listings and their status.</p></div><button className="plain-link" onClick={() => setSection("games")}>View all →</button></div><GameTable games={games.slice(0, 4)} onEdit={beginEdit} onDeleteDraft={deleteGameDraft} deletingDraftId={deletingDraftId}/></section><section className="surface-card getting-started"><p className="eyebrow">CREATOR CHECKLIST</p><h2>Build your presence.</h2><p>Complete these steps to prepare your studio for publishing.</p><div className="check-step done"><span>✓</span><div><b>Create your studio</b><small>Studio workspace created</small></div></div><div className="check-step"><span>2</span><div><b>Submit your first game</b><small>Add your store listing details</small></div></div><div className="check-step"><span>3</span><div><b>Complete studio verification</b><small>Confirm your studio identity</small></div></div><div className="check-step"><span>4</span><div><b>Prepare a secure game build</b><small>Upload through the private quarantine workflow</small></div></div><button className="creator-outline" onClick={() => setSection("builds")}>Manage game builds →</button></section></div></>}
+        {section === "overview" && <CreatorOverview
+          studio={studio}
+          studioProfile={studioProfile}
+          games={games}
+          published={published}
+          inReview={inReview}
+          draft={draft}
+          scannerEnabled={scannerEnabled}
+          onNavigate={setSection}
+          onEdit={beginEdit}
+          onDeleteDraft={deleteGameDraft}
+          deletingDraftId={deletingDraftId}
+        />}
         {section === "drafts" && <><div className="page-intro"><div><p className="eyebrow">PRIVATE WORKSPACE</p><h1>Drafts workspace.</h1><p>Find unfinished listings, see what is left, and pick up where you stopped. Drafts are private and are not visible in GAME ON Store.</p></div><button className="creator-primary compact" onClick={() => setSection("submit")}>＋ New draft</button></div>
           <div className="draft-summary-grid"><div className="draft-summary-card"><small>ALL DRAFTS</small><b>{draft}</b><span>Saved in this studio</span></div><div className="draft-summary-card"><small>READY TO SUBMIT</small><b>{readyDrafts}</b><span>Required listing details are in place</span></div><div className="draft-summary-card"><small>STILL IN PROGRESS</small><b>{draft - readyDrafts}</b><span>Have at least one step left</span></div></div>
           <section className="surface-card drafts-workspace"><div className="draft-toolbar"><label className="draft-search-wrap"><span>SEARCH DRAFTS</span><input type="search" value={draftSearch} onChange={(event) => setDraftSearch(event.target.value)} placeholder="Search title, genre, slug or platform…" aria-label="Search drafts"/></label><label className="draft-sort-wrap"><span>SORT BY</span><select value={draftSort} onChange={(event) => setDraftSort(event.target.value as typeof draftSort)} aria-label="Sort drafts"><option value="recent">Recently saved</option><option value="oldest">Oldest saved</option><option value="title">Title A–Z</option><option value="most-complete">Most complete</option><option value="least-complete">Least complete</option></select></label></div>
@@ -840,6 +852,210 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
         {section === "settings" && <><div className="page-intro"><div><p className="eyebrow">STUDIO PROFILE</p><h1>Studio settings</h1><p>Manage your developer identity and publishing status.</p></div><button className="creator-primary" type="button" onClick={() => { setSetupError(""); setEditingStudioSetup(true); }}>Edit company setup →</button></div><section className="surface-card settings-card"><div className="settings-avatar">{studio.logo_url ? <img src={studio.logo_url} alt={studio.studio_name + " logo"}/> : studio.studio_name.slice(0, 1).toUpperCase()}</div><div><h2>{studio.studio_name}</h2><p className="slug-text">gameon.dev/studios/{studio.slug}</p><span className={`status-pill ${studio.verification_status === "verified" ? "published" : "review"}`}>{studio.verification_status || "pending"} verification</span></div><div className="settings-row"><span>Your name</span><b>{studioProfile.contact_name}</b></div><div className="settings-row"><span>Your company role</span><b>{studioProfile.contact_role}</b></div><div className="settings-row"><span>Official company email</span><b>{studioProfile.official_email}</b></div><div className="settings-row"><span>Account email</span><b>{user.email}</b></div><div className="settings-row"><span>Studio description</span><b>{studio.description || "Not provided"}</b></div><div className="settings-row"><span>Website</span><b>{studio.website_url || "Not provided"}</b></div><div className="settings-row"><span>Environment</span><b>{user.demo ? "Local demo" : "Connected Supabase"}</b></div></section></>}
       </div>
     </section></main>;
+}
+
+type CreatorOverviewProps = {
+  studio: Studio;
+  studioProfile: StudioContactProfile;
+  games: GameRow[];
+  published: number;
+  inReview: number;
+  draft: number;
+  scannerEnabled: boolean;
+  onNavigate: (section: Section) => void;
+  onEdit: (game: GameRow) => void;
+  onDeleteDraft: (game: GameRow) => void;
+  deletingDraftId: string | null;
+};
+
+function CreatorOverview({
+  studio,
+  studioProfile,
+  games,
+  published,
+  inReview,
+  draft,
+  scannerEnabled,
+  onNavigate,
+  onEdit,
+  onDeleteDraft,
+  deletingDraftId,
+}: CreatorOverviewProps) {
+  const firstName = studioProfile.contact_name.trim().split(/\\s+/)[0] || "creator";
+  const rejectedGames = games.filter((game) => game.status === "rejected");
+  const rejected = rejectedGames.length;
+  const needsAttention = draft + rejected;
+  const verificationStatus = (studio.verification_status || "pending").toLowerCase();
+  const studioVerified = verificationStatus === "verified";
+  const eligibleBuildListing = games.some((game) => ["draft", "submitted", "rejected"].includes(game.status));
+  const buildReady = studioVerified && scannerEnabled && eligibleBuildListing;
+  const reviewState = rejected > 0 ? "attention" : inReview > 0 ? "in-progress" : published > 0 ? "complete" : games.length > 0 ? "next" : "locked";
+  const reviewDetail = [
+    published ? `${published} published` : "",
+    inReview ? `${inReview} awaiting review` : "",
+    rejected ? `${rejected} need changes` : "",
+  ].filter(Boolean).join(" · ") || (games.length ? "No review decision has been recorded yet." : "Submit a listing to begin the review process.");
+  const verificationLabel = studioVerified
+    ? "Verified studio"
+    : verificationStatus === "rejected"
+      ? "Verification needs attention"
+      : `Verification ${verificationStatus.replaceAll("_", " ")}`;
+  const verificationCopy = studioVerified
+    ? "Your studio has passed Game ON’s verification review."
+    : verificationStatus === "rejected"
+      ? "Your studio verification needs attention. Contact Game ON support for the next steps."
+      : "Studio verification is reviewed separately from each game listing.";
+  const buildCopy = !studioVerified
+    ? "Build uploads unlock after your studio is verified."
+    : !scannerEnabled
+      ? "Uploads remain closed until the private malware-scanning service is deployed and tested."
+      : !eligibleBuildListing
+        ? "Create a draft or submit a listing before starting a build upload."
+        : "Your studio meets the current upload prerequisites. Files still enter private quarantine.";
+
+  const journeySteps = [
+    {
+      number: "01",
+      title: "Company profile",
+      detail: "Your studio and contact profile are saved.",
+      state: "complete",
+      stateLabel: "Complete",
+      action: "View settings",
+      section: "settings" as Section,
+    },
+    {
+      number: "02",
+      title: "Game listing",
+      detail: games.length > 0 ? `${games.length} listing${games.length === 1 ? "" : "s"} in your studio.` : "Create your first listing with clear game information and platform details.",
+      state: games.length > 0 ? "complete" : "next",
+      stateLabel: games.length > 0 ? "Started" : "Next step",
+      action: games.length > 0 ? "View games" : "Create listing",
+      section: (games.length > 0 ? "games" : "submit") as Section,
+    },
+    {
+      number: "03",
+      title: "Game ON review",
+      detail: reviewDetail,
+      state: reviewState,
+      stateLabel: rejected > 0 ? "Action needed" : inReview > 0 ? "In progress" : published > 0 ? "Published" : games.length > 0 ? "Check status" : "Waiting",
+      action: "View review status",
+      section: "games" as Section,
+    },
+    {
+      number: "04",
+      title: "Secure game build",
+      detail: buildCopy,
+      state: buildReady ? "ready" : "locked",
+      stateLabel: buildReady ? "Ready for upload" : "Not available yet",
+      action: "View build area",
+      section: "builds" as Section,
+    },
+  ];
+
+  const quickActions = [
+    { icon: "+", title: "Submit a game", detail: "Create a listing for the Store review team.", action: "Open submission", section: "submit" as Section },
+    { icon: "✎", title: "Continue a draft", detail: draft ? `${draft} private draft${draft === 1 ? "" : "s"} saved in your workspace.` : "Start a listing and save it to finish later.", action: "Open drafts", section: "drafts" as Section },
+    { icon: "⇧", title: "Manage game builds", detail: "Check upload eligibility and private build history.", action: "Open builds", section: "builds" as Section },
+    { icon: "⌁", title: "Understand your reach", detail: "See secure download-link requests and approved builds.", action: "View analytics", section: "analytics" as Section },
+  ];
+
+  return <div className="creator-overview">
+    <section className="overview-hero">
+      <div className="overview-hero-copy">
+        <p className="eyebrow">YOUR CREATOR WORKSPACE</p>
+        <h1>Welcome back, {firstName}.</h1>
+        <p>Manage {studio.studio_name}, prepare your game listings, and follow each step toward a safe release on GAME ON.</p>
+        <div className="overview-hero-actions">
+          <button className="creator-primary" onClick={() => onNavigate("submit")}>＋ Submit a game</button>
+          <button className="creator-outline" onClick={() => onNavigate(draft > 0 ? "drafts" : "games")}>{draft > 0 ? "Continue a draft" : "View my games"} →</button>
+        </div>
+      </div>
+      <aside className="overview-studio-card" aria-label="Studio verification status">
+        <div className="overview-studio-top">
+          <span className="overview-studio-mark">{studio.studio_name.slice(0, 1).toUpperCase()}</span>
+          <span className={`status-pill ${studioVerified ? "published" : verificationStatus === "rejected" ? "rejected" : "review"}`}>{verificationLabel}</span>
+        </div>
+        <h2>{studio.studio_name}</h2>
+        <p>{verificationCopy}</p>
+        <button className="overview-text-action" onClick={() => onNavigate("settings")}>Studio settings <span aria-hidden="true">→</span></button>
+      </aside>
+    </section>
+
+    {rejected > 0 && <section className="overview-attention" aria-label="Listings that need changes">
+      <div className="overview-attention-icon" aria-hidden="true">!</div>
+      <div className="overview-attention-copy">
+        <b>{rejected} listing{rejected === 1 ? "" : "s"} need{rejected === 1 ? "s" : ""} your attention</b>
+        <p>Game ON requested changes. Read the review reason before resubmitting.</p>
+      </div>
+      <button className="overview-text-action" onClick={() => onNavigate("games")}>Review feedback →</button>
+    </section>}
+
+    <section className="overview-stats" aria-label="Studio listing summary">
+      <article className="overview-stat-card">
+        <div className="overview-stat-top"><span className="overview-stat-icon cyan">▣</span><span>CATALOGUE</span></div>
+        <strong>{games.length.toLocaleString()}</strong>
+        <b>Total listings</b>
+        <small>Games and drafts in your studio</small>
+      </article>
+      <article className="overview-stat-card">
+        <div className="overview-stat-top"><span className="overview-stat-icon green">↗</span><span>LIVE IN STORE</span></div>
+        <strong>{published.toLocaleString()}</strong>
+        <b>Published games</b>
+        <small>Approved and visible to players</small>
+      </article>
+      <article className="overview-stat-card">
+        <div className="overview-stat-top"><span className="overview-stat-icon amber">◷</span><span>REVIEW QUEUE</span></div>
+        <strong>{inReview.toLocaleString()}</strong>
+        <b>Submitted / in review</b>
+        <small>Waiting for a Game ON decision</small>
+      </article>
+      <article className="overview-stat-card">
+        <div className="overview-stat-top"><span className="overview-stat-icon violet">✎</span><span>NEEDS ATTENTION</span></div>
+        <strong>{needsAttention.toLocaleString()}</strong>
+        <b>Drafts and changes requested</b>
+        <small>{draft} drafts · {rejected} rejected listings</small>
+      </article>
+    </section>
+
+    <section className="overview-main-grid">
+      <section className="overview-panel overview-recent-panel">
+        <div className="overview-panel-heading">
+          <div><p className="eyebrow">YOUR CATALOGUE</p><h2>Recent game listings</h2><p>See where each game stands and what to do next.</p></div>
+          <button className="overview-text-action" onClick={() => onNavigate("games")}>All games <span aria-hidden="true">→</span></button>
+        </div>
+        <GameTable games={games.slice(0, 5)} onEdit={onEdit} onDeleteDraft={onDeleteDraft} deletingDraftId={deletingDraftId}/>
+      </section>
+
+      <section className="overview-panel overview-journey-panel">
+        <div className="overview-panel-heading">
+          <div><p className="eyebrow">PUBLISHING JOURNEY</p><h2>What happens next?</h2><p>Live status based on your studio and listings.</p></div>
+        </div>
+        <div className="overview-journey-list">
+          {journeySteps.map((step) => <article className={`overview-journey-step ${step.state}`} key={step.number}>
+            <span className="overview-journey-number">{step.number}</span>
+            <div className="overview-journey-copy"><b>{step.title}</b><p>{step.detail}</p><span className={`overview-journey-state ${step.state}`}>{step.stateLabel}</span></div>
+            <button className="overview-journey-action" onClick={() => onNavigate(step.section)} aria-label={step.action}>{step.action} →</button>
+          </article>)}
+        </div>
+        <p className="overview-safety-note">A clean scan alone does not publish a game. Builds remain private until the trusted scanner and Game ON release review both approve them.</p>
+      </section>
+    </section>
+
+    <section className="overview-quick-section">
+      <div className="overview-panel-heading">
+        <div><p className="eyebrow">QUICK ACTIONS</p><h2>Keep your studio moving</h2></div>
+      </div>
+      <div className="overview-quick-grid">
+        {quickActions.map((item) => <button className="overview-quick-card" key={item.section} onClick={() => onNavigate(item.section)}>
+          <span className="overview-quick-icon" aria-hidden="true">{item.icon}</span>
+          <span className="overview-quick-title">{item.title}</span>
+          <span className="overview-quick-detail">{item.detail}</span>
+          <span className="overview-quick-link">{item.action} →</span>
+        </button>)}
+      </div>
+      <p className="overview-metrics-note">Analytics currently report secure download links issued and approved build records. A link being issued does not prove a completed download, installation, or sale.</p>
+    </section>
+  </div>;
 }
 
 function getDraftProgress(game: GameRow) {
