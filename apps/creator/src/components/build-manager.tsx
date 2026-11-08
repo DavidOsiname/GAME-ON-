@@ -26,7 +26,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
   const buildCounts = useMemo(() => ({
     all: builds.length,
     pending: builds.filter((build) => !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved").length,
-    attention: builds.filter((build) => ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected").length,
+    attention: builds.filter((build) => ["rejected", "failed"].includes(build.upload_status) || ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected").length,
     approved: builds.filter((build) => build.release_status === "approved").length,
   }), [builds]);
   const visibleBuilds = useMemo(() => {
@@ -34,11 +34,11 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
     return builds.filter((build) => {
       const matchesFilter = buildFilter === "all"
         || (buildFilter === "pending" && !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved")
-        || (buildFilter === "attention" && (["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected"))
+        || (buildFilter === "attention" && (["rejected", "failed"].includes(build.upload_status) || ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected"))
         || (buildFilter === "approved" && build.release_status === "approved");
       const searchable = [build.game_title, build.version_label, build.original_file_name || "", build.platform, build.upload_status, build.scan_status, build.release_status, build.scan_report || ""].join(" ").toLowerCase();
       return matchesFilter && (!term || searchable.includes(term));
-    }).sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at));
+    }).sort((a, b) => (Date.parse(b.created_at) || 0) - (Date.parse(a.created_at) || 0));
   }, [builds, buildFilter, buildQuery]);
   const buildFilters = [
     { id: "all" as const, label: "All builds", count: buildCounts.all },
@@ -194,12 +194,15 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
           {buildFilters.map((item) => <button type="button" key={item.id} className={buildFilter === item.id ? "active" : ""} aria-pressed={buildFilter === item.id} onClick={() => setBuildFilter(item.id)}>{item.label}<strong>{item.count}</strong></button>)}
         </div>
         {loading ? <p className="build-muted">Loading build history…</p> : builds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⇧</span><b>No build records yet</b><p>When an eligible build is securely uploaded, its private upload and review states will appear here.</p></div> : visibleBuilds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⌕</span><b>No build records match this view</b><p>Try a different status filter or search term.</p><button className="creator-outline" type="button" onClick={() => { setBuildFilter("all"); setBuildQuery(""); }}>Clear filters</button></div> : <div className="build-list builds-history-list">{visibleBuilds.map((build) => {
+          const uploadNeedsAttention = ["rejected", "failed"].includes(build.upload_status);
           const scanNeedsAttention = ["rejected", "failed"].includes(build.scan_status);
           const releaseNeedsAttention = build.release_status === "rejected";
           const releaseApproved = build.release_status === "approved";
           const buildSummary = releaseNeedsAttention
             ? "Game ON did not approve this build for release. Review the decision and contact support if you need clarification."
-            : scanNeedsAttention
+            : uploadNeedsAttention
+              ? "The file upload did not complete successfully. Check the upload state and try again when uploads are available."
+              : scanNeedsAttention
               ? "This build was not cleared by the scanner. Review the report and contact Game ON support if you need help."
               : releaseApproved
                 ? "Game ON has approved this build's release status."
