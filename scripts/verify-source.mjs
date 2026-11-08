@@ -105,6 +105,8 @@ for (const [name, source, needles] of [
     "initialStep?: number",
     "onDraftChange?:",
     "await onContinueToAccount(data)",
+    "Already have a Creator account?",
+    "onClick={onSignIn}",
     "draftSaveTimer",
     "if (saved === false)",
     "PENDING_STUDIO_SETUP_TTL_HOURS",
@@ -112,6 +114,7 @@ for (const [name, source, needles] of [
   ["Creator company-first auth recovery", creatorOnboardingSource, [
     "if (!user && !showAccountCreation)",
     "if (!user && showAccountCreation)",
+    "onSignIn={() => {",
     "loadPendingStudioSetupDraft()",
     "savePendingStudioSetupDraft(data, step, \"company\")",
     "savePendingStudioSetupDraft(data, 5, \"account\")",
