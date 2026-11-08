@@ -508,4 +508,16 @@ for (const selector of [
   }
 }
 
+
+const creatorSubmitHandlerStart = creatorSubmissionSource.indexOf("async function submitGame");
+const creatorSubmitHandlerEnd = creatorSubmissionSource.indexOf("async function saveGameEdits", creatorSubmitHandlerStart);
+const creatorSubmitHandler = creatorSubmissionSource.slice(creatorSubmitHandlerStart, creatorSubmitHandlerEnd);
+const fitValidationIndex = creatorSubmitHandler.indexOf("readGameFitInputs(form, platforms)");
+const readinessValidationIndex = creatorSubmitHandler.indexOf("getListingFormReadiness(formElement)");
+if (creatorSubmitHandlerStart < 0 || creatorSubmitHandlerEnd <= creatorSubmitHandlerStart
+  || fitValidationIndex < 0 || readinessValidationIndex <= fitValidationIndex
+  || !creatorSubmitHandler.includes("if (fitInput.error || !fitInput.platformDetails.length)")) {
+  throw new Error("Creator submission must show specific GAME FIT errors before applying the overall readiness gate.");
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
