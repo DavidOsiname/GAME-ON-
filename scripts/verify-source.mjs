@@ -281,6 +281,7 @@ if (creatorAnalytics.includes("window.location.reload()")) {
 
 for (const needle of [
   "Secure download links issued are requests recorded",
+  "Each issuance is one event; requesting a fresh link again counts as another issuance.",
   "The current report includes secure download-link issues",
   "This report does not include listing impressions, wishlists, player ratings, completed file transfers, confirmed installs, play time or sales.",
   "This report counts secure download links issued by Game ON.",
