@@ -690,4 +690,34 @@ for (const selector of [
   }
 }
 
+
+const creatorAnalyticsSource = fs.readFileSync(path.join(root, "apps/creator/src/components/creator-insights.tsx"), "utf8");
+const creatorAnalyticsStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+for (const needle of [
+  "SECURE LINKS ISSUED",
+  "secure download links issued",
+  "including repeat issuances",
+  "uploaded, malware-scan clean, and release-approved",
+  "does not yet report listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales",
+  "Sales reporting belongs to the separate order and payment ledger",
+  'aria-label="Search analytics by game"',
+  'aria-pressed={filter === item.id}',
+]) {
+  if (!creatorAnalyticsSource.includes(needle)) {
+    throw new Error("Creator analytics must clearly define its verified metrics and limitations: " + needle);
+  }
+}
+for (const selector of [
+  ".analytics-summary-grid",
+  ".analytics-measurement-note",
+  ".analytics-filter-row",
+  ".analytics-game-metrics",
+  ".creator-analytics-workspace button:focus-visible",
+  "@media(max-width:700px)",
+]) {
+  if (!creatorAnalyticsStyles.includes(selector)) {
+    throw new Error("Creator analytics is missing a responsive or accessible layout rule: " + selector);
+  }
+}
+
 console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
