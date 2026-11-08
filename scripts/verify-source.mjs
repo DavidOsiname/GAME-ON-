@@ -287,7 +287,7 @@ if (creatorInboxStart < 0 || creatorInboxEnd <= creatorInboxStart) {
   throw new Error("Creator notification inbox is missing or its component boundaries are invalid.");
 }
 for (const needle of [
-  'supabase.from("notifications")',
+  'from("notifications")',
   'eq("user_id", userId)',
   'aria-label="Search notifications"',
   'aria-label="Filter notifications"',
