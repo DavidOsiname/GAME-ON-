@@ -1058,3 +1058,22 @@
 @media (prefers-reduced-motion: reduce) {
   .listing-form-nav { scroll-behavior: auto; }
 }
+
+.listing-submit-readiness-hint {
+  padding: 11px 13px;
+  border: 1px solid rgba(36, 215, 239, .18);
+  border-radius: 9px;
+  background: rgba(36, 215, 239, .055);
+  color: #a8dce7;
+  font-size: 10px;
+  line-height: 1.6;
+}
+.listing-submit-readiness-hint::before {
+  content: "NEXT";
+  display: inline-block;
+  margin-right: 9px;
+  color: #65dfef;
+  font-size: 8px;
+  font-weight: 900;
+  letter-spacing: 1px;
+}
