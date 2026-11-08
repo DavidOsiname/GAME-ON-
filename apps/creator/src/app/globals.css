@@ -1590,3 +1590,179 @@
 @media (prefers-reduced-motion: reduce) {
   .analytics-game-row .analytics-bar span { transition: none; }
 }
+
+
+/* GAME ON Creator — accurate, searchable studio analytics. */
+.creator-analytics { display: grid; gap: 18px; }
+.analytics-page-intro { align-items: flex-end; }
+.analytics-page-intro .creator-outline { flex: 0 0 auto; }
+.analytics-load-error {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid rgba(255, 145, 116, .23);
+  border-radius: 9px;
+  color: #ffc3b5;
+  background: rgba(115, 49, 39, .16);
+  font-size: 10px;
+  line-height: 1.65;
+}
+.analytics-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0,1fr));
+  gap: 11px;
+}
+.analytics-metric-card {
+  display: grid;
+  grid-template-columns: 34px minmax(0,1fr);
+  align-items: start;
+  gap: 11px;
+  min-width: 0;
+  min-height: 124px;
+  padding: 16px;
+  border: 1px solid rgba(151, 180, 209, .15);
+  border-radius: 11px;
+  background: linear-gradient(145deg, #142237, #0e1928);
+}
+.analytics-metric-icon {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  font-size: 15px;
+  font-weight: 900;
+}
+.analytics-metric-icon.cyan { color: #6ce1ef; background: rgba(36, 215, 239, .1); }
+.analytics-metric-icon.green { color: #b9eb92; background: rgba(154, 228, 69, .1); }
+.analytics-metric-icon.violet { color: #c0a7ff; background: rgba(179, 153, 255, .1); }
+.analytics-metric-icon.amber { color: #f1cf8f; background: rgba(245, 186, 98, .1); }
+.analytics-metric-card>div { min-width: 0; display: grid; gap: 4px; }
+.analytics-metric-card small { color: #90a4ba; font-size: 8px; font-weight: 900; letter-spacing: .65px; line-height: 1.45; }
+.analytics-metric-card strong { color: #f0f7ff; font-family: 'Barlow Condensed', sans-serif; font-size: 30px; line-height: 1; }
+.analytics-metric-card p { margin: 2px 0 0; color: #8297ad; font-size: 9px; line-height: 1.55; }
+.analytics-meaning-panel {
+  display: grid;
+  grid-template-columns: minmax(0, .85fr) minmax(0, 1.4fr);
+  gap: 22px;
+  align-items: center;
+  padding: 19px 21px;
+  border: 1px solid rgba(36, 215, 239, .17);
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(36, 215, 239, .07), rgba(14, 25, 40, .75));
+}
+.analytics-meaning-panel .eyebrow { margin: 0 0 6px; }
+.analytics-meaning-panel h2 {
+  margin: 0 0 7px;
+  color: #eaf5ff;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 23px;
+}
+.analytics-meaning-panel>div:first-child>p:last-child { margin: 0; color: #91a9bb; font-size: 10px; line-height: 1.65; }
+.analytics-meaning-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 13px; }
+.analytics-meaning-columns article { display: grid; align-content: start; gap: 6px; padding-left: 12px; border-left: 2px solid rgba(36, 215, 239, .3); }
+.analytics-meaning-columns article:last-child { border-left-color: rgba(245, 186, 98, .34); }
+.analytics-meaning-columns b { color: #cdebf0; font-size: 10px; }
+.analytics-meaning-columns article:last-child b { color: #ecd2a5; }
+.analytics-meaning-columns span { color: #8fa5b8; font-size: 9px; line-height: 1.65; }
+
+.analytics-performance-card { max-width: none; padding: 21px; }
+.analytics-performance-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 17px;
+}
+.analytics-performance-heading .eyebrow { margin: 0 0 5px; }
+.analytics-performance-heading h2 {
+  margin: 0 0 5px;
+  color: #edf6ff;
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 25px;
+}
+.analytics-performance-heading p:not(.eyebrow) { margin: 0; color: #899fb5; font-size: 9px; line-height: 1.6; }
+.analytics-results-total { color: #93a8bd; font-size: 9px; white-space: nowrap; }
+.analytics-controls { display: grid; gap: 12px; padding: 0 0 16px; border-bottom: 1px solid rgba(151, 180, 209, .13); }
+.analytics-search { display: grid; gap: 6px; color: #a4b8cb; font-size: 8px; font-weight: 900; letter-spacing: .75px; }
+.analytics-search input {
+  width: 100%;
+  min-height: 40px;
+  padding: 9px 11px;
+  border: 1px solid rgba(151, 180, 209, .19);
+  border-radius: 8px;
+  color: #edf6ff;
+  background: #091321;
+  font-size: 10px;
+}
+.analytics-filter-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.analytics-filter-row button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 31px;
+  padding: 6px 10px;
+  border: 1px solid rgba(151, 180, 209, .16);
+  border-radius: 7px;
+  color: #9aadc1;
+  background: rgba(8, 19, 32, .7);
+  font-size: 9px;
+  font-weight: 800;
+}
+.analytics-filter-row button.active { border-color: rgba(36, 215, 239, .27); color: #b0eaf0; background: rgba(36, 215, 239, .08); }
+.analytics-filter-row button strong { color: inherit; font-size: 9px; }
+.analytics-game-row { padding: 17px 0; border-top: 1px solid rgba(151, 180, 209, .13); }
+.analytics-game-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.analytics-game-identity { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.analytics-game-identity>b { color: #eaf4ff; font-size: 12px; overflow-wrap: anywhere; }
+.analytics-game-status {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 7px;
+  border: 1px solid rgba(151, 180, 209, .16);
+  border-radius: 5px;
+  color: #a7b8c9;
+  background: rgba(151, 180, 209, .06);
+  font-size: 7px;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+.analytics-game-status.published { border-color: rgba(154, 228, 69, .2); color: #b8e899; background: rgba(154, 228, 69, .06); }
+.analytics-link-count { flex: 0 0 auto; display: grid; justify-items: end; color: #6cdeeb; font-family: 'Barlow Condensed', sans-serif; font-size: 22px; line-height: .95; }
+.analytics-link-count small { margin-top: 4px; color: #8297ad; font-family: inherit; font-size: 8px; font-weight: 500; }
+.analytics-game-details { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 5px 15px; margin-top: 9px; color: #859bb0; font-size: 8px; line-height: 1.6; }
+.analytics-game-row .analytics-bar { margin: 10px 0 0; height: 6px; }
+.analytics-zero-note { display: block; margin-top: 6px; color: #7f94a9; font-size: 8px; }
+.analytics-empty-state { display: grid; justify-items: center; gap: 7px; padding: 35px 14px; text-align: center; }
+.analytics-empty-state>span { color: #71dbe9; font-size: 24px; }
+.analytics-empty-state>b { color: #e6f1fc; font-size: 11px; }
+.analytics-empty-state>p { max-width: 430px; margin: 0; color: #8ba1b6; font-size: 9px; line-height: 1.65; }
+.analytics-empty-state button { margin-top: 5px; }
+.creator-analytics button:focus-visible,
+.creator-analytics input:focus-visible { outline: 2px solid #68e1ef; outline-offset: 2px; }
+
+@media (max-width: 1100px) {
+  .analytics-metric-grid { grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .analytics-meaning-panel { grid-template-columns: 1fr; gap: 15px; }
+}
+@media (max-width: 700px) {
+  .creator-analytics { gap: 14px; }
+  .analytics-page-intro { align-items: flex-start; flex-direction: column; }
+  .analytics-page-intro .creator-outline { width: 100%; }
+  .analytics-metric-grid { gap: 8px; }
+  .analytics-metric-card { grid-template-columns: 28px minmax(0,1fr); min-height: 108px; gap: 8px; padding: 11px; }
+  .analytics-metric-icon { width: 27px; height: 27px; font-size: 13px; }
+  .analytics-metric-card small { font-size: 7px; letter-spacing: .35px; }
+  .analytics-metric-card strong { font-size: 25px; }
+  .analytics-metric-card p { font-size: 8px; }
+  .analytics-meaning-panel { padding: 15px; }
+  .analytics-meaning-columns { grid-template-columns: 1fr; gap: 12px; }
+  .analytics-performance-card { padding: 14px; }
+  .analytics-performance-heading { align-items: flex-start; }
+  .analytics-performance-heading h2 { font-size: 22px; }
+  .analytics-filter-row { display: grid; grid-template-columns: 1fr; }
+  .analytics-filter-row button { justify-content: space-between; min-height: 35px; }
+  .analytics-game-details { display: grid; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .creator-analytics * { scroll-behavior: auto; }
+}
