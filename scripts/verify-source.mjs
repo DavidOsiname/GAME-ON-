@@ -713,7 +713,7 @@ for (const selector of [
   ".analytics-filter-row",
   ".analytics-game-metrics",
   ".creator-analytics-workspace button:focus-visible",
-  "@media(max-width:700px)",
+  "@media (max-width: 700px) {",
 ]) {
   if (!creatorAnalyticsStyles.includes(selector)) {
     throw new Error("Creator analytics is missing a responsive or accessible layout rule: " + selector);
