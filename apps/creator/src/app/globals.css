@@ -1200,3 +1200,44 @@
   .games-filter-card { transition: none; }
   .games-filter-card:hover { transform: none; }
 }
+
+/* Creator edit-listing state and reviewer feedback. */
+.edit-review-feedback {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+  margin: 0 0 20px;
+  padding: 17px 19px;
+  border: 1px solid rgba(255, 145, 116, .28);
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(101, 39, 39, .22), rgba(54, 29, 34, .16));
+}
+.edit-review-feedback-icon {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(255, 145, 116, .28);
+  border-radius: 9px;
+  color: #ffb09a;
+  background: rgba(255, 145, 116, .1);
+  font-weight: 900;
+}
+.edit-review-feedback>div:last-child { min-width: 0; }
+.edit-review-feedback b { display: block; color: #ffd1c3; font-size: 12px; }
+.edit-review-feedback p { margin: 5px 0 0; color: #d5b8b0; font-size: 11px; line-height: 1.7; white-space: pre-wrap; overflow-wrap: anywhere; }
+.edit-review-feedback small { display: block; margin-top: 7px; color: #b9958d; font-size: 9px; }
+.edit-draft-note {
+  padding: 14px 16px;
+  border: 1px solid rgba(36, 215, 239, .18);
+  border-radius: 10px;
+  background: rgba(36, 215, 239, .055);
+}
+.edit-draft-note b { color: #a4eaf2; font-size: 11px; }
+.edit-draft-note p { margin: 5px 0 0; color: #95b8c8; font-size: 10px; line-height: 1.6; }
+.edit-listing-safety-note { margin-top: 0; }
+@media (max-width: 700px) {
+  .edit-review-feedback { gap: 10px; padding: 14px; }
+  .edit-review-feedback p { font-size: 10px; }
+}
