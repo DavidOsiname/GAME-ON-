@@ -25,7 +25,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
   const canUpload = Boolean(supabase && studioVerified && scannerEnabled && eligibleGames.length > 0);
   const buildCounts = useMemo(() => ({
     all: builds.length,
-    pending: builds.filter((build) => !["clean", "rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved").length,
+    pending: builds.filter((build) => !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved").length,
     attention: builds.filter((build) => ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected").length,
     approved: builds.filter((build) => build.release_status === "approved").length,
   }), [builds]);
@@ -33,7 +33,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
     const term = buildQuery.trim().toLowerCase();
     return builds.filter((build) => {
       const matchesFilter = buildFilter === "all"
-        || (buildFilter === "pending" && !["clean", "rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved")
+        || (buildFilter === "pending" && !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved")
         || (buildFilter === "attention" && (["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected"))
         || (buildFilter === "approved" && build.release_status === "approved");
       const searchable = [build.game_title, build.version_label, build.original_file_name || "", build.platform, build.upload_status, build.scan_status, build.release_status, build.scan_report || ""].join(" ").toLowerCase();
@@ -195,14 +195,17 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
         </div>
         {loading ? <p className="build-muted">Loading build history…</p> : builds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⇧</span><b>No build records yet</b><p>When an eligible build is securely uploaded, its private upload and review states will appear here.</p></div> : visibleBuilds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⌕</span><b>No build records match this view</b><p>Try a different status filter or search term.</p><button className="creator-outline" type="button" onClick={() => { setBuildFilter("all"); setBuildQuery(""); }}>Clear filters</button></div> : <div className="build-list builds-history-list">{visibleBuilds.map((build) => {
           const scanNeedsAttention = ["rejected", "failed"].includes(build.scan_status);
+          const releaseNeedsAttention = build.release_status === "rejected";
           const releaseApproved = build.release_status === "approved";
-          const buildSummary = scanNeedsAttention
-            ? "This build was not cleared by the scanner. Review the report and contact Game ON support if you need help."
-            : releaseApproved
-              ? "Game ON has approved this build's release status."
-              : build.scan_status === "clean"
-                ? "The scanner reported a clean result, but release approval is still separate."
-                : "This file remains private while it waits for a trusted scan and release decision.";
+          const buildSummary = releaseNeedsAttention
+            ? "Game ON did not approve this build for release. Review the decision and contact support if you need clarification."
+            : scanNeedsAttention
+              ? "This build was not cleared by the scanner. Review the report and contact Game ON support if you need help."
+              : releaseApproved
+                ? "Game ON has approved this build's release status."
+                : build.scan_status === "clean"
+                  ? "The scanner reported a clean result, but release approval is still separate."
+                  : "This file remains private while it waits for a trusted scan and release decision.";
           return <article className="build-row builds-history-row" key={build.id}>
             <div className="builds-history-main">
               <div className="builds-history-titleline"><b>{build.game_title}</b><span>v{build.version_label}</span></div>
