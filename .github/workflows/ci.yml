@@ -52,6 +52,8 @@ jobs:
         run: supabase db reset
       - name: Run pgTAP database security tests
         run: supabase test db
+      - name: Test Creator signup and confirmation emails with local Mailpit
+        run: npm run creator-auth-email:test
       - name: Run automated safety and source tests
         run: npm test
       - name: Type-check both apps
