@@ -351,7 +351,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
 
     try {
       const result = submittedMode === "signup"
-        ? await supabase.auth.signUp({ email, password })
+        ? await supabase.auth.signUp({ email, password, options: { emailRedirectTo: window.location.origin } })
         : await supabase.auth.signInWithPassword({ email, password });
 
       if (result.error) {
@@ -391,7 +391,8 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     try {
       const { error } = await supabase.auth.resend({
         type: "signup",
-        email: pendingConfirmationEmail
+        email: pendingConfirmationEmail,
+        options: { emailRedirectTo: window.location.origin }
       });
       if (error) {
         setConfirmationError(true);
