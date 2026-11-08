@@ -105,22 +105,121 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
     } finally { setBusy(false); }
   }
 
-  return <div className="build-manager">
-    <div className="page-intro"><div><p className="eyebrow">PRIVATE BUILD DELIVERY</p><h1>Game builds.</h1><p>Upload a build for your game. Files go to private quarantine and must pass a trusted malware scan plus Game ON release review.</p></div><button className="creator-outline" type="button" onClick={() => void loadBuilds()} disabled={loading}>↻ Refresh</button></div>
-    {message && <div className="build-notice" role="status">{message}</div>}{error && <div className="build-error" role="alert">{error}</div>}
-    <section className="surface-card submit-form">
-      <div className="form-section-heading"><b>UPLOAD A GAME BUILD</b><span>PRIVATE · 50 MB MAX</span></div>
-      {!supabase && <div className="build-warning">Demo mode is active. Connect Supabase to upload real files; demo mode intentionally disables file upload.</div>}
-      {!studioVerified ? <div className="build-warning">Studio verification is required before uploads are enabled. Your current studio status must be approved by Game ON.</div> : !scannerEnabled ? <div className="build-warning">Uploads are disabled until Game ON’s private malware scanner and ClamAV service have been deployed and tested.</div> : !eligibleGames.length ? <p className="build-muted">You need a draft, submitted or rejected listing before uploading a build. Published and actively reviewed listings are locked.</p> : <form onSubmit={handleUpload} className="build-upload-form">
-        <label>Game listing<select value={gameId} onChange={(event) => { setGameId(event.target.value); const next = eligibleGames.find((g) => g.id === event.target.value); setPlatform(next?.supported_platforms?.[0] || "android"); }} required>{eligibleGames.map((game) => <option value={game.id} key={game.id}>{game.title} · {game.status.replaceAll("_", " ")}</option>)}</select></label>
-        <div className="form-two"><label>Platform<select value={platform} onChange={(event) => setPlatform(event.target.value)}>{platforms.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select></label><label>Version label<input name="version" required maxLength={40} placeholder="e.g. 1.0.0" pattern="[A-Za-z0-9][A-Za-z0-9._+-]{0,39}"/></label></div>
-        <label>Game build file<input type="file" name="buildFile" accept=".apk,.aab,.exe,.msi,.zip" required/><small>Android: APK/AAB · Windows: EXE/MSI/ZIP · Web: ZIP. Current limit: 50 MB.</small></label>
-        <div className="submission-note"><b>Important safety notice</b><p>Uploads remain private. This initial pipeline does not itself scan malware; it waits for a separately configured trusted scanner. Never upload third-party games without distribution rights.</p></div>
-        <div className="form-actions"><button className="creator-primary" disabled={busy || !supabase || !studioVerified || !scannerEnabled}>{busy ? "Uploading securely…" : "Upload to private quarantine →"}</button></div>
-      </form>}
+  return <div className="build-manager builds-workspace">
+    <div className="page-intro builds-page-intro">
+      <div>
+        <p className="eyebrow">PRIVATE BUILD DELIVERY</p>
+        <h1>Game builds.</h1>
+        <p>Manage private game files, understand each security checkpoint, and follow build decisions. Uploading a file never publishes it automatically.</p>
+      </div>
+      <button className="creator-outline" type="button" onClick={() => void loadBuilds()} disabled={loading}>↻ {loading ? "Refreshing…" : "Refresh history"}</button>
+    </div>
+
+    {message && <div className="build-notice" role="status">{message}</div>}
+    {error && <div className="build-error" role="alert">{error}</div>}
+
+    <section className="builds-gate-panel" aria-labelledby="builds-gate-title">
+      <div className="builds-gate-heading">
+        <div>
+          <p className="eyebrow">UPLOAD REQUIREMENTS</p>
+          <h2 id="builds-gate-title">Three checks before a build can be uploaded</h2>
+          <p>These safeguards protect creators and players. A listing and a game file are separate parts of publishing.</p>
+        </div>
+        <span className={canUpload ? "builds-gate-overall ready" : "builds-gate-overall blocked"}>{canUpload ? "Prerequisites met" : "Upload unavailable"}</span>
+      </div>
+      <div className="builds-gate-steps">
+        <article className={studioVerified ? "builds-gate-step ready" : "builds-gate-step blocked"}>
+          <span className="builds-gate-step-icon" aria-hidden="true">{studioVerified ? "✓" : "01"}</span>
+          <div><b>Studio verification</b><strong>{studioVerified ? "Verified" : "Required"}</strong><p>{studioVerified ? "Your studio has passed the current verification check." : "Game ON must verify your studio before private file uploads open."}</p></div>
+        </article>
+        <article className={scannerEnabled ? "builds-gate-step ready" : "builds-gate-step blocked"}>
+          <span className="builds-gate-step-icon" aria-hidden="true">{scannerEnabled ? "✓" : "02"}</span>
+          <div><b>Trusted malware scanner</b><strong>{scannerEnabled ? "Configured" : "Not enabled"}</strong><p>{scannerEnabled ? "Build files remain private until the configured scanner returns a result." : "The private scanner is not enabled. Uploads stay closed; no file is accepted as clean without a real scan."}</p></div>
+        </article>
+        <article className={eligibleGames.length > 0 ? "builds-gate-step ready" : "builds-gate-step blocked"}>
+          <span className="builds-gate-step-icon" aria-hidden="true">{eligibleGames.length > 0 ? "✓" : "03"}</span>
+          <div><b>Eligible game listing</b><strong>{eligibleGames.length > 0 ? eligibleGames.length + " available" : "Required"}</strong><p>{eligibleGames.length > 0 ? "Choose a draft, submitted or changes-requested listing for this build." : "Create a draft or submit a listing first. Published and actively reviewed games are locked here."}</p></div>
+        </article>
+      </div>
+      {!supabase && <p className="builds-gate-footnote">Real file uploads require a connected Creator account. Demo mode never uploads files.</p>}
     </section>
-    <section className="surface-card full-card"><div className="surface-heading"><div><h2>Build history</h2><p>{builds.length} uploaded or pending build records</p></div></div>
-      {loading ? <p className="build-muted">Loading builds…</p> : builds.length === 0 ? <p className="build-muted">No build files uploaded yet.</p> : <div className="build-list">{builds.map((build) => <article className="build-row" key={build.id}><div><b>{build.game_title} · v{build.version_label}</b><small>{build.original_file_name || "Game build"} · {build.platform.toUpperCase()} · {(Number(build.file_size_bytes) / 1024 / 1024).toFixed(1)} MB</small><small>{new Date(build.created_at).toLocaleString()}</small></div><div className="build-statuses"><span className={`status-pill ${build.upload_status === "uploaded" ? "published" : "review"}`}>{build.upload_status.replaceAll("_", " ")}</span><span className={`status-pill ${build.scan_status === "clean" ? "published" : build.scan_status === "rejected" || build.scan_status === "failed" ? "rejected" : "review"}`}>{build.scan_status}</span><span className={`status-pill ${build.release_status === "approved" ? "published" : "review"}`}>{build.release_status}</span></div>{build.scan_report && <p className="build-muted build-report">{build.scan_report}</p>}</article>)}</div>}
+
+    <section className="surface-card builds-upload-card" aria-labelledby="builds-upload-title">
+      <div className="builds-section-heading">
+        <div><p className="eyebrow">SECURE UPLOAD</p><h2 id="builds-upload-title">Upload a game build</h2><p>Supported formats depend on the selected platform. Current beta limit: 50 MB per file.</p></div>
+        <span className="builds-private-label"><span aria-hidden="true">●</span> PRIVATE QUARANTINE</span>
+      </div>
+      {!supabase ? <div className="builds-blocked-message"><b>Connect your Creator workspace</b><p>Demo mode is active. Connect Supabase to upload real files; this demo intentionally does not accept executable uploads.</p></div>
+        : !studioVerified ? <div className="builds-blocked-message"><b>Studio verification required</b><p>Your studio must pass Game ON verification before a build upload can be prepared.</p></div>
+        : !scannerEnabled ? <div className="builds-blocked-message"><b>Secure scanning is not enabled yet</b><p>The private malware scanner and ClamAV service must be deployed and tested before any build file can be accepted. This screen is read-only until then.</p></div>
+        : !eligibleGames.length ? <div className="builds-blocked-message"><b>No eligible game listing yet</b><p>Create a draft or submit a listing first. Actively reviewed and published listings cannot start a new upload through this screen.</p>{onCreateListing && <button className="creator-outline" type="button" onClick={onCreateListing}>Go to game submission →</button>}</div>
+        : <form onSubmit={handleUpload} className="build-upload-form builds-upload-form">
+          <div className="form-two">
+            <label>Game listing<select value={gameId} onChange={(event) => { setGameId(event.target.value); const next = eligibleGames.find((g) => g.id === event.target.value); setPlatform(next?.supported_platforms?.[0] || "android"); }} required>{eligibleGames.map((game) => <option value={game.id} key={game.id}>{game.title} · {game.status.replaceAll("_", " ")}</option>)}</select><small>Only eligible listings are shown.</small></label>
+            <label>Platform<select value={platform} onChange={(event) => setPlatform(event.target.value)} required>{platforms.map((item) => <option key={item} value={item}>{item.toUpperCase()}</option>)}</select><small>Choose the platform for this exact build file.</small></label>
+          </div>
+          <div className="form-two">
+            <label>Version label<input name="version" required maxLength={40} placeholder="e.g. 1.0.0" pattern="[A-Za-z0-9][A-Za-z0-9._+-]{0,39}"/><small>Use a clear version such as 1.0.0 or 1.0.1-beta.</small></label>
+            <label>Game build file<input type="file" name="buildFile" accept={allowedExtensions.map((ext) => "." + ext).join(",")} required/><small>{platform.toUpperCase()}: {allowedExtensions.map((ext) => ext.toUpperCase()).join(" / ") || "No supported file type"} · 50 MB maximum.</small></label>
+          </div>
+          <div className="builds-upload-checklist">
+            <b>Before you upload</b>
+            <ul>
+              <li>Upload only a build that your studio owns or has distribution rights to.</li>
+              <li>Make sure the file matches the selected platform and version.</li>
+              <li>Files enter private quarantine and are not available to players during scanning or review.</li>
+            </ul>
+          </div>
+          <div className="form-actions builds-upload-actions"><button className="creator-primary" disabled={busy || !canUpload}>{busy ? "Uploading securely…" : "Upload to private quarantine →"}</button></div>
+        </form>}
+    </section>
+
+    <section className="builds-history-section" aria-labelledby="builds-history-title">
+      <div className="builds-history-heading">
+        <div><p className="eyebrow">BUILD RECORDS</p><h2 id="builds-history-title">Build history</h2><p>Follow upload, scan and release decisions separately.</p></div>
+        <span className="builds-history-total">{buildCounts.all.toLocaleString()} {buildCounts.all === 1 ? "record" : "records"}</span>
+      </div>
+      <div className="builds-history-summary">
+        <article><strong>{buildCounts.all.toLocaleString()}</strong><span>Total builds</span></article>
+        <article><strong>{buildCounts.pending.toLocaleString()}</strong><span>Awaiting scan / decision</span></article>
+        <article><strong>{buildCounts.attention.toLocaleString()}</strong><span>Needs attention</span></article>
+        <article><strong>{buildCounts.approved.toLocaleString()}</strong><span>Release approved</span></article>
+      </div>
+      <section className="surface-card builds-history-card">
+        <div className="builds-history-toolbar">
+          <label className="builds-search"><span>SEARCH BUILD RECORDS</span><input type="search" value={buildQuery} onChange={(event) => setBuildQuery(event.target.value)} placeholder="Search game, version, filename or status…" aria-label="Search build history"/></label>
+          <div className="builds-history-count" aria-live="polite"><b>{visibleBuilds.length}</b><span>shown</span></div>
+        </div>
+        <div className="builds-filter-row" aria-label="Filter build history">
+          {buildFilters.map((item) => <button type="button" key={item.id} className={buildFilter === item.id ? "active" : ""} aria-pressed={buildFilter === item.id} onClick={() => setBuildFilter(item.id)}>{item.label}<strong>{item.count}</strong></button>)}
+        </div>
+        {loading ? <p className="build-muted">Loading build history…</p> : builds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⇧</span><b>No build records yet</b><p>When an eligible build is securely uploaded, its private upload and review states will appear here.</p></div> : visibleBuilds.length === 0 ? <div className="builds-empty"><span aria-hidden="true">⌕</span><b>No build records match this view</b><p>Try a different status filter or search term.</p><button className="creator-outline" type="button" onClick={() => { setBuildFilter("all"); setBuildQuery(""); }}>Clear filters</button></div> : <div className="build-list builds-history-list">{visibleBuilds.map((build) => {
+          const scanNeedsAttention = ["rejected", "failed"].includes(build.scan_status);
+          const releaseApproved = build.release_status === "approved";
+          const buildSummary = scanNeedsAttention
+            ? "This build was not cleared by the scanner. Review the report and contact Game ON support if you need help."
+            : releaseApproved
+              ? "Game ON has approved this build's release status."
+              : build.scan_status === "clean"
+                ? "The scanner reported a clean result, but release approval is still separate."
+                : "This file remains private while it waits for a trusted scan and release decision.";
+          return <article className="build-row builds-history-row" key={build.id}>
+            <div className="builds-history-main">
+              <div className="builds-history-titleline"><b>{build.game_title}</b><span>v{build.version_label}</span></div>
+              <small>{build.original_file_name || "Game build"} · {build.platform.toUpperCase()} · {(Number(build.file_size_bytes) / 1024 / 1024).toFixed(1)} MB</small>
+              <small>Created {new Date(build.created_at).toLocaleString()}</small>
+            </div>
+            <div className="build-statuses builds-history-statuses">
+              <span className={"status-pill " + (build.upload_status === "uploaded" ? "published" : "review")}>Upload: {build.upload_status.replaceAll("_", " ")}</span>
+              <span className={"status-pill " + (build.scan_status === "clean" ? "published" : scanNeedsAttention ? "rejected" : "review")}>Scan: {build.scan_status.replaceAll("_", " ")}</span>
+              <span className={"status-pill " + (releaseApproved ? "published" : build.release_status === "rejected" ? "rejected" : "review")}>Release: {build.release_status.replaceAll("_", " ")}</span>
+            </div>
+            <p className="builds-history-summaryline">{buildSummary}</p>
+            {build.scan_report && <p className="build-muted build-report">{build.scan_report}</p>}
+          </article>;
+        })}</div>}
+      </section>
+      <p className="builds-history-disclaimer">A successful upload is not a clean scan, and a clean scan is not release approval. Build files stay private unless the separate release process approves them.</p>
     </section>
   </div>;
 }
