@@ -182,7 +182,7 @@ for (const needle of [
   'Trusted malware scanner',
   'scannerEnabled ? "Configured" : "Not enabled"',
   "Upload unavailable",
-  "No file is accepted as clean without a real scan.",
+  "no file is accepted as clean without a real scan.",
   'accept={allowedExtensions.map((ext) => "." + ext).join(",")}',
   'aria-label="Search build history"',
   'aria-label="Filter build history"',
