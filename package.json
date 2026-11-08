@@ -25,7 +25,7 @@
     "scanner:start": "node services/build-scanner/worker.mjs",
     "scanner:test": "node scripts/test-build-scanner.mjs",
     "commerce:test": "node scripts/test-commerce-safety.mjs",
-    "test": "npm run verify:source && npm run verify:migrations && npm run commerce:test && npm run scanner:test && npm run payment:test && npm run refund-events:test && npm run webhook-body:test && npm run readiness:test && npm run creator-readiness:test && npm run release:config:test && npm run deploy:test",
+    "test": "npm run verify:source && npm run verify:migrations && npm run commerce:test && npm run scanner:test && npm run payment:test && npm run refund-events:test && npm run webhook-body:test && npm run readiness:test && npm run creator-readiness:test && npm run gmail-auth-email:test && npm run release:config:test && npm run deploy:test",
     "db:start": "supabase start",
     "db:reset": "supabase db reset",
     "db:test": "supabase test db",
@@ -40,6 +40,7 @@
     "release:verify": "bash scripts/complete-release-checks.sh",
     "deploy:self-hosted": "bash scripts/deploy-self-hosted.sh",
     "creator-readiness:test": "node scripts/test-creator-readiness.mjs",
-    "creator-auth-email:test": "node scripts/test-creator-auth-email.mjs"
+    "creator-auth-email:test": "node scripts/test-creator-auth-email.mjs",
+    "gmail-auth-email:test": "node scripts/test-gmail-auth-email.mjs"
   }
 }
