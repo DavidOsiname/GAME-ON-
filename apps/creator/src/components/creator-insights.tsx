@@ -149,7 +149,7 @@ export function CreatorAnalytics() {
       <div>
         <p className="eyebrow">READ YOUR METRICS CORRECTLY</p>
         <h2>What these numbers tell you</h2>
-        <p>Secure download links issued are requests recorded when a link is created for an eligible published game and approved build.</p>
+        <p>Secure download links issued are requests recorded when a link is created for an eligible published game and approved build. Each issuance is one event; requesting a fresh link again counts as another issuance.</p>
       </div>
       <div className="analytics-meaning-columns">
         <article><b>Included in this report</b><span>The current report includes secure download-link issues, their latest recorded issue time, approved build totals and current published listing status.</span></article>
