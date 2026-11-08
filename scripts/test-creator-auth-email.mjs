@@ -128,12 +128,15 @@ async function main() {
     const distinctIds = [...new Set(mailpitIds)];
     assert.ok(distinctIds.length >= 2, "Signup and resend must create two distinct confirmation emails");
 
-    const latest = await readMessage(mailpitUrl, distinctIds[0]);
-    const link = confirmationLink(latest);
-    assert.equal(link.searchParams.get("redirect_to"), creatorOrigin,
-      "Resent confirmation link must redirect to the Creator application");
+    const messagesWithLinks = await Promise.all(distinctIds.slice(0, 2).map((id) => readMessage(mailpitUrl, id)));
+    const links = messagesWithLinks.map(confirmationLink);
+    for (const link of links) {
+      assert.equal(link.searchParams.get("redirect_to"), creatorOrigin,
+        "Every signup and resend confirmation link must redirect to the Creator application");
+    }
+    const latestLink = links[0];
 
-    const verification = await fetch(link, {
+    const verification = await fetch(latestLink, {
       redirect: "manual",
       signal: AbortSignal.timeout(10_000),
     });
