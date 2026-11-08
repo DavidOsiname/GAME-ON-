@@ -25,7 +25,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
   const canUpload = Boolean(supabase && studioVerified && scannerEnabled && eligibleGames.length > 0);
   const buildCounts = useMemo(() => ({
     all: builds.length,
-    pending: builds.filter((build) => !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved").length,
+    pending: builds.filter((build) => !["rejected", "failed"].includes(build.upload_status) && !["rejected", "failed"].includes(build.scan_status) && !["approved", "rejected"].includes(build.release_status)).length,
     attention: builds.filter((build) => ["rejected", "failed"].includes(build.upload_status) || ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected").length,
     approved: builds.filter((build) => build.release_status === "approved").length,
   }), [builds]);
@@ -33,7 +33,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
     const term = buildQuery.trim().toLowerCase();
     return builds.filter((build) => {
       const matchesFilter = buildFilter === "all"
-        || (buildFilter === "pending" && !["rejected", "failed"].includes(build.scan_status) && build.release_status !== "approved")
+        || (buildFilter === "pending" && !["rejected", "failed"].includes(build.upload_status) && !["rejected", "failed"].includes(build.scan_status) && !["approved", "rejected"].includes(build.release_status))
         || (buildFilter === "attention" && (["rejected", "failed"].includes(build.upload_status) || ["rejected", "failed"].includes(build.scan_status) || build.release_status === "rejected"))
         || (buildFilter === "approved" && build.release_status === "approved");
       const searchable = [build.game_title, build.version_label, build.original_file_name || "", build.platform, build.upload_status, build.scan_status, build.release_status, build.scan_report || ""].join(" ").toLowerCase();
@@ -216,7 +216,7 @@ export default function BuildManager({ games, studioVerified, scannerEnabled, on
               <small>Created {new Date(build.created_at).toLocaleString()}</small>
             </div>
             <div className="build-statuses builds-history-statuses">
-              <span className={"status-pill " + (build.upload_status === "uploaded" ? "published" : "review")}>Upload: {build.upload_status.replaceAll("_", " ")}</span>
+              <span className={"status-pill " + (build.upload_status === "uploaded" ? "published" : uploadNeedsAttention ? "rejected" : "review")}>Upload: {build.upload_status.replaceAll("_", " ")}</span>
               <span className={"status-pill " + (build.scan_status === "clean" ? "published" : scanNeedsAttention ? "rejected" : "review")}>Scan: {build.scan_status.replaceAll("_", " ")}</span>
               <span className={"status-pill " + (releaseApproved ? "published" : build.release_status === "rejected" ? "rejected" : "review")}>Release: {build.release_status.replaceAll("_", " ")}</span>
             </div>
