@@ -137,10 +137,10 @@ export function CreatorAnalytics() {
 
     <section className="analytics-summary-grid" aria-label="Studio analytics summary">
       <article className="analytics-summary-card">
-        <div className="analytics-summary-label"><span className="analytics-summary-icon cyan">↧</span><small>SECURE LINK ISSUES</small></div>
+        <div className="analytics-summary-label"><span className="analytics-summary-icon cyan">↧</span><small>SECURE LINKS ISSUED</small></div>
         <strong>{loading ? "—" : totalLinkIssues.toLocaleString()}</strong>
         <p>Secure download links issued</p>
-        <small>Not confirmed completed downloads</small>
+        <small>Issuance events, not completed transfers</small>
       </article>
       <article className="analytics-summary-card">
         <div className="analytics-summary-label"><span className="analytics-summary-icon green">✓</span><small>APPROVED BUILDS</small></div>
@@ -166,13 +166,13 @@ export function CreatorAnalytics() {
       <div className="analytics-measurement-icon" aria-hidden="true">i</div>
       <div>
         <b>What this report measures</b>
-        <p>The current report includes secure download-link issues, their latest recorded time, and clean, release-approved build records. It does not yet report listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales.</p>
+        <p>The current report counts each secure download-link issuance event (including repeat issuances), shows the latest recorded issuance time, and counts builds only when they are uploaded, malware-scan clean, and release-approved. It does not yet report listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales.</p>
       </div>
     </section>
 
     <section className="analytics-performance-section" aria-labelledby="analytics-performance-title">
       <div className="analytics-performance-heading">
-        <div><p className="eyebrow">PER-GAME BREAKDOWN</p><h2 id="analytics-performance-title">Game performance</h2><p>Games are ranked by recorded secure download-link issues.</p></div>
+        <div><p className="eyebrow">PER-GAME BREAKDOWN</p><h2 id="analytics-performance-title">Game performance</h2><p>Games are ranked by secure download-link issuance events.</p></div>
         <span className="analytics-row-total">{loading ? "—" : visibleRows.length.toLocaleString()} shown</span>
       </div>
       <section className="surface-card analytics-workspace-card">
@@ -218,6 +218,6 @@ export function CreatorAnalytics() {
       </section>
     </section>
 
-    <p className="analytics-disclaimer">This report counts secure download links issued by Game ON. It does not prove that a file transfer finished, that a game was installed, or that a sale occurred. Sales reporting belongs to the separate order and payment ledger.</p>
+    <p className="analytics-disclaimer">Each recorded event represents a secure download link issued by Game ON. Re-issued links are counted as separate events. This does not prove a file transfer finished, that a game was installed, or that a sale occurred. Sales reporting belongs to the separate order and payment ledger.</p>
   </div>;
 }
