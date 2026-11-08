@@ -278,6 +278,46 @@ if (creatorAnalytics.includes("window.location.reload()")) {
   throw new Error("Creator analytics refresh must not force a full-page reload.");
 }
 
+
+const creatorInboxStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const creatorInboxStart = creatorInsights.indexOf("export function CreatorInbox(");
+const creatorInboxEnd = creatorInsights.indexOf("type AnalyticsFilter", creatorInboxStart);
+const creatorInbox = creatorInsights.slice(creatorInboxStart, creatorInboxEnd);
+if (creatorInboxStart < 0 || creatorInboxEnd <= creatorInboxStart) {
+  throw new Error("Creator notification inbox is missing or its component boundaries are invalid.");
+}
+for (const needle of [
+  'from("notifications")',
+  'eq("user_id", userId)',
+  'aria-label="Search notifications"',
+  'aria-label="Filter notifications"',
+  'aria-pressed={filter === item.id}',
+  'item.read_at',
+  'setRefreshKey((key) => key + 1)',
+  "setPendingIds",
+  "setMarkingAll",
+  "Notifications could not be loaded",
+  "Connect a real Game ON Creator account",
+  "Latest 50 notifications",
+]) {
+  if (!creatorInbox.includes(needle)) {
+    throw new Error("Creator notifications inbox is missing a search, privacy, error or update-state control: " + needle);
+  }
+}
+for (const selector of [
+  ".inbox-summary-grid",
+  ".inbox-toolbar",
+  ".inbox-filter-row",
+  ".inbox-notification.unread",
+  ".inbox-empty-state",
+  "@media (max-width: 700px)",
+  "@media (max-width: 390px)",
+]) {
+  if (!creatorInboxStyles.includes(selector)) {
+    throw new Error("Creator notification inbox is missing responsive styling: " + selector);
+  }
+}
+
 const reportMigration = fs.readFileSync(path.join(root, "supabase/migrations/0004_player_reports.sql"), "utf8");
 for (const needle of ["game_reports_insert_own_published", "game_reports_read_own", "protect_game_report_metadata", "game_reports_queue_idx"]) if (!reportMigration.includes(needle)) throw new Error(`Report migration missing expected safety control: ${needle}`);
 const migration = fs.readFileSync(path.join(root, "supabase/migrations/0003_admin_moderation.sql"), "utf8");
