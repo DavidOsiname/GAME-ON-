@@ -102,7 +102,7 @@ function isEmailDeliveryConfigurationError(error: unknown) {
     : typeof error === "string"
       ? error
       : String((error as { message?: unknown } | null)?.message || "");
-  return /\\b535\\b|badcredentials|username and password not accepted|smtp|failed to send.*email|error sending.*email|confirmation email.*failed/i.test(message);
+  return /\b535\b|badcredentials|username and password not accepted|smtp|failed to send.*email|error sending.*email|confirmation email.*failed/i.test(message);
 }
 
 function PlatformGameFitFields({ platform, detail }: { platform: string; detail?: PlatformDetail | null }) {
