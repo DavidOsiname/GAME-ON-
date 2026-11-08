@@ -1051,7 +1051,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
           {editingGame.status === "draft" ? <>
             <button type="submit" className="creator-outline" name="submissionAction" value="draft" formNoValidate disabled={busy}>{busy ? "Saving…" : "Save draft"}</button>
             <button type="submit" className="creator-primary" name="submissionAction" value="submit" disabled={busy || !formReadiness.ready}>{busy ? "Submitting…" : formReadiness.ready ? "Submit draft for review →" : "Complete checklist to submit"}</button>
-          </> : <button type="submit" className="creator-primary" disabled={busy || (editingGame.status === "rejected" && !formReadiness.ready)}>{busy ? "Saving…" : editingGame.status === "rejected" ? formReadiness.ready ? "Save and resubmit →" : "Complete checklist to resubmit" : "Save changes →"}</button>}
+          </> : <button type="submit" className="creator-primary" disabled={busy || !formReadiness.ready}>{busy ? "Saving…" : editingGame.status === "rejected" ? formReadiness.ready ? "Save and resubmit →" : "Complete checklist to resubmit" : "Save changes →"}</button>}
         </div>
       </div>
 
