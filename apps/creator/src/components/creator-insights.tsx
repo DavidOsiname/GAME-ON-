@@ -153,7 +153,7 @@ export function CreatorAnalytics() {
       </div>
       <div className="analytics-meaning-columns">
         <article><b>Included in this report</b><span>The current report includes secure download-link issues, their latest recorded issue time, approved build totals and current published listing status.</span></article>
-        <article><b>Not measured here</b><span>This report does not include listing impressions, wishlists, player ratings, completed file transfers, confirmed installs, play time or sales.</span></article>
+        <article><b>Not measured here</b><span>This report does not include listing impressions, wishlists, player ratings, completed file transfers, confirmed installs or sales. Play time is not measured either.</span></article>
       </div>
     </section>
 
