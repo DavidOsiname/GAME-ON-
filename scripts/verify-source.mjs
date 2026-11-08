@@ -800,7 +800,7 @@ if (confirmationScreenStart < 0 || confirmationScreenEnd <= confirmationScreenSt
 const confirmationScreen = creatorOnboardingSource.slice(confirmationScreenStart, confirmationScreenEnd);
 for (const needle of [
   'pendingConfirmationEmail && authMode === "signin"',
-  'aria-live="polite"',
+  'aria-live={confirmationError ? "assertive" : "polite"}',
   "onClick={resendSignupConfirmation}",
   'disabled={busy}',
   "Resend confirmation email",
