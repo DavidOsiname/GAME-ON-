@@ -75,6 +75,7 @@ const required = [
   "services/build-scanner/Dockerfile",
   "services/build-scanner/README.md",
   "scripts/test-build-scanner.mjs",
+  "scripts/test-creator-auth-email.mjs",
   "SCANNER_TEST_RESULTS.md",
   "RELEASE_READINESS.md",
   "deploy/ANDROID-RELEASE-RUNBOOK.md",
@@ -760,4 +761,74 @@ for (const selector of [
   }
 }
 
-console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls and deployment probes.`);
+const creatorConfirmationStyles = fs.readFileSync(path.join(root, "apps/creator/src/app/globals.css"), "utf8");
+const confirmationStateStart = creatorOnboardingSource.indexOf('const [pendingConfirmationEmail, setPendingConfirmationEmail] = useState("");');
+const confirmationAuthStart = creatorOnboardingSource.indexOf("async function handleAuth(event: FormEvent<HTMLFormElement>) {");
+const confirmationResendStart = creatorOnboardingSource.indexOf("async function resendSignupConfirmation() {");
+const confirmationSetupStart = creatorOnboardingSource.indexOf("async function finishStudioSetup(", confirmationResendStart);
+if (confirmationStateStart < 0 || confirmationAuthStart < 0 || confirmationResendStart <= confirmationAuthStart || confirmationSetupStart <= confirmationResendStart) {
+  throw new Error("Creator must keep explicit state and separate handlers for pending email confirmation and resend.");
+}
+const creatorSignupHandler = creatorOnboardingSource.slice(confirmationAuthStart, confirmationResendStart);
+const creatorResendHandler = creatorOnboardingSource.slice(confirmationResendStart, confirmationSetupStart);
+if (!creatorSignupHandler.includes("isEmailDeliveryConfigurationError(result.error)") || !creatorSignupHandler.includes("Do not keep registering")) throw new Error("Creator must recover from SMTP confirmation failures without asking users to repeat signup.");
+if (!creatorResendHandler.includes("isEmailDeliveryConfigurationError(error)") || !creatorResendHandler.includes("email service is repaired")) throw new Error("Creator resend must explain when the mail provider is misconfigured.");
+for (const needle of [
+  'submittedMode === "signup" && !result.data.session',
+  'options: { emailRedirectTo: window.location.origin }',
+  "const confirmationEmail = email.toLowerCase();",
+  "setPendingConfirmationEmail(confirmationEmail);",
+  'setAuthMode("signin");',
+]) {
+  if (!creatorSignupHandler.includes(needle)) throw new Error("Creator signup must retain the exact email when confirmation is required: " + needle);
+}
+for (const needle of [
+  "if (!supabase || !pendingConfirmationEmail || busy) return;",
+  'supabase.auth.resend({',
+  'type: "signup",',
+  "email: pendingConfirmationEmail",
+  'options: { emailRedirectTo: window.location.origin }',
+  "setConfirmationError(true);",
+  "setConfirmationMessage(`A new confirmation email was sent to ${pendingConfirmationEmail}.",
+  "setBusy(false);",
+]) {
+  if (!creatorResendHandler.includes(needle)) throw new Error("Creator resend flow is missing a safe confirmation control: " + needle);
+}
+const confirmationScreenStart = creatorOnboardingSource.indexOf("if (!user && showAccountCreation) return");
+const confirmationScreenEnd = creatorOnboardingSource.indexOf("// The two unauthenticated branches above", confirmationScreenStart);
+if (confirmationScreenStart < 0 || confirmationScreenEnd <= confirmationScreenStart) throw new Error("Creator account screen boundaries could not be verified.");
+const confirmationScreen = creatorOnboardingSource.slice(confirmationScreenStart, confirmationScreenEnd);
+for (const needle of [
+  'pendingConfirmationEmail && authMode === "signin"',
+  'aria-live={confirmationError ? "assertive" : "polite"}',
+  "onClick={resendSignupConfirmation}",
+  'disabled={busy}',
+  "Resend confirmation email",
+  "creator-company-summary",
+  "aria-atomic=\"true\"",
+  "value={authEmail}",
+]) {
+  if (!confirmationScreen.includes(needle)) throw new Error("Creator account screen is missing its resend confirmation action or company summary: " + needle);
+}
+for (const selector of [
+  ".creator-confirmation-panel{",
+  ".creator-confirmation-panel.error{",
+  ".creator-confirmation-panel button:focus-visible",
+]) {
+  if (!creatorConfirmationStyles.includes(selector)) throw new Error("Creator confirmation feedback is missing accessible styling: " + selector);
+}
+
+const creatorAuthEmailTestSource = fs.readFileSync(path.join(root, "scripts/test-creator-auth-email.mjs"), "utf8");
+for (const needle of [
+  "client.auth.signUp({",
+  "client.auth.resend({",
+  "type: \"signup\",",
+  "options: { emailRedirectTo: creatorOrigin }",
+  "waitForMessages(mailpitUrl, email, 2)",
+  "signInWithPassword({ email, password })",
+  "Refusing to run the Creator Auth email test against a hosted/non-local Supabase project",
+]) {
+  if (!creatorAuthEmailTestSource.includes(needle)) throw new Error("Creator local Auth email integration test is missing a required check: " + needle);
+}
+
+console.log(`Source verification passed: ${required.length} required files plus reporting, security, build scanning, payment verification, refund controls, deployment probes and Creator email-confirmation recovery.`);
