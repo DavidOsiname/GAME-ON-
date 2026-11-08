@@ -126,7 +126,7 @@ export function CreatorAnalytics() {
 
     {message && <p className={loadError ? "analytics-load-error" : "insight-message"} role="status">{message}</p>}
 
-    <section className="analytics-metric-grid" aria-label="Studio analytics summary">
+    <section className="analytics-metric-grid analytics-summary-grid" aria-label="Studio analytics summary">
       <article className="analytics-metric-card">
         <span className="analytics-metric-icon cyan" aria-hidden="true">↧</span>
         <div><small>DOWNLOAD LINKS ISSUED</small><strong>{loading ? "—" : totalLinkIssues.toLocaleString()}</strong><p>Secure link requests recorded by Game ON</p></div>
@@ -145,26 +145,26 @@ export function CreatorAnalytics() {
       </article>
     </section>
 
-    <section className="analytics-meaning-panel" aria-label="What these numbers mean">
+    <section className="analytics-meaning-panel analytics-measurement-note" aria-label="What these numbers mean">
       <div>
         <p className="eyebrow">READ YOUR METRICS CORRECTLY</p>
         <h2>What these numbers tell you</h2>
-        <p>Game ON counts a secure download link when it is issued for an eligible published game and approved build.</p>
+        <p>Secure download links issued are requests recorded when a link is created for an eligible published game and approved build.</p>
       </div>
       <div className="analytics-meaning-columns">
-        <article><b>Included in this report</b><span>Download-link requests, their latest recorded issue time, approved build totals and published listing status.</span></article>
-        <article><b>Not measured here</b><span>Completed file transfers, unique players, installs, play time, page views, ratings or sales.</span></article>
+        <article><b>Included in this report</b><span>The current report includes secure download-link issues, their latest recorded issue time, approved build totals and current published listing status.</span></article>
+        <article><b>Not measured here</b><span>This report does not include listing impressions, wishlists, player ratings, completed file transfers, confirmed installs, play time or sales.</span></article>
       </div>
     </section>
 
-    <section className="surface-card analytics-card analytics-performance-card">
+    <section className="surface-card analytics-card analytics-performance-card analytics-performance-section">
       <div className="analytics-performance-heading">
         <div><p className="eyebrow">GAME-BY-GAME BREAKDOWN</p><h2>Download-link activity</h2><p>Compare the number of secure download links issued for each game.</p></div>
         <span className="analytics-results-total">{loading ? "…" : visibleRows.length.toLocaleString()} shown</span>
       </div>
       <div className="analytics-controls">
-        <label className="analytics-search"><span>SEARCH YOUR GAMES</span><input type="search" value={gameQuery} onChange={(event) => setGameQuery(event.target.value)} placeholder="Search game title or status…" aria-label="Search analytics games"/></label>
-        <div className="analytics-filter-row" aria-label="Filter analytics by publication status">
+        <label className="analytics-search"><span>SEARCH YOUR GAMES</span><input type="search" value={gameQuery} onChange={(event) => setGameQuery(event.target.value)} placeholder="Search game title or status…" aria-label="Search analytics by game"/></label>
+        <div className="analytics-filter-row" aria-label="Filter analytics by listing status">
           {filterOptions.map((option) => <button type="button" key={option.id} className={gameFilter === option.id ? "active" : ""} aria-pressed={gameFilter === option.id} onClick={() => setGameFilter(option.id)}>{option.label}<strong>{option.count}</strong></button>)}
         </div>
       </div>
@@ -195,7 +195,7 @@ export function CreatorAnalytics() {
           {issues === 0 && <small className="analytics-zero-note">No link activity recorded yet.</small>}
         </article>;
       })}
-      <p className="analytics-disclaimer">Important: this report counts secure download links issued by Game ON. A link being issued does not confirm the file transfer finished, the game was installed or played, or that a sale occurred. Sales reporting is separate from these link metrics.</p>
+      <p className="analytics-disclaimer">This report counts secure download links issued by Game ON. A link being issued does not confirm the file transfer finished, the game was installed or played, or that a sale occurred. Sales reporting is separate from these link metrics.</p>
     </section>
   </div>;
 }
