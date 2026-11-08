@@ -626,6 +626,12 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
     if (!studio) return;
     if (getSubmissionAction(event) === "draft") { await saveNewGameDraft(formElement); return; }
     const form = new FormData(formElement);
+    const platforms = form.getAll("platforms").map(String);
+    const fitInput = readGameFitInputs(form, platforms);
+    if (fitInput.error || !fitInput.platformDetails.length) {
+      setNotice(fitInput.error || "Check the GAME FIT information for each selected platform.");
+      return;
+    }
     const readiness = getListingFormReadiness(formElement);
     setFormReadiness(readiness);
     if (!readiness.ready) {
@@ -634,9 +640,7 @@ export default function CreatorApp({ scannerEnabled = false }: { scannerEnabled?
       return;
     }
     setBusy(true); setNotice("");
-    const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const platforms = form.getAll("platforms").map(String); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
-    const fitInput = readGameFitInputs(form, platforms);
-    if (fitInput.error || !fitInput.platformDetails.length) { setBusy(false); setNotice(fitInput.error || "Check the GAME FIT information for each selected platform."); return; }
+    const title = String(form.get("title") || "").trim(); const genre = String(form.get("genre") || ""); const description = String(form.get("description") || "").trim(); const monetization = String(form.get("monetization") || "free"); const ads = form.get("ads") === "on"; const iap = form.get("iap") === "on";
     const offline = fitInput.platformDetails.some((detail) => detail.internet_requirement === "offline" || detail.internet_requirement === "both");
     const priceInput = String(form.get("priceNaira") || "").trim();
     const priceNaira = priceInput ? Number(priceInput) : 0;
