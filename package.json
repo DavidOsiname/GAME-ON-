@@ -39,6 +39,7 @@
     "deploy:test": "node scripts/test-self-host-deploy.mjs",
     "release:verify": "bash scripts/complete-release-checks.sh",
     "deploy:self-hosted": "bash scripts/deploy-self-hosted.sh",
-    "creator-readiness:test": "node scripts/test-creator-readiness.mjs"
+    "creator-readiness:test": "node scripts/test-creator-readiness.mjs",
+    "creator-auth-email:test": "node scripts/test-creator-auth-email.mjs"
   }
 }
